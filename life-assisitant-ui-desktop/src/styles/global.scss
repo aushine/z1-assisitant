@@ -1,0 +1,359 @@
+// 全局工具类
+@use './tokens.scss' as *;
+
+// ----- Flex 工具 -----
+.flex { display: flex; }
+.flex-1 { flex: 1; min-width: 0; }
+.flex-col { display: flex; flex-direction: column; }
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.flex-start { display: flex; align-items: center; justify-content: flex-start; }
+.flex-end { display: flex; align-items: center; justify-content: flex-end; }
+
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.items-end { align-items: flex-end; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+
+// ----- Gap (间距) -----
+@for $i from 1 through 9 {
+  .gap-#{$i} { gap: $space-1 * $i; }
+}
+
+// ----- Margin / Padding 简写 -----
+@each $name, $val in (1: 4px, 2: 8px, 3: 12px, 4: 16px, 5: 20px, 6: 24px, 7: 32px, 8: 40px, 9: 48px) {
+  .p-#{$name} { padding: $val; }
+  .px-#{$name} { padding-left: $val; padding-right: $val; }
+  .py-#{$name} { padding-top: $val; padding-bottom: $val; }
+  .m-#{$name} { margin: $val; }
+  .mx-#{$name} { margin-left: $val; margin-right: $val; }
+  .my-#{$name} { margin-top: $val; margin-bottom: $val; }
+  .mt-#{$name} { margin-top: $val; }
+  .mb-#{$name} { margin-bottom: $val; }
+  .ml-#{$name} { margin-left: $val; }
+  .mr-#{$name} { margin-right: $val; }
+}
+
+// ----- Text 工具 -----
+.text-primary   { color: var(--color-text-primary); }
+.text-secondary { color: var(--color-text-secondary); }
+.text-tertiary  { color: var(--color-text-tertiary); }
+.text-disabled  { color: var(--color-text-disabled); }
+.text-primary-500 { color: var(--color-primary-500); }
+.text-success   { color: var(--color-success-dark); }
+.text-warning   { color: var(--color-warning-dark); }
+.text-danger    { color: var(--color-danger-dark); }
+.text-accent    { color: var(--color-accent-dark); }
+
+.text-center { text-align: center; }
+.text-left   { text-align: left; }
+.text-right  { text-align: right; }
+
+.fw-regular  { font-weight: 400; }
+.fw-medium   { font-weight: 500; }
+.fw-semibold { font-weight: 600; }
+.fw-bold     { font-weight: 700; }
+
+@for $i from 1 through 7 {
+  .fs-#{$i} {
+    @if $i == 1 { font-size: $fs-display; }
+    @else if $i == 2 { font-size: $fs-h1; }
+    @else if $i == 3 { font-size: $fs-h2; }
+    @else if $i == 4 { font-size: $fs-h3; }
+    @else if $i == 5 { font-size: $fs-h4; }
+    @else if $i == 6 { font-size: $fs-body; }
+    @else if $i == 7 { font-size: $fs-body-sm; }
+  }
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// ----- 背景 -----
+.bg-app      { background: var(--color-bg-app); }
+.bg-card     { background: var(--color-bg-card); }
+.bg-hover    { background: var(--color-bg-hover); }
+.bg-primary  { background: var(--color-primary-500); }
+.bg-primary-50 { background: var(--color-primary-50); }
+
+// ----- 圆角 -----
+.rounded-sm   { border-radius: $radius-xs; }
+.rounded      { border-radius: $radius-sm; }
+.rounded-md   { border-radius: $radius-md; }
+.rounded-lg   { border-radius: $radius-lg; }
+.rounded-xl   { border-radius: $radius-xl; }
+.rounded-2xl  { border-radius: $radius-2xl; }
+.rounded-pill { border-radius: $radius-pill; }
+
+// ----- 阴影 -----
+.shadow-xs { box-shadow: $shadow-xs; }
+.shadow-sm { box-shadow: $shadow-sm; }
+.shadow-md { box-shadow: $shadow-md; }
+.shadow-lg { box-shadow: $shadow-lg; }
+.shadow-button { box-shadow: $shadow-button; }
+
+// ----- 边框 -----
+.border        { border: 1px solid var(--color-border-default); }
+.border-light  { border: 1px solid var(--color-border-light); }
+.border-bottom { border-bottom: 1px solid var(--color-border-default); }
+.border-right  { border-right: 1px solid var(--color-border-default); }
+
+// ----- Semi UI focus ring override -----
+// Replace the heavy default blue box-shadow with a subtle ring matching our design tokens
+.semi-input-wrapper-focus,
+.semi-input-number-focus,
+.semi-select-focus,
+.semi-datepicker-focus,
+.semi-timepicker-focus {
+  box-shadow: 0 0 0 2px rgba(1, 77, 178, 0.12) !important;
+}
+
+// Remove focus ring on mouse click (only show on keyboard focus)
+.semi-input-wrapper:not(:focus-visible),
+.semi-input-number:not(:focus-visible),
+.semi-select:not(:focus-visible) {
+  box-shadow: none;
+}
+
+// ----- 通用容器 -----
+.card {
+  background: var(--color-bg-card);
+  border-radius: $radius-xl;
+  padding: $space-5;
+  box-shadow: $shadow-xs;
+  border: 1px solid var(--color-border-light);
+  transition: all $duration-base $ease-default;
+}
+
+.card:hover {
+  box-shadow: $shadow-sm;
+  border-color: var(--color-border-default);
+}
+
+// ----- 设置页容器（03 M10：me/* 六子页各自硬编码 maxWidth:600，提取为此类） -----
+.settings-page {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: $space-4 0;
+}
+
+// ----- 管理页容器 -----
+// ⚠️ 与 .settings-page 的区别：管理页是**列表 + 行内操作**（每行要放
+//    图标 / 标题 / 日期 / 重复规则 / 倒计时 / 编辑 / 删除），600px 会把行挤成两截。
+//    这里单独给 900px，且**不动** .settings-page（它服务于已存在的 6 个二级页，
+//    改宽度会让它们一起变宽）。
+.management-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: $space-4 0;
+}
+
+// ----- 页面标题区域 -----
+// A13: 此前的唯一定义点。stat.scss 也定义了一份（卡片式，且在 main.tsx 中最后加载），
+// 实际覆盖了 record / stat / task 三个页面。此处统一为「轻量分隔线」方案，
+// 并把原本只存在于 stat.scss 的 flex 结构补回来（stat.scss 的响应式规则依赖它）。
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $space-6;
+  padding-bottom: $space-4;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+// D-03 第七轮：待办/记录/统计页去页内大标题（与顶部导航重复），
+// 改「用户管理式」一行小字说明 + 右侧动作按钮
+.page-tipbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $space-4;
+  margin-bottom: $space-5;
+
+  .page-tip {
+    font-size: $fs-caption;
+    color: var(--color-text-tertiary);
+    padding: $space-2 0;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: $space-2;
+    flex-shrink: 0;
+  }
+}
+
+.page-title {
+  font-size: $fs-h2;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+.page-subtitle {
+  font-size: $fs-body-sm;
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+
+// ----- 工具栏 -----
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $space-4;
+  background: var(--color-bg-card);
+  border-radius: $radius-lg;
+  border: 1px solid var(--color-border-light);
+  margin-bottom: $space-5;
+}
+
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+}
+
+// ----- 空状态 -----
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: $space-9;
+  text-align: center;
+}
+
+.empty-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: $radius-xl;
+  background: var(--color-bg-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: $fs-display;
+  margin-bottom: $space-4;
+  color: var(--color-text-tertiary);
+}
+
+.empty-title {
+  font-size: $fs-h4;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: $space-2;
+}
+
+.empty-desc {
+  font-size: $fs-body;
+  color: var(--color-text-secondary);
+  max-width: 320px;
+}
+
+// ----- 错误状态（区别于空状态：错误是「出问题了」，空是「还没数据」） -----
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $space-3;
+  padding: $space-8 $space-5;
+  text-align: center;
+}
+
+.error-state__icon {
+  color: var(--color-danger);
+}
+
+.error-state__message {
+  font-size: $fs-body-sm;
+  color: var(--color-text-secondary);
+  margin: 0;
+  max-width: 320px;
+}
+
+.error-state--compact {
+  padding: $space-5;
+  gap: $space-2;
+}
+
+.error-state--compact .error-state__message {
+  font-size: $fs-caption;
+}
+
+// ----- 状态标签 -----
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-1;
+  padding: $space-1 $space-3;
+  border-radius: $radius-pill;
+  font-size: $fs-caption-sm;
+  font-weight: 600;
+}
+
+.status-tag-success {
+  background: var(--color-success-light);
+  color: var(--color-success-dark);
+}
+
+.status-tag-warning {
+  background: var(--color-warning-light);
+  color: var(--color-warning-dark);
+}
+
+.status-tag-danger {
+  background: var(--color-danger-light);
+  color: var(--color-danger-dark);
+}
+
+.status-tag-info {
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+}
+
+// ----- 占位骨架 -----
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-border-light) 25%,
+    var(--color-bg-hover) 50%,
+    var(--color-border-light) 75%
+  );
+  background-size: 200% 100%;
+  border-radius: $radius-sm;
+  animation: skeleton-shimmer 1.5s infinite;
+}
+
+// D-03 第五轮：统一的「回应操作」入场动效（frontend-design skill：动效要说明
+// 什么变了，克制、单点使用；页面切换 180ms 淡入微移，不做花哨编排）
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+// 系统级「减少动态效果」偏好：全部入场动画直接关闭（view-in 消费处均引用此守卫）
+@media (prefers-reduced-motion: reduce) {
+  .content > div,
+  .perm-modules {
+    animation: none !important;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

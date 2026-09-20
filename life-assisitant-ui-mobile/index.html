@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      ⚠️ iOS 主屏 Web App 视口修正 —— 必须放在**任何 CSS 之前**，否则首帧会用错值。
+
+      根因（WebKit bug，iPhone 15 Pro / iOS 26 实测）：
+      以主屏 App 方式冷启动时，WebKit 报告的「动态视口高度」——
+      100dvh / 100svh / window.innerHeight / visualViewport.height ——
+      会比真实屏幕高度**恰好矮一个 env(safe-area-inset-top)**
+      （iPhone 14 Pro 上是 59px，即状态栏 / 灵动岛高度）。
+      而 100vh / 100lvh / screen.height 报告的是**准确的全屏高度**。
+
+      「100dvh」本来是修「100vh 在 Safari 里含地址栏区域」的另一套 bug 的，
+      但在 standalone 下没有地址栏，它反而把不该减的安全区减掉了 ——
+      于是整页比屏幕矮约 59px，最后一条 UI 与屏幕物理底边之间留下可见空隙。
+      这正是「胶囊下面空一块 / 电脑调试模式没问题」的来源：桌面没有这个 bug。
+
+      修法：standalone 下把 --app-height 覆写成 100vh（= 全屏），
+      浏览器模式仍用 100dvh（跟随地址栏收放）。见 src/styles/reset.scss。
+
+      用 navigator.standalone 判定而非 matchMedia('(display-mode: standalone)')：
+      后者在 iOS 上**不可靠**（可能回报 browser）。navigator.standalone 是
+      iOS 专属且权威；Android 上为 undefined，不会误触发（Android PWA 的
+      100vh 含地址栏区域，必须继续用 100dvh）。
+    -->
+    <script>
+      (function () {
+        if (navigator.standalone !== true) return
+        document.documentElement.style.setProperty('--app-height', '100vh')
+      })()
+    </script>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <!-- iOS 主屏图标：必须实心 PNG（透明会被填黑），180x180；iOS 不认 manifest 里的 icons -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="format-detection" content="telephone=no, email=no, address=no" />
+    <!-- standalone：主屏打开后隐藏 Safari 地址栏/工具栏。apple-* 给 iOS，mobile-* 给 Android/Chromium -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- black-translucent：页面延伸到状态栏下（状态栏白字浮在页面背景上），
+         布局侧由 .status-bar-placeholder / env(safe-area-inset-top) 自适应 -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Z1" />
+    <!-- iOS 26 (Safari 26+) 主屏 Web App 会在屏幕底部悬浮一枚系统胶囊 Tab Bar。
+         历史方案曾试图用「负 bottom 抵消系统对 fixed 底边的内缩」，已废弃：
+         ① iOS 根本不渲染超出视口的 fixed 元素，负偏移被忽略或裁掉；
+         ② 真正的问题不是内缩，而是视口高度被少算（见文件头部注释）。
+         现在底部胶囊改用 absolute 锚定在 .home-layout 内，系统不介入。 -->
+    <meta name="theme-color" content="#0A3D4D" />
+    <meta
+      name="description"
+      content="Z1 · Zero to One - 让每个认真生活的人，井井有条地过好每一天。任务、习惯、记账、统计一站式个人效率工具。"
+    />
+    <title>Z1 · Zero to One</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

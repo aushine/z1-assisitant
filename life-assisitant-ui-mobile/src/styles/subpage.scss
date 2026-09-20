@@ -1,0 +1,252 @@
+/**
+ * 二级页（sub-page）公共样式（移动端）
+ *
+ * 用途：`/me/*`、`/system/*` 等从 Tab 页 push 进去的二级页面。
+ * 这些页面结构高度同构：顶部导航栏 + 若干卡片 + 表单/列表，
+ * 若每页各写一遍会迅速漂移（桌面端就出现过同类页面圆角/间距不一致）。
+ *
+ * 用法（在组件的 scoped style 里）：
+ *   @use '@/styles/subpage.scss' as *;
+ *
+ * ⚠️ 本文件里的 px 会被 postcss-px-to-viewport 转成 vw（基准 375），
+ *    这正是我们想要的（整页等比缩放）。若某处需要**固定** px（如 ECharts
+ *    容器高度），不要写在这里，用内联 style。
+ */
+
+.sub-page {
+  /* ⚠️ 必须是固定高度，不能只写 min-height —— 与 HomeLayout 用同一套
+     「单滚动容器」模型。用 min-height 时容器会被内容撑高，.sub-body 的
+     overflow-y:auto 空转、真正的滚动落到 body 上，iOS 橡皮筋会把整个视口
+     （连同这里吸顶的 .sub-header）拖着上下弹。
+     固定高度 + overflow:hidden 之后只有 .sub-body 滚动，顶部导航纹丝不动。
+     高度取 --app-height（不要写 100dvh/100vh）：standalone 下 WebKit 会少算
+     动态视口高度，导致整页矮一截、底部空出一条。详见 reset.scss 注释。 */
+  height: 100%;
+  height: var(--app-height);
+  overflow: hidden;
+  background: var(--color-bg-app);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 顶部导航栏（自绘，与页面内其他 header 保持同一视觉）
+ * ⚠️ 二级页是**顶层路由**（不在 HomeLayout 里），拿不到布局的
+ *    `.status-bar-placeholder`，所以这里自己补上刘海安全区，
+ *    否则真机（尤其 iOS）导航栏会被状态栏压住。 */
+.sub-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  height: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
+  background: var(--color-bg-card);
+  border-bottom: 1px solid var(--color-border-light);
+  flex-shrink: 0;
+}
+.sub-back {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  font-size: var(--fs-h2);
+  line-height: 1;
+  color: var(--color-text-primary);
+  border-radius: var(--radius-base);
+
+  &:active { background: var(--color-bg-hover); }
+}
+.sub-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-h4);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sub-right {
+  flex-shrink: 0;
+  font-size: var(--fs-caption-sm);
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+/* 内容区 */
+.sub-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--space-3) var(--space-5) calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+}
+
+/* 卡片 */
+.card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+.card-title {
+  font-size: var(--fs-body-sm);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-3);
+}
+
+/* 表单字段 */
+.field {
+  margin-bottom: var(--space-4);
+}
+.field-label {
+  display: block;
+  font-size: var(--fs-caption-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+.field-error {
+  margin: 4px 0 0;
+  font-size: var(--fs-micro);
+  color: var(--color-danger);
+}
+.field-hint {
+  margin: 4px 0 0;
+  font-size: var(--fs-micro);
+  color: var(--color-text-tertiary);
+  line-height: 1.5;
+}
+
+/* 按钮 */
+.btn {
+  width: 100%;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  transition: all var(--duration-fast) var(--ease-default);
+
+  &:active:not(:disabled) { transform: scale(0.98); }
+  &:disabled { opacity: 0.55; }
+}
+.btn-primary {
+  background: var(--color-primary);
+  color: #FFFFFF;
+  box-shadow: var(--shadow-button);
+
+  &:active:not(:disabled) { background: var(--color-primary-dark); }
+  &:disabled { background: var(--color-bg-hover); color: var(--color-text-disabled); box-shadow: none; }
+}
+.btn-ghost {
+  background: var(--color-bg-hover);
+  color: var(--color-text-secondary);
+}
+.btn-danger {
+  background: var(--color-danger-light);
+  color: var(--color-danger-dark);
+}
+
+/* 状态：加载 / 错误 / 空 */
+.skeleton {
+  height: 120px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-hover) 25%,
+    var(--color-border) 50%,
+    var(--color-bg-hover) 75%
+  );
+  background-size: 200% 100%;
+  animation: sub-shimmer 1.5s infinite;
+}
+@keyframes sub-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.state-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--tint-danger-bg);
+  color: var(--tint-danger-fg);
+  font-size: var(--fs-caption-sm);
+}
+.state-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 0;
+
+  .state-emoji { font-size: 34px; opacity: 0.6; margin-bottom: 8px; }
+  /* 图标版空态：尺寸由 <Icon :size> 控制，这里只管弱化与间距（图标体系改造后新增） */
+  .state-icon {
+    display: block;
+    opacity: 0.6;
+    margin-bottom: 8px;
+    color: var(--color-text-tertiary);
+  }
+  .state-text { margin: 0; font-size: var(--fs-caption-sm); color: var(--color-text-tertiary); }
+}
+
+.retry-btn {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-danger);
+  color: #FFFFFF;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  padding: 5px 14px;
+
+  &:active { opacity: 0.85; }
+}
+
+/* 通用行（设置项 / 列表项） */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+
+  & + .row { border-top: 1px solid var(--color-border-light); }
+}
+.row-body { flex: 1; min-width: 0; }
+.row-label {
+  font-size: var(--fs-body-sm);
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+.row-sub {
+  margin-top: 2px;
+  font-size: var(--fs-micro);
+  color: var(--color-text-tertiary);
+  line-height: 1.5;
+}
+.badge {
+  display: inline-block;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  line-height: 1.5;
+}

@@ -1,0 +1,163 @@
+/**
+ * 全局重置
+ * 移动端 H5：归一化浏览器默认样式，处理 iOS 安全区
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /**
+   * ⚠️ 全应用「一屏高度」的唯一来源，**不要**在任何地方手写 100vh / 100dvh。
+   *
+   * 默认 100dvh：跟随动态视口，适配 Safari 地址栏收放（浏览器模式）。
+   *
+   * iOS 主屏 Web App 下由 JS 覆写为 100vh：WebKit 冷启动时会少算动态视口
+   * 高度（恰好少一个状态栏），100dvh 因此比真实屏幕矮约 59px，导致页面
+   * 底部空出一条。覆写点有两处，互为保险：
+   *   1. index.html <head> 内联脚本（CSS 之前，保证首帧正确）
+   *   2. src/utils/safe-area.ts 的 initSafeArea()（挂载前再确认一次）
+   */
+  --app-height: 100dvh;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  /* 先写百分比兜底：`--app-height` 解析失败（极老浏览器不认 dvh）时仍有一屏高 */
+  height: 100%;
+  height: var(--app-height);
+  font-family: var(--font-family);
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  background: var(--color-bg-app);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  overflow-x: hidden;
+  /**
+   * ⚠️ 禁掉**根的滚动链与橡皮筋**，这是「上下滑带着胶囊一起弹」的收口。
+   *
+   * 全应用是「单滚动容器」模型：滚动只发生在页面内部的 body 容器里，
+   * 根（html/body）永远没有可滚内容。但当触摸落在**不可滚动**的区域
+   * （例如某一页的滚动容器恰好没内容可滚）时，iOS 会把这次触摸交给根，
+   * 根无处可滚 → 触发 visual viewport 的橡皮筋回弹 —— 整个页面连同
+   * absolute 定位的胶囊一起被拖动，看起来就是「胶囊跟着动」。
+   *
+   * `overscroll-behavior: none` 在根元素上同时禁止「滚动链传导」与
+   * 「自身的 overscroll 效果」（bounce/glow），桌面浏览器无副作用。
+   * 注意不要改成 contain：contain 只挡传导、仍保留自身回弹。
+   */
+  overscroll-behavior: none;
+}
+
+/**
+ * ⚠️ body 上**不要**做安全区补偿（padding-top/bottom: env(safe-area-inset-*)）。
+ * 安全区只能补偿一次，而每个布局都已经各自补偿过了：
+ *   - Tab 页     → HomeLayout 的 .status-bar-placeholder / .tabbar
+ *   - 二级页     → subpage.scss 的 .sub-header（padding-top + height）
+ *   - 认证页     → 同上（用的是 .sub-page + .sub-header）
+ *   - /login     → .hero 的 padding-top、.login-page 的 padding-bottom
+ *   - 403 / 404  → 页面自己的 padding-top / padding-bottom
+ * 之前这里补了一次 env()，在 status-bar-style=default 下（standalone 视口从状态栏
+ * 下方开始，env()=0）看不出问题；改成 black-translucent 后 env() 变成刘海高度，
+ * 于是和布局层**叠加**，顶部/底部各多出一条背景色空条。
+ *
+ * 另外 body 加 padding 还会让 position:fixed/sticky 的定位基准和视觉错位，
+ * 所以这里保持「全局不补、各布局自管」。
+ */
+body {
+  padding: 0;
+}
+
+/**
+ * ⚠️ 高度链：html → body → #app → .app-root → .home-layout / .sub-page
+ *    **每一环都取同一个 --app-height**，不写死任何单位。
+ *
+ * 历史坑（两轮，都是真机上才暴露、桌面浏览器永远看不出）：
+ *
+ *  ① 混用 `min-height: 100vh/100dvh` + 布局层 `100dvh` + 页面层 `100%`：
+ *     视口单位由浏览器按视口算、百分比由祖先链算，是两个基准。dvh 只要比
+ *     百分比基准大几像素，根元素就被内容顶高 → 整页出现根滚动 → iOS 上
+ *     fixed 的胶囊跟着滚、顶部栏也滑走。
+ *
+ *  ② 于是改成「纯百分比链」（html/body/#app 全 height:100%）：这反而踩中
+ *     WebKit 的另一个坑 —— 在 `viewport-fit=cover` + `black-translucent`
+ *     下，百分比高度**不计算状态栏后面的区域**，整页比屏幕矮约 59px，
+ *     底部空出一条（就是「胶囊下面空一块」）。
+ *
+ * 现在：单一来源 = `--app-height`（桌面/浏览器 = 100dvh，standalone = 100vh，
+ * 见文件顶部与 index.html 头部注释）。链条上任何一环要改高度，改这个变量。
+ */
+#app {
+  width: 100%;
+  height: 100%;
+  height: var(--app-height);
+  position: relative;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text-primary);
+}
+
+p {
+  margin: 0;
+}
+
+ul, ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+  vertical-align: middle;
+}
+
+button {
+  font-family: inherit;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  color: inherit;
+}
+
+input,
+textarea {
+  font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* 数字等宽（防止金额跳动） */
+.num,
+.money,
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* 滚动条隐藏（移动端） */
+::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}

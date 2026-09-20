@@ -1,0 +1,81 @@
+/* ==========================================================================
+ * Semi Design Overrides
+ * 计划文档 plan-260807/02-frontend-tasks.md § M1
+ * 使用 tokens.scss 中 `--color-*` 体系的 CSS 变量覆盖 Semi 默认样式
+ * 注意：更详细的 Semi CSS variable 覆盖在 semi-theme.scss 中
+ * ========================================================================== */
+
+/* ===== Font ===== */
+body,
+.semi-typography {
+  font-family: var(--font-family);
+}
+
+.semi-table-tbody,
+.semi-input,
+.semi-button {
+  font-family: var(--font-family);
+}
+
+/* 数字等宽 */
+.kpi-value,
+.kpi-large-value,
+.acc-balance {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Card ===== */
+.semi-card {
+  border-radius: var(--radius-xl) !important;
+  box-shadow: var(--shadow-xs) !important;
+  transition: box-shadow 200ms ease, transform 200ms ease;
+}
+
+.semi-card:hover {
+  box-shadow: var(--shadow-sm) !important;
+}
+
+/* ===== Button ===== */
+.semi-button-primary.semi-button-solid {
+  background-color: var(--color-primary-500) !important;
+  border-color: var(--color-primary-500) !important;
+  box-shadow: var(--shadow-button) !important;
+}
+
+.semi-button-primary.semi-button-solid:active {
+  transform: scale(0.98);
+}
+
+/* ===== Input ===== */
+.semi-input-wrapper,
+.semi-input {
+  border-radius: var(--radius-lg) !important;
+}
+
+.semi-input-wrapper-focus {
+  box-shadow: var(--shadow-input-focus) !important;
+  border-color: var(--color-primary-500) !important;
+}
+
+/* ===== Table ===== */
+/* A13: 由 16px 24px 收敛为 16px 20px，与 semi-theme.scss 的 .semi-table-cell 取同值，
+   消除「特异性更高的规则静默覆盖作者意图」。 */
+.semi-table-tbody > tr > td {
+  padding: var(--space-4) var(--space-5);
+}
+
+/* ===== Animation ===== */
+.setting-item:hover {
+  background-color: var(--color-bg-hover);
+  transition: background-color 200ms ease;
+}
+
+/* ===== Reduced motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 50ms !important;
+    transition-duration: 50ms !important;
+  }
+}

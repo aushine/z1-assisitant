@@ -1,0 +1,85 @@
+version: '3.8'
+# 生活助手 App · 本地开发环境
+# 用法：
+#   docker compose -f docker-compose.dev.yml up -d
+#   docker compose -f docker-compose.dev.yml down    # 停止
+#   docker compose -f docker-compose.dev.yml down -v # 停止 + 清理数据
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: life-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: life_assistant
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+      TZ: Asia/Shanghai
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # 首次启动时自动执行 SQL 初始化脚本
+      - ./life-assisitant-api/manifest/sql:/docker-entrypoint-initdb.d
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --max_connections=200
+      - --slow_query_log=1
+      - --long_query_time=1
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: life-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # 可选：Redis 管理界面（开发用）
+  redis-commander:
+    image: ghcr.io/joeferner/redis-commander:latest
+    container_name: life-redis-commander
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:life-redis:6379
+    depends_on:
+      - redis
+
+  # 可选：MySQL 管理界面（开发用）
+  adminer:
+    image: adminer:latest
+    container_name: life-adminer
+    restart: unless-stopped
+    ports:
+      - "8082:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=mysql
+    depends_on:
+      - mysql
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  default:
+    name: life-dev

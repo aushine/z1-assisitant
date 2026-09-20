@@ -1,0 +1,1718 @@
+@use './tokens.scss' as *;
+
+// ==========================================================================
+// Task page
+// 优化后的任务页面样式 - 简约现代风格
+// ==========================================================================
+
+.task-page {
+  display: flex;
+  flex-direction: column;
+  gap: $space-5;
+}
+
+.task-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $space-3;
+  flex-wrap: wrap;
+  padding: $space-4;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: $radius-xl;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(10px);
+}
+
+.task-filters {
+  display: flex;
+  gap: $space-2;
+  align-items: center;
+}
+
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: $space-4;
+  padding: $space-5;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: $radius-xl;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition: all $duration-base $ease-default;
+
+  &:hover {
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.task-checkbox {
+  flex-shrink: 0;
+}
+
+.task-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-title-row {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+}
+
+.task-title {
+  font-size: $fs-body;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-meta {
+  display: flex;
+  gap: $space-4;
+  margin-top: $space-1;
+}
+
+.task-due,
+.task-category {
+  font-size: $fs-caption;
+  color: var(--color-text-tertiary);
+}
+
+.task-actions {
+  display: flex;
+  gap: $space-1;
+  opacity: 0;
+  transition: opacity $duration-fast $ease-default;
+
+  .task-item:hover & {
+    opacity: 1;
+  }
+}
+
+// ==========================================================================
+// Record page
+// 优化后的记录页面样式 - 简约现代风格
+// ==========================================================================
+.record-page {
+  display: flex;
+  flex-direction: column;
+  gap: $space-5;
+}
+
+.tab-bar {
+  display: flex;
+  gap: $space-2;
+  margin-bottom: $space-4;
+  padding: $space-3;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: $radius-xl;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(10px);
+}
+
+.tab-btn {
+  padding: $space-2 $space-4;
+  border-radius: $radius-pill;
+  font-size: $fs-body-sm;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all $duration-fast $ease-default;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+
+  &.active {
+    background: var(--color-primary-500);
+    color: white;
+    border-color: var(--color-primary-500);
+  }
+
+  &:hover:not(.active) {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--color-text-primary);
+  }
+}
+
+.habit-row {
+  display: flex;
+  align-items: center;
+  gap: $space-4;
+  padding: $space-5;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: $radius-xl;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition: all $duration-base $ease-default;
+
+  &:hover {
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.habit-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: $radius-lg;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--color-primary-100), var(--color-primary-50));
+  color: var(--color-primary-600);
+}
+
+.habit-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.habit-title {
+  font-size: $fs-body;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.habit-sub {
+  font-size: $fs-caption;
+  color: var(--color-text-tertiary);
+  margin-top: 2px;
+}
+
+.col-actions {
+  display: flex;
+  gap: $space-1;
+}
+
+// ==========================================================================
+// Task batch bar
+// ==========================================================================
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  padding: $space-1 $space-3;
+  background: var(--color-primary-50);
+  border-radius: $radius-pill;
+  border: 1px solid var(--color-primary-100);
+}
+
+.batch-count {
+  font-size: $fs-caption;
+  font-weight: 600;
+  color: var(--color-primary-600);
+  margin-right: $space-1;
+}
+
+// ==========================================================================
+// Task detail page
+// ==========================================================================
+.task-detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: $space-5;
+}
+
+.detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $space-4;
+}
+
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  flex: 1;
+  min-width: 0;
+}
+
+.detail-title {
+  font-size: $fs-h3;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &.done {
+    text-decoration: line-through;
+    color: var(--color-text-tertiary);
+  }
+}
+
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-4;
+  margin-top: $space-2;
+}
+
+.detail-meta-item {
+  display: flex;
+  align-items: center;
+  gap: $space-1;
+  font-size: $fs-caption;
+  color: var(--color-text-secondary);
+}
+
+.detail-body {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: $space-5;
+}
+
+.detail-main {
+  display: flex;
+  flex-direction: column;
+  gap: $space-5;
+}
+
+.detail-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: $space-4;
+}
+
+.detail-section {
+  padding: $space-5;
+  background: var(--color-bg-card);
+  border-radius: $radius-xl;
+  border: 1px solid var(--color-border-light);
+}
+
+.detail-section-title {
+  font-size: $fs-body-sm;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: $space-3;
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+}
+
+.detail-desc {
+  font-size: $fs-body;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.subtask-progress {
+  margin-bottom: $space-3;
+}
+
+.subtask-progress-bar {
+  height: $bar-height;
+  background: var(--color-bg-hover);
+  border-radius: $radius-pill;
+  overflow: hidden;
+  margin-top: $space-2;
+}
+
+.subtask-progress-fill {
+  height: 100%;
+  background: var(--color-success);
+  border-radius: $radius-pill;
+  transition: width $duration-base $ease-default;
+}
+
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  padding: $space-3;
+  border-radius: $radius-lg;
+  transition: background $duration-fast $ease-default;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+}
+
+.subtask-title {
+  flex: 1;
+  font-size: $fs-body-sm;
+  color: var(--color-text-primary);
+
+  &.completed {
+    text-decoration: line-through;
+    color: var(--color-text-tertiary);
+  }
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $space-3 0;
+
+  & + .sidebar-item {
+    border-top: 1px solid var(--color-border-light);
+  }
+}
+
+.sidebar-label {
+  font-size: $fs-caption;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+.sidebar-value {
+  font-size: $fs-body-sm;
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+@media (max-width: 900px) {
+  .detail-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+// Account / Finance
+.account-card {
+  display: flex;
+  align-items: center;
+  gap: $space-4;
+  padding: $space-5;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: $radius-xl;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition: all $duration-base $ease-default;
+
+  &:hover {
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.account-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: $radius-lg;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--color-success-light), rgba(16, 185, 129, 0.1));
+  color: var(--color-success);
+}
+
+.account-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-name {
+  font-size: $fs-body;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.account-balance {
+  font-size: $fs-h4;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+// ==========================================================================
+// Stat page
+// 优化后的统计页面样式 - 简约现代风格
+// ==========================================================================
+.stat-page {
+  display: flex;
+  flex-direction: column;
+  gap: $space-5;
+}
+
+.stat-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: $space-4;
+}
+
+.stat-card {
+  padding: $space-6;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: $radius-xl;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition: all $duration-base $ease-default;
+  position: relative;
+  overflow: hidden;
+
+  &:hover {
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: $decor-bar;
+    background: linear-gradient(90deg, var(--color-primary-500), var(--color-primary-300));
+    opacity: 0;
+    transition: opacity $duration-fast $ease-default;
+  }
+
+  &:hover::before {
+    opacity: 1;
+  }
+}
+
+.stat-label {
+  font-size: $fs-caption;
+  color: var(--color-text-tertiary);
+  margin-bottom: $space-2;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: $fs-h2;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  letter-spacing: -0.5px;
+}
+
+.stat-change {
+  font-size: $fs-caption;
+  margin-top: $space-2;
+  font-weight: 500;
+
+  &.up {
+    color: var(--color-success);
+  }
+
+  &.down {
+    color: var(--color-danger);
+  }
+}
+
+// ==========================================================================
+// Me page
+// 优化后的个人中心页面样式 - 简约现代风格
+// ==========================================================================
+.me-page {
+  display: flex;
+  flex-direction: column;
+  gap: $space-5;
+}
+
+.header-card {
+  display: flex;
+  align-items: center;
+  gap: $space-5;
+  padding: $space-6;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: $radius-xl;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition: all $duration-base $ease-default;
+
+  &:hover {
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+
+  // D-03 第七轮：头像即上传入口（移入显半透明遮罩文字，点选即传）
+  .avatar-upload {
+    position: relative;
+    cursor: pointer;
+    border-radius: 50%;
+    flex-shrink: 0;
+
+    .avatar-upload-mask {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: $fs-caption;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.45);
+      opacity: 0;
+      transition: opacity 0.15s ease-out;
+    }
+
+    &:hover .avatar-upload-mask,
+    &:focus-visible .avatar-upload-mask {
+      opacity: 1;
+    }
+  }
+
+  .info {
+    flex: 1;
+
+    h2 {
+      font-size: $fs-h3;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      margin: 0;
+      letter-spacing: -0.3px;
+    }
+
+    .meta {
+      display: flex;
+      align-items: center;
+      gap: $space-3;
+      margin-top: $space-2;
+    }
+
+    .email {
+      font-size: $fs-caption;
+      color: var(--color-text-tertiary);
+    }
+  }
+}
+
+.settings-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 个人中心四分组（spec 06 §1）：分组标题是**分隔符**，不是卡片 ——
+   小字 + tertiary 色 + 无背景无阴影，避免和 setting-item 抢视觉层级。 */
+.settings-group {
+  display: flex;
+  flex-direction: column;
+
+  & + .settings-group {
+    margin-top: $space-2;
+  }
+}
+
+.settings-group-title {
+  padding: $space-2 $space-3 $space-1;
+  font-size: var(--fs-caption-sm);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-text-tertiary);
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  gap: $space-4;
+  padding: $space-4 $space-3;
+  border-radius: $radius-lg;
+  cursor: pointer;
+  transition: background $duration-fast $ease-default;
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+
+  &.danger {
+    .setting-label {
+      color: var(--color-danger);
+    }
+  }
+}
+
+.setting-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: $radius-lg;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-hover);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.setting-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.setting-label {
+  font-size: $fs-body-sm;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.setting-sublabel {
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+  margin-top: 2px;
+}
+
+.setting-right {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.setting-arrow {
+  font-size: 18px;
+  color: var(--color-text-tertiary);
+  font-weight: 300;
+}
+
+// ==========================================================================
+// Me sub-pages
+// ==========================================================================
+.sub-page {
+  display: flex;
+  flex-direction: column;
+  gap: $space-5;
+}
+
+.sub-page-header {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  padding: $space-4 0;
+
+  h3 {
+    font-size: $fs-h4;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin: 0;
+  }
+}
+
+.back-btn {
+  font-size: $fs-h3;
+  color: var(--color-primary-500);
+  cursor: pointer;
+  user-select: none;
+  transition: color $duration-fast $ease-default;
+  padding: $space-1 $space-2;
+  border-radius: $radius-sm;
+
+  &:hover {
+    color: var(--color-primary-600);
+    background: var(--color-bg-hover);
+  }
+}
+
+.field {
+  margin-bottom: $space-4;
+}
+
+.field-label {
+  display: block;
+  font-size: $fs-caption;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-bottom: $space-1;
+}
+
+.field-error {
+  color: var(--color-danger);
+  font-size: $fs-caption-sm;
+  margin-top: $space-1;
+}
+
+// ==========================================================================
+// System pages (User, Permission)
+// ==========================================================================
+.system-page {
+  display: flex;
+  flex-direction: column;
+  gap: $space-5;
+}
+
+.system-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $space-3;
+  padding: $space-4;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: $radius-xl;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(10px);
+}
+
+// ==========================================================================
+// Budget styles
+// ==========================================================================
+.budget-list {
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
+}
+
+.budget-item {
+  padding: $space-4;
+  background: var(--color-bg-hover);
+  border-radius: $radius-lg;
+  transition: background $duration-fast $ease-default;
+
+  &:hover {
+    background: var(--color-bg-card);
+  }
+}
+
+.budget-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $space-2;
+}
+
+.budget-name {
+  font-size: $fs-body-sm;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.budget-amounts {
+  font-size: $fs-caption;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-bar {
+  height: $bar-height;
+  background: var(--color-bg-hover);
+  border-radius: $radius-pill;
+  overflow: hidden;
+}
+
+.budget-bar-fill {
+  height: 100%;
+  border-radius: $radius-pill;
+  transition: width $duration-base $ease-default;
+}
+
+.budget-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: $space-2;
+}
+
+.budget-pct {
+  font-size: $fs-caption-sm;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+// ==========================================================================
+// Stat page — charts
+// ==========================================================================
+.chart-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: $space-5;
+}
+
+.chart-card {
+  overflow: hidden;
+}
+
+// ==========================================================================
+// Medal tokens（S07：里程碑奖牌色）
+// 已收敛到 tokens.scss 的**唯一来源** —— 此处不再定义。
+// 原因：本文件与 stat.scss 曾各自定义同名 --medal-*，但两者**类型不同**
+// （此处为纯色、stat.scss 为渐变）。stat.scss 在 main.tsx 中最后加载 →
+// 全局胜出为渐变 → 记录页 StreakBadge 的 `color: var(--medal-gold)`
+// 拿到 linear-gradient() 对 color 属性非法、整条声明被丢弃，徽章静默失金。
+// 现约定：--medal-* 为纯色（color/border-color），--medal-*-bg 为渐变（background）。
+// ==========================================================================
+
+// ==========================================================================
+// 通用辅助类
+// ==========================================================================
+.muted {
+  color: var(--color-text-tertiary);
+}
+
+// ==========================================================================
+// Account Manager（R14 共用组件：资产 / 账户 Tab）
+// ==========================================================================
+.account-manager {
+  display: flex;
+  flex-direction: column;
+  gap: $space-4;
+}
+
+.account-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: $space-4;
+}
+
+.acc-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.acc-name {
+  font-size: $fs-body;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acc-balance {
+  font-size: $fs-h4;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.acc-actions {
+  display: flex;
+  gap: $space-1;
+  flex-shrink: 0;
+}
+
+.acc-modal {
+  display: flex;
+  flex-direction: column;
+}
+
+// ==========================================================================
+// Streak badge / milestones（S05 / S06 / S07）
+// ==========================================================================
+.streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: $radius-pill;
+  font-size: $fs-caption-sm;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.milestone-section {
+  display: flex;
+  align-items: center;
+  margin-top: $space-4;
+}
+
+.milestone-row {
+  display: inline-flex;
+  gap: $space-2;
+}
+
+.milestone-chip {
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-lg;
+  border: 1px solid var(--color-border-light);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-card);
+}
+
+// ==========================================================================
+// Mood section（M02 / M04 / M05）
+// ==========================================================================
+.mood-body {
+  display: flex;
+  flex-direction: column;
+  gap: $space-4;
+}
+
+.mood-row {
+  display: flex;
+  align-items: flex-start;
+  gap: $space-4;
+}
+
+.mood-row-label {
+  width: 40px;
+  flex-shrink: 0;
+  font-size: $fs-caption;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  line-height: 32px;
+}
+
+.mood-chips {
+  display: flex;
+  gap: $space-2;
+  flex-wrap: wrap;
+}
+
+.mood-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: $radius-pill;
+  border: 2px solid var(--color-border-light);
+  cursor: pointer;
+  font-size: $fs-caption;
+  transition: all $duration-fast $ease-default;
+
+  &:hover {
+    border-color: var(--color-border-strong);
+  }
+}
+
+.mood-chip-label {
+  font-size: $fs-caption;
+}
+
+.mood-note {
+  flex: 1;
+}
+
+// ----- 心情：按小时记录（时间线 / 此刻区） -----
+.mood-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: $fs-caption;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.mood-section-label {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  font-size: $fs-caption-sm;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+
+  &::before {
+    content: '';
+    width: 3px;
+    height: 12px;
+    border-radius: $radius-pill;
+    background: var(--color-primary-500);
+  }
+}
+
+.mood-chip-clear {
+  color: var(--color-text-secondary);
+
+  &.active {
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-strong);
+  }
+}
+
+.mood-hint {
+  margin: 0;
+  font-size: $fs-micro;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
+.mood-empty-tip {
+  margin: 0;
+  padding: $space-2 12px;
+  background: var(--color-bg-hover);
+  border-radius: $radius-md;
+  font-size: $fs-caption;
+  color: var(--color-text-secondary);
+}
+
+.mood-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.mood-tl-row {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  padding: 6px 10px;
+  border-radius: $radius-md;
+  cursor: pointer;
+  transition: background $duration-fast $ease-default;
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+
+  &.is-now {
+    background: var(--color-primary-light);
+  }
+}
+
+.mood-tl-now {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  font-size: $fs-micro;
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-primary-500);
+  border-radius: $radius-pill;
+}
+
+.mood-tl-hour {
+  flex-shrink: 0;
+  width: 44px;
+  font-size: $fs-caption-sm;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.mood-tl-mood {
+  flex-shrink: 0;
+  font-size: $fs-caption-sm;
+  color: var(--color-text-secondary);
+}
+
+.mood-tl-note {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+}
+
+.mood-tl-empty {
+  margin: 0;
+  padding: $space-2 0;
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+}
+
+// 折叠态下的「展开全天」按钮（健康 tab 的 3 条 → 全量）
+.mood-tl-expand {
+  display: block;
+  width: 100%;
+  margin-top: $space-1;
+  padding: 6px 0;
+  border: none;
+  background: transparent;
+  border-radius: $radius-md;
+  font-size: $fs-caption-sm;
+  font-weight: 600;
+  color: var(--color-primary-500);
+  cursor: pointer;
+  transition: background $duration-fast $ease-default;
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+}
+
+// ==========================================================================
+// 表格单元格辅助
+// ==========================================================================
+.col-progress {
+  min-width: 140px;
+}
+
+@media (max-width: 900px) {
+  .account-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===================== 经期模块（PeriodTab, 2026-09-19） ===================== */
+.period-tab { display: flex; flex-direction: column; gap: var(--space-4); }
+.period-toolbar { display: flex; align-items: center; justify-content: space-between; }
+.period-toolbar-title { font-size: var(--fs-h4); font-weight: 600; display: flex; align-items: center; }
+
+.period-grid { display: grid; grid-template-columns: 380px 1fr; gap: var(--space-4); align-items: start; }
+@media (max-width: 1100px) { .period-grid { grid-template-columns: 1fr; } }
+.period-col-left, .period-col-right { display: flex; flex-direction: column; gap: var(--space-4); }
+
+/* 概览卡 */
+.period-overview { position: relative; padding: var(--space-5); }
+.period-overview-actions { position: absolute; top: var(--space-4); right: var(--space-4); display: flex; gap: var(--space-2); align-items: center; }
+.period-overview-actions svg { cursor: pointer; color: var(--color-text-tertiary); }
+.period-overview-actions svg:hover { color: var(--color-text-secondary); }
+.period-mask-icon { cursor: pointer; }
+.period-phase-name { font-size: var(--fs-h3); font-weight: 600; color: var(--color-text-primary); }
+.period-day-index { font-size: var(--fs-caption); color: var(--color-text-tertiary); margin-top: 2px; text-align: right; }
+.period-progress { height: 6px; border-radius: 999px; background: var(--color-border-light); margin: var(--space-3) 0; overflow: hidden; }
+.period-progress-fill { height: 100%; border-radius: 999px; transition: width .3s; }
+.period-next-main { font-size: var(--fs-metric); font-weight: 600; color: var(--color-text-primary); }
+.period-next-sub { font-size: var(--fs-caption); color: var(--color-text-tertiary); margin-top: 2px; }
+.period-fertile-pill { display: inline-block; margin-top: var(--space-3); padding: 4px 10px; border-radius: 999px; font-size: var(--fs-caption-sm); }
+.period-alerts { margin-top: var(--space-3); }
+.period-alert-item { font-size: var(--fs-caption); line-height: 1.6; }
+.period-alert-footnote { font-size: var(--fs-caption-sm); color: var(--color-text-tertiary); margin-top: 6px; }
+.period-phase-desc { font-size: var(--fs-caption-sm); margin-top: var(--space-3); }
+
+.period-guide { padding: var(--space-4) 0; }
+.period-guide-title { font-size: var(--fs-h3); font-weight: 600; margin-bottom: var(--space-3); }
+.period-guide-desc { font-size: var(--fs-body-sm); color: var(--color-text-secondary); margin-bottom: var(--space-5); line-height: 1.6; }
+
+/* 月历（视觉语言与 HabitHeatmap 同构：整格填色圆角方块） */
+.period-calendar-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-3); }
+.period-calendar-title { font-size: var(--fs-h4); font-weight: 600; display: inline-flex; align-items: baseline; }
+.period-calendar-subtitle { font-size: var(--fs-caption); font-weight: 400; color: var(--color-text-tertiary); margin-left: 4px; }
+.period-cal-nav-group { display: flex; align-items: center; gap: var(--space-2); }
+.period-cal-nav-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 32px; padding: 0 8px; background: var(--color-bg-hover); border: 0; border-radius: 8px; color: var(--color-text-secondary); font-size: 16px; line-height: 1; cursor: pointer; transition: color .1s, background .1s; }
+.period-cal-nav-btn:hover:not(:disabled) { color: var(--color-text-primary); }
+.period-cal-nav-btn:disabled { cursor: default; }
+.period-cal-nav-text { font-size: var(--fs-caption-sm); color: var(--color-primary); }
+.period-cal-nav-text:hover { color: var(--color-primary); }
+.period-calendar-week { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 6px; }
+.period-cal-week-cell { text-align: center; font-size: var(--fs-caption-sm); color: var(--color-text-tertiary); }
+.period-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.period-cal-cell { position: relative; min-height: 64px; border-radius: 8px; padding: 4px; display: flex; flex-direction: column; text-align: left; cursor: pointer; box-sizing: border-box; border: 1px solid transparent; transition: transform .1s; }
+.period-cal-cell:hover { transform: scale(1.04); }
+.period-cal-cell.empty { background: transparent; border: none; cursor: default; }
+.period-cal-cell.empty:hover { transform: none; }
+.period-cal-day { font-size: 13px; font-weight: 600; line-height: 1; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.period-cal-sub { margin-top: 2px; font-size: 10px; line-height: 1.3; white-space: nowrap; overflow: hidden; }
+.period-cal-sub-term { color: var(--color-success-dark); font-weight: 600; }
+.period-cal-sub-lunar { color: var(--color-text-tertiary); }
+.period-cal-dot { position: absolute; right: 4px; bottom: 4px; width: 4px; height: 4px; border-radius: 50%; }
+
+/* 健康月历的「分类小点」：日期数字下方一排，可重叠；最多 3 个 + 「+N」。
+   ⚠️ 与右下角的经期点滴（.period-cal-dot）是两个容器，不混排。 */
+.health-cal-dots {
+  position: absolute;
+  bottom: 3px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+}
+.health-cal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  border: 1px solid var(--color-bg-card);
+}
+.health-cal-dot + .health-cal-dot { margin-left: -2px; }
+.health-cal-dot-more {
+  margin-left: 2px;
+  font-size: var(--fs-micro);
+  line-height: 1;
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 健康时间轴事件列表 */
+.health-ev-empty {
+  margin-top: var(--space-2);
+  font-size: var(--fs-caption-sm);
+  color: var(--color-text-tertiary);
+}
+.health-ev-list {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.health-ev-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 0;
+
+  & + & {
+    border-top: 1px solid var(--color-border-light);
+  }
+}
+.health-ev-val {
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.health-ev-note {
+  flex: 1;
+  min-width: 0;
+}
+.period-legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-3); font-size: var(--fs-caption-sm); color: var(--color-text-tertiary); }
+.period-legend-item { display: inline-flex; align-items: center; gap: 4px; }
+.period-legend-scale { gap: 4px; }
+.period-legend-scale-blocks { display: inline-flex; gap: 2px; }
+.period-legend-shape { width: 12px; height: 12px; border-radius: 3px; display: inline-block; box-sizing: border-box; }
+.period-legend-round { border-radius: 50%; }
+.period-legend-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.period-legend-hidden { margin-left: auto; color: var(--color-text-tertiary); }
+
+/* 快捷记录条 */
+.period-quick-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.period-quick-label { font-size: var(--fs-body-sm); color: var(--color-text-secondary); margin-right: 4px; }
+
+/* 历史 */
+.period-history-list { display: flex; flex-direction: column; }
+.period-history-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border-light); cursor: pointer; }
+.period-history-row:last-child { border-bottom: none; }
+.period-history-date { font-weight: 600; font-size: var(--fs-body-sm); }
+.period-history-meta { font-size: var(--fs-caption); color: var(--color-text-tertiary); display: flex; align-items: center; }
+.period-history-arrow { margin-left: auto; color: var(--color-text-disabled); }
+
+/* Drawer 表单内 */
+.dim-info { font-size: var(--fs-caption); color: var(--color-text-tertiary); line-height: 1.6; margin-bottom: var(--space-3); }
+.period-flow-levels { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-3) 0; }
+.period-flow-hint { font-size: var(--fs-caption-sm); color: var(--color-text-tertiary); margin-left: 4px; }
+.period-symptom-group { margin: var(--space-3) 0; }
+.period-group-label { font-size: var(--fs-caption-sm); color: var(--color-text-tertiary); margin-bottom: var(--space-2); }
+.period-recent { margin-bottom: var(--space-3); }
+.period-recent-title { font-size: var(--fs-caption-sm); color: var(--color-text-tertiary); margin-bottom: var(--space-2); }
+.period-recent-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.period-caption { font-size: var(--fs-caption-sm); color: var(--color-text-tertiary); margin-top: 4px; }
+.period-spotting-row { display: flex; align-items: center; justify-content: space-between; }
+
+/* 设置 / 向导 */
+.period-setting-block { margin-bottom: var(--space-5); }
+.period-setting-label { font-size: var(--fs-body-sm); font-weight: 600; margin-bottom: var(--space-2); }
+.period-setting-switch { display: flex; align-items: center; justify-content: space-between; padding: var(--space-2) 0; }
+.period-disclaimer { font-size: var(--fs-caption); color: var(--color-text-secondary); line-height: 1.7; background: var(--color-bg-hover); padding: var(--space-3); border-radius: 8px; white-space: pre-line; }
+.period-wizard-step-title { font-size: var(--fs-h4); font-weight: 600; margin-bottom: var(--space-4); }
+.period-wizard-ack { display: flex; align-items: center; margin-top: var(--space-3); font-size: var(--fs-body-sm); }
+
+/* 预测依据弹层（ⓘ） */
+.period-stats { font-size: var(--fs-caption); }
+.period-stats-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border-light);
+}
+.period-stats-row span { color: var(--color-text-tertiary); }
+.period-stats-row b { font-weight: 600; color: var(--color-text-primary); text-align: right; }
+.period-stats-hint {
+  margin: var(--space-3) 0 0;
+  font-size: var(--fs-caption-sm);
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+/* ==========================================================================
+ * 健康模块（Health Tab / 记录浮层 / 设置 / 引导）
+ * 字号统一用 var(--fs-*)；间距与颜色复用 tokens 的 CSS 变量。
+ * ========================================================================== */
+
+.health-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+}
+
+/* ==================== 两列栅格（09 §3.3 / §12.1，断点与 .period-grid 对齐） ==================== */
+/* ⚠️ 断点 1100px 按「内容区宽度」理解：视口 − 侧栏 260 − padding 64 ≈ 776px，
+   380px + 1fr 在这里月历只剩约 396px，必须退化成单列。 */
+.health-grid {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .health-grid { grid-template-columns: 1fr; }
+}
+.health-grid-left,
+.health-grid-right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* ==================== 今日健康（分类卡，02 §16） ==================== */
+.health-overview { padding: var(--space-4); }
+.health-ov-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.health-ov-head-left { display: flex; flex-direction: column; gap: 2px; }
+.health-ov-title { font-size: var(--fs-h4); font-weight: 600; color: var(--color-text-primary); }
+.health-ov-sub { font-size: var(--fs-caption-sm); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.health-ov-gear {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  border-radius: var(--radius-base);
+  cursor: pointer;
+
+  &:hover { background: var(--color-bg-hover); }
+}
+.health-ov-bar {
+  margin-top: var(--space-2);
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-hover);
+  overflow: hidden;
+}
+.health-ov-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  transition: width 0.3s var(--ease-default);
+}
+
+/* ---- 分组（卡内小标题，02 §16.7） ---- */
+.health-ov-group { margin-top: var(--space-2); }
+.health-ov-group-title {
+  padding: var(--space-2) 0 2px;
+  font-size: var(--fs-caption-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+.health-ov-rows { list-style: none; margin: 0; padding: 0; }
+
+/* ---- 行（高 44，值左对齐、箭头在行尾，整行可点，02 §16.3） ---- */
+.health-ov-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  border-bottom: 1px solid var(--color-border-light);
+  cursor: pointer;
+
+  &:last-child { border-bottom: 0; }
+  &:hover { background: var(--color-bg-hover); }
+}
+.health-ov-row-label {
+  flex-shrink: 0;
+  width: 64px;
+  font-size: var(--fs-body-sm);
+  color: var(--color-text-secondary);
+}
+.health-ov-row-value {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-body-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+
+  &.is-empty { color: var(--color-text-disabled); font-weight: 400; }
+}
+.health-ov-row-chevron { flex-shrink: 0; color: var(--color-text-disabled); }
+.health-ov-drink { flex-shrink: 0; border-radius: var(--radius-pill); }
+
+/* ---- 全部指标关闭 → 去配置引导（02 §10） ---- */
+.health-ov-off {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+.health-ov-off-text { margin: 0; font-size: var(--fs-body-sm); color: var(--color-text-secondary); text-align: center; }
+.health-ov-empty { margin: var(--space-3) 0 0; font-size: var(--fs-caption-sm); color: var(--color-text-tertiary); line-height: 1.5; }
+
+/* ==================== 月历摘要条 ==================== */
+.health-summary {
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-base);
+  background: var(--color-bg-hover);
+  font-size: var(--fs-caption-sm);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==================== 饮水进度条（记录浮层 water 面板复用） ==================== */
+.health-qb-meter {
+  margin-top: var(--space-2);
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-hover);
+  overflow: hidden;
+}
+.health-qb-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-info);
+  transition: width 0.3s var(--ease-default);
+}
+.health-qb-meter-text {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--fs-micro);
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==================== 今日时间轴（02 §12，视觉复用 home.scss 的 .timeline-*） ==================== */
+.health-timeline { margin-top: var(--space-2); }
+.health-tl-item {
+  cursor: pointer;
+  border-radius: var(--radius-base);
+
+  &:hover { background: var(--color-bg-hover); }
+}
+/* 首条上方、末条下方的竖线收进去（不顶到卡片边，02 §12.4） */
+.health-timeline .timeline-item:first-of-type .timeline-axis::before { top: 8px; }
+.health-timeline .timeline-item:last-of-type .timeline-axis::before { bottom: calc(100% - 14px); }
+.health-tl-value {
+  flex-shrink: 0;
+  font-size: var(--fs-body-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+.health-tl-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+}
+.health-tl-empty-text { margin: 0; font-size: var(--fs-caption-sm); color: var(--color-text-tertiary); }
+.health-tl-gap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border-light);
+  font-size: var(--fs-caption-sm);
+  color: var(--color-text-secondary);
+}
+.health-tl-gap-link {
+  flex-shrink: 0;
+  color: var(--color-primary);
+  cursor: pointer;
+}
+/* 编辑条目（小型 SideSheet：改时间 / 改值 / 改备注 / 删，02 §12.6） */
+.health-tl-edit { display: flex; flex-direction: column; gap: var(--space-4); }
+.health-tl-edit-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.health-tl-edit-label { flex-shrink: 0; width: 40px; font-size: var(--fs-body-sm); color: var(--color-text-secondary); }
+.health-tl-edit-err { font-size: var(--fs-caption-sm); color: var(--color-danger); }
+
+/* ==================== 纪念日 / 倒数日 ==================== */
+/* SYNC-FROM-MOBILE: life-assisitant-ui-mobile/src/pages/me/anniversaries.vue */
+
+.ann-scope { margin-bottom: var(--space-4); }
+
+.ann-list { display: flex; flex-direction: column; }
+
+.ann-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+
+  & + .ann-row { border-top: 1px solid var(--color-border-light); }
+
+  /* 「就是今天」用整行淡底，不用红字 —— 红在这里会读成错误警示 */
+  &.is-today {
+    background: var(--tint-danger-bg);
+    border-radius: var(--radius-md);
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+  }
+}
+.ann-row-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+}
+.ann-row-body {
+  flex: 1;
+  min-width: 0;
+}
+.ann-row-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-body-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.ann-row-pin { color: var(--color-warning); }
+.ann-row-sub {
+  margin-top: 2px;
+  font-size: var(--fs-micro);
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ann-row-right {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.ann-row-date {
+  font-size: var(--fs-caption-sm);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.ann-row-days {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  &.is-today { color: var(--color-danger); }
+}
+.ann-row-actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+}
+
+.ann-back { margin-top: var(--space-4); }
+
+/* 编辑抽屉 */
+.ann-edit { display: flex; flex-direction: column; gap: var(--space-4); }
+.ann-edit-block { display: flex; flex-direction: column; gap: 6px; }
+.ann-edit-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.ann-edit-cats { display: flex; flex-wrap: wrap; gap: 8px; }
+.ann-edit-icons { display: flex; flex-wrap: wrap; gap: 8px; }
+.ann-edit-icon {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  &.is-on {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: var(--tint-primary-bg);
+  }
+}
+.ann-edit-color {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  &.is-on { border-color: var(--color-primary); }
+}
+.ann-edit-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* 首页「重要日子」卡片 */
+.ann-home-list { display: flex; flex-direction: column; }
+.ann-home-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 0;
+
+  & + .ann-home-item { border-top: 1px solid var(--color-border-light); }
+  &.is-today {
+    background: var(--tint-danger-bg);
+    border-radius: var(--radius-md);
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+}
+.ann-home-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-base);
+}
+.ann-home-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-caption);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ann-home-days {
+  flex-shrink: 0;
+  font-size: var(--fs-caption-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  &.is-today { color: var(--color-danger); }
+}
+.ann-home-date {
+  flex-shrink: 0;
+  font-size: var(--fs-micro);
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==================== 引导入口卡 ==================== */
+.health-guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: var(--space-5) var(--space-4);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  text-align: center;
+}
+.health-guide-icon { color: var(--color-primary); }
+.health-guide-title { margin: 0; font-size: var(--fs-h3); font-weight: 600; color: var(--color-text-primary); }
+.health-guide-desc { margin: 0; font-size: var(--fs-body-sm); line-height: 1.6; color: var(--color-text-secondary); }
+
+/* ==================== 设置 / 引导向导 ==================== */
+.health-metric-toggles { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-4); }
+.health-goal-row { display: flex; align-items: center; }
+/* 快捷加水档位（1 杯 / 2 杯） */
+.health-quick-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: var(--space-3); }
+.health-period-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  margin-top: var(--space-2);
+}
+.period-setting-subblock { margin: var(--space-2) 0; display: flex; flex-direction: column; gap: 6px; }
+.hk-row-with-icon { display: inline-flex; align-items: center; gap: 6px; }

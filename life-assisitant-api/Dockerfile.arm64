@@ -1,0 +1,47 @@
+# ============================================
+# z1-api arm64 runtime image
+# Build mode: cross-compile on host (build.bat: GOOS=linux GOARCH=arm64 go build)
+#             then this file only packages the binary. No in-container Go build,
+#             so no QEMU emulation and no toolchain version drift.
+#
+# Used by build.bat. Load on target:  docker load -i z1-api.tar
+# Manual:  docker build -f Dockerfile.arm64 --platform linux/arm64 -t z1-api:latest .
+#
+# Runtime config overrides (env, GoFrame GF_<SECTION>_<KEY> rule):
+#   GF_DATABASE_DEFAULT_LINK   mysql dsn, e.g. root:pw@tcp(192.168.101.75:4417)/life_assistant?charset=utf8mb4&parseTime=true&loc=Local
+#   GF_SERVER_ADDRESS          listen addr (default :8090 from baked config.yaml)
+#   GF_STORAGE_UPLOAD_DIR      avatar upload root (default ./data/uploads -> /app/data/uploads, mount a volume here)
+#
+# External-config workflow (preferred for deploys, see README section 11):
+#   1) docker run --rm z1-api:latest cat /app/manifest/config/config-smp.yaml > config.yaml
+#   2) edit config.yaml (database link, jwt secrets, log, storage.upload_dir ...)
+#   3) mount it over the baked file:
+#      docker run ... -v /opt/z1/config.yaml:/app/manifest/config/config.yaml:ro ...
+#   The single-file mount shadows only config.yaml; the smp template stays
+#   visible in the image as a reference copy.
+# ============================================
+FROM --platform=linux/arm64 alpine:3.19
+
+# timezone + CA certs (outbound HTTPS); tzdata removed after copy to keep image slim
+RUN apk add --no-cache tzdata ca-certificates \
+    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone \
+    && apk del tzdata
+
+WORKDIR /app
+
+# binary produced by build.bat (static, CGO_ENABLED=0)
+COPY build/server ./server
+
+# baked default config; override any key via GF_* env at runtime
+COPY manifest/config/config.yaml manifest/config/config.yaml
+# full-set external template: cp it out of the image, edit, then mount it back
+# over manifest/config/config.yaml (single-file bind mount, see header + README)
+COPY manifest/config/config-smp.yaml manifest/config/config-smp.yaml
+
+# logs + default upload dir (prefer mounting a volume at /app/data/uploads)
+RUN mkdir -p logs data/uploads
+
+EXPOSE 8090
+
+ENTRYPOINT ["./server"]

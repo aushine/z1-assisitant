@@ -1,0 +1,482 @@
+@use './tokens.scss' as *;
+
+// ==========================================================================
+// 统计页 —— 概览 KPI（固定维度）+ 区间趋势/图表/明细（随 7/30/90 天筛选）
+//
+// S2：概览 KPI 不随筛选变化（后端 /stats/overview 不接受 range），
+//     以 .kpi-large-dim 标签明确标注「今日/本周/当前 · 固定」vs「随筛选」。
+// S9：奖牌色已提升为令牌，定义点收敛到 tokens.scss（唯一来源）。
+//     ⚠️ 此处**不要**再定义 --medal-*：本文件在 main.tsx 中最后加载，
+//     曾被 pages.scss 的同名纯色令牌被它反向覆盖成渐变，导致记录页火焰徽章
+//     静默失去金色（详见 tokens.scss 中该令牌的注释）。
+//     背景用渐变形式 --medal-*-bg，纯色形式 --medal-* 留给 color/border-color。
+// ==========================================================================
+
+.stat-page {
+  display: flex;
+  flex-direction: column;
+  gap: $space-5;
+}
+
+// 注意：.page-header / .page-title / .page-subtitle 统一由 global.scss 提供，
+// .header-left / .header-right 由 layout.scss 提供，此处不重复定义。
+
+// ----- Range Card -----
+.range-card {
+  padding: $space-5 !important;
+}
+
+.range-note {
+  margin: $space-3 0 0;
+  font-size: $fs-caption;
+  color: var(--color-text-tertiary);
+}
+
+// ----- KPI Grid - 更大的卡片 -----
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: $space-5;
+}
+
+.kpi-large {
+  padding: $space-6;
+  min-height: 180px;
+  background: var(--color-bg-card);
+  border-radius: $radius-xl;
+  border: 1px solid var(--color-border-light);
+  transition: all $duration-base $ease-default;
+  position: relative;
+  overflow: hidden;
+
+  &:hover {
+    border-color: var(--color-border-default);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: $decor-bar;
+    background: linear-gradient(90deg, var(--color-primary-500), var(--color-primary-300));
+    opacity: 0;
+    transition: opacity $duration-fast $ease-default;
+  }
+
+  &:hover::before {
+    opacity: 1;
+  }
+}
+
+.kpi-large-head {
+  display: flex;
+  align-items: center;
+  gap: $space-4;
+  margin-bottom: $space-4;
+}
+
+.kpi-large-head-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.kpi-large-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: $radius-lg;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kpi-large-label {
+  font-size: $fs-caption;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+  margin-bottom: $space-1;
+}
+
+.kpi-large-value {
+  font-size: $fs-h1;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+
+  .muted {
+    font-size: $fs-h3;
+    color: var(--color-text-tertiary);
+    font-weight: 500;
+    margin-left: $space-1;
+  }
+}
+
+.kpi-large-sub {
+  font-size: $fs-body-sm;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+// S2：维度标注（固定 vs 随筛选）
+.kpi-large-dim {
+  margin-left: auto;
+  align-self: flex-start;
+  font-size: $fs-caption-sm;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-hover);
+  padding: 2px 8px;
+  border-radius: $radius-pill;
+  white-space: nowrap;
+
+  &--range {
+    color: var(--color-accent-dark);
+    background: var(--color-accent-light);
+  }
+}
+
+.kpi-large-foot {
+  margin-top: $space-4;
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+}
+
+.kpi-large-hint {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  margin-top: $space-3;
+  font-size: $fs-caption;
+}
+
+.progress-bar {
+  height: $bar-height;
+  background: var(--color-bg-hover);
+  border-radius: $radius-pill;
+  overflow: hidden;
+  flex: 1;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: $radius-pill;
+  transition: width $duration-base $ease-default;
+}
+
+.progress-text {
+  font-size: $fs-caption;
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.kpi-change {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+// ----- Chart Row -----
+.chart-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: $space-5;
+}
+
+.chart-card {
+  padding: $space-5;
+  background: var(--color-bg-card);
+  border-radius: $radius-xl;
+  border: 1px solid var(--color-border-light);
+  transition: all $duration-base $ease-default;
+
+  &:hover {
+    border-color: var(--color-border-default);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $space-4;
+}
+
+.card-title {
+  display: inline-flex;
+  align-items: center;
+  font-size: $fs-h4;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.card-sub {
+  font-size: $fs-caption;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+// ----- Habit Stats Section - 更大的热力图区域 -----
+.habit-stats-row {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: $space-6;
+  align-items: start;
+}
+
+.habit-stat-left {
+  display: flex;
+  flex-direction: column;
+  gap: $space-5;
+  padding: $space-6;
+  background: var(--color-bg-app);
+  border-radius: $radius-xl;
+  border: 1px solid var(--color-border-light);
+  min-height: 400px;
+}
+
+.habit-ring-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $space-5;
+
+  svg {
+    filter: drop-shadow(0 4px 12px rgba(245, 158, 11, 0.2));
+  }
+}
+
+.habit-heatmap-section {
+  margin-top: $space-3;
+  padding: $space-5;
+  background: var(--color-bg-card);
+  border-radius: $radius-lg;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+
+  .heatmap-title {
+    font-size: $fs-body;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: $space-4;
+    align-self: flex-start;
+  }
+
+  svg {
+    max-width: 100%;
+  }
+}
+
+.habit-stat-right {
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
+}
+
+.habit-stat-item {
+  display: flex;
+  align-items: center;
+  gap: $space-4;
+  padding: $space-4;
+  background: var(--color-bg-card);
+  border-radius: $radius-lg;
+  border: 1px solid var(--color-border-light);
+  transition: all $duration-fast $ease-default;
+
+  &:hover {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border-default);
+    transform: translateX(4px);
+  }
+}
+
+.hsi-icon {
+  flex-shrink: 0;
+}
+
+.hsi-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.hsi-title {
+  font-size: $fs-body;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: $space-1;
+}
+
+.hsi-sub {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  font-size: $fs-caption;
+  color: var(--color-text-secondary);
+}
+
+.badge-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--color-success-light);
+  color: var(--color-success-dark);
+  border-radius: $radius-pill;
+  font-size: $fs-caption-sm;
+  font-weight: 600;
+}
+
+.hsi-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: $space-1;
+}
+
+// ----- Ring SVG -----
+.ring {
+  filter: drop-shadow(0 4px 12px rgba(16, 185, 129, 0.2));
+}
+
+// S11：环形图中心数字 24px → $fs-h2(22px)。SVG <text> 的 fill 由组件内联指定。
+.ring-value {
+  font-size: $fs-h2;
+  font-weight: 700;
+}
+
+// ----- 习惯完成率小环（S 区块）-----
+.habit-rate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: $space-4;
+}
+
+.habit-rate-item {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  padding: $space-3;
+  border-radius: $radius-lg;
+  background: var(--color-bg-app);
+}
+
+// ----- Table Styles -----
+.rank-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-lg;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: $fs-caption;
+  font-weight: 700;
+  background: var(--color-bg-hover);
+  color: var(--color-text-secondary);
+
+  &[data-rank='1'] {
+    background: var(--medal-gold-bg);
+    color: #fff;
+  }
+
+  &[data-rank='2'] {
+    background: var(--medal-silver-bg);
+    color: #fff;
+  }
+
+  &[data-rank='3'] {
+    background: var(--medal-bronze-bg);
+    color: #fff;
+  }
+}
+
+.col-cat {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+}
+
+// 分类 / 账户图标（Semi 统一 <Icon> 出口，不再直出 emoji）
+.cat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: $radius-lg;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pct-row {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+}
+
+.pct-bar {
+  flex: 1;
+  height: $bar-height;
+  background: var(--color-bg-hover);
+  border-radius: $radius-pill;
+  overflow: hidden;
+}
+
+.pct-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary-500), var(--color-primary-300));
+  border-radius: $radius-pill;
+  transition: width $duration-base $ease-default;
+}
+
+// ----- 全局兼容：.empty-wrap 曾被 task / record 等页面复用（本文件最后加载，$space-8 生效）-----
+.empty-wrap {
+  padding: $space-8 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+// ----- Responsive -----
+@media (max-width: 1200px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .chart-row {
+    grid-template-columns: 1fr;
+  }
+
+  .habit-stats-row {
+    grid-template-columns: 1fr;
+  }
+
+  .habit-stat-left {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .page-header {
+    flex-direction: column;
+    gap: $space-3;
+    align-items: flex-start;
+  }
+
+  .habit-stat-left {
+    flex-direction: column;
+  }
+}

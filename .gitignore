@@ -1,0 +1,54 @@
+# =============================================================
+# Z1 生活助手 — Git 忽略规则
+# 原则：源码/SQL 基线入库；构建产物、依赖、AI 记忆、设计文档、
+#       含真实密钥的配置、运行时数据一律不入库（仅本地保留）。
+# =============================================================
+
+# ---------- 依赖 / 构建产物 ----------
+node_modules/
+dist/
+*.tar
+*.exe
+*.exe~
+life-assisitant-api/build/
+
+# ---------- AI 助手记忆 / 本地设置 ----------
+.claude/
+.workbuddy/
+
+# ---------- 设计文档 / 归档（仅本地保留）----------
+md/
+.archive/
+
+# ---------- 运行时数据（用户上传等）----------
+life-assisitant-api/data/
+
+# ---------- 环境变量与生产密钥（.example 入库，真值不入库）----------
+.env
+.env.*
+!.env.example
+life-assisitant-api/manifest/config/config.yaml
+life-assisitant-api/manifest/config/config-smp.yaml
+deploy/config.prod.yaml
+deploy/docker-compose.prod.yml
+deploy/DEPLOY.md
+deploy/upgrade.md
+
+# ---------- 临时 / 调试输出 ----------
+_*
+tmp_*
+*.log
+*.out.txt
+*_out.txt
+build_result.txt
+hash_check.txt
+r1_*.txt
+vite.config.ts.timestamp-*.mjs
+
+# ---------- 编辑器 / 系统 ----------
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp

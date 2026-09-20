@@ -1,0 +1,428 @@
+// ==========================================================================
+// 设计系统 Tokens (与 md/spec/03-设计系统.md / 10.1 章节对齐)
+// 既可作为 SCSS 变量使用，又会编译为同名 CSS 变量注入 :root
+// ==========================================================================
+
+// ----- Colors · Primary -----
+$primary-50:  #E0F2FF;
+$primary-100: #B3D9FF;
+$primary-300: #4D94FF;
+$primary-500: #014DB2;  // 主色
+$primary-600: #0145A0;  // hover 态：500 与 700 的中值（pages.scss 引用过但此前从未定义）
+$primary-700: #013D8E;
+$primary-900: #002A66;
+
+// ----- Colors · Semantic -----
+// A06 收敛：light 档统一取 role-* 徽章已在用的值，消除「同一语义两个色」
+$success:       #10B981;
+$success-light: #D1FAE5;  // = $role-editor-bg（原 #E8F8F0）
+$success-dark:  #047857;
+
+$warning:       #F59E0B;
+$warning-light: #FEF3C7;  // = $role-admin-bg（原 #FFF3E0）
+$warning-dark:  #B45309;
+
+$danger:       #EF4444;
+$danger-light: #FEE2E2;
+$danger-dark:  #B91C1C;
+
+// "accent" 紫，强调色；spec 命名为 info
+$accent:       #8B5CF6;
+$accent-light: #EDE9FE;  // = $role-viewer-bg（原 #F0E8FF）
+$accent-dark:  #6D28D9;
+
+// ----- Colors · Neutral -----
+$text-primary:    #0A1628;
+$text-secondary:  #374151;
+$text-tertiary:   #6B7280;
+$text-disabled:   #9CA3AF;
+$text-placeholder:#9CA3AF;
+
+$bg-app:     #F9F9F9;
+$bg-card:    #FFFFFF;
+$bg-hover:   #F3F4F6;
+$bg-elevated:#FFFFFF;
+
+$border-default: #E5E7EB;
+$border-light:   #F3F4F6;
+$border-strong:  #D1D5DB;
+
+// ----- Role Colors (角色徽章) -----
+$role-admin-bg:   #FEF3C7;
+$role-admin-fg:   #B45309;
+$role-editor-bg:  #D1FAE5;
+$role-editor-fg:  #047857;
+$role-viewer-bg:  #EDE9FE;
+$role-viewer-fg:  #6D28D9;
+
+// ----- Spacing (4px 网格) -----
+$space-1: 4px;
+$space-2: 8px;
+$space-3: 12px;
+$space-4: 16px;
+$space-5: 20px;
+$space-6: 24px;
+$space-7: 32px;
+$space-8: 40px;
+$space-9: 48px;
+$space-10: 56px;
+
+// ----- 特殊尺寸（01 §6.2：系统性重复裸值提升为令牌） -----
+$decor-bar: 3px;   // 卡片顶部装饰条
+$bar-height: 6px;  // 进度条高度
+$badge-size: 18px; // 徽章计数
+
+// ----- Radius -----
+// 01 §8.1 七级标度。此前命名整体位移了一级（sm=4px / md=6px / base=8px），
+// 现按「保值重命名」对齐规范：xs=4 / sm=6 / md=8，lg 及以上不变。
+$radius-xs:   4px;
+$radius-sm:   6px;
+$radius-md:   8px;
+$radius-lg:   10px;
+$radius-xl:   16px;   // 卡片主标准
+$radius-2xl:  20px;
+$radius-pill: 9999px;
+
+// ----- Shadow -----
+$shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+$shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+$shadow-md: 0 4px 8px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+$shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.06);
+$shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.10), 0 8px 16px rgba(0, 0, 0, 0.08);
+$shadow-button:     0 4px 12px rgba(1, 77, 178, 0.30);
+$shadow-input-focus:0 0 0 3px rgba(1, 77, 178, 0.15);
+
+// ----- Type -----
+$font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+              'PingFang SC', 'Microsoft YaHei', sans-serif;
+$font-mono:   'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+
+$fs-display: 32px;
+$fs-h1:      26px;
+$fs-h2:      22px;
+$fs-h3:      18px;
+$fs-h4:      16px;
+$fs-body:    15px;
+$fs-body-sm: 14px;
+$fs-caption: 13px;
+$fs-caption-sm: 12px;
+$fs-micro:   11px;
+
+// ⚠️ 2026-09-19 补齐：此前本文件**只定义 SCSS 变量、没有输出成 CSS 变量**，
+//    而 pages.scss（经期段等）一直在用 `var(--fs-*)` / `var(--font-num)`。
+//    `var()` 引用未定义的自定义属性 ⇒ 整条声明被浏览器丢弃（不是回退默认值）
+//    ⇒ 字号退回继承值 ⇒ 视觉上「看着还行」，上线至今没人发现。
+//    数值阶与移动端**同名同值**（md/spec-20260919-v1/09 §1 的 P0 前置修复）。
+$fs-nano:       9px;   // 极微字：热力图星期/月份标签、权限矩阵表头
+$fs-tab:        10px;  // 最小正文：密集元信息、徽标数字
+$fs-metric-sm:  13px;  // 数值的次要部分（单位、分母），同 $fs-caption
+$fs-metric:     20px;  // KPI 主数值 / 卡片汇总 / 币种符号
+$fs-metric-lg:  24px;  // 金额输入框等大号数值
+$fs-metric-xl:  40px;  // 超大数值：记账金额输入的主展示
+$fs-page-title: 22px;  // Tab 页顶部标题统一字号
+
+// 数字强调字体（配 font-variant-numeric: tabular-nums 等宽渲染）
+$font-num: 'Inter', 'SF Mono', monospace;
+
+// ----- Layout -----
+$sidebar-width: 260px;
+$header-height: 80px;
+$layout-max-width: 1280px;
+$layout-max-height: 800px;
+
+// ----- Z-index -----
+$z-base:    0;
+$z-dropdown:100;
+$z-sticky:  200;
+$z-fixed:   300;
+$z-modal-backdrop: 400;
+$z-modal:   500;
+$z-popover: 600;
+$z-tooltip: 700;
+$z-toast:   800;
+
+// ----- Duration / Easing -----
+$duration-instant: 100ms;
+$duration-fast:    200ms;
+$duration-base:    300ms;
+$duration-slow:    500ms;
+$ease-default:     cubic-bezier(0.4, 0, 0.2, 1);
+$ease-out:         cubic-bezier(0, 0, 0.2, 1);
+
+// ==========================================================================
+// 同步输出为 CSS 变量，让浏览器 / 组件库能直接消费
+// ==========================================================================
+:root {
+  // Colors · Primary
+  --color-primary-50:  #{$primary-50};
+  --color-primary-100: #{$primary-100};
+  --color-primary-300: #{$primary-300};
+  --color-primary-500: #{$primary-500};
+  --color-primary-600: #{$primary-600};
+  --color-primary-700: #{$primary-700};
+  --color-primary-900: #{$primary-900};
+
+  // Colors · Semantic
+  --color-success:        #{$success};
+  --color-success-light:  #{$success-light};
+  --color-success-dark:   #{$success-dark};
+  --color-warning:        #{$warning};
+  --color-warning-light:  #{$warning-light};
+  --color-warning-dark:   #{$warning-dark};
+  --color-danger:         #{$danger};
+  --color-danger-light:   #{$danger-light};
+  --color-danger-dark:    #{$danger-dark};
+  --color-accent:         #{$accent};
+  --color-accent-light:   #{$accent-light};
+  --color-accent-dark:    #{$accent-dark};
+
+  // Tint · 分类图标语义色（02 §5.2：20 色对收敛为 6 组，别名到既有 --color-*）
+  --tint-primary-bg: var(--color-primary-50);
+  --tint-primary-fg: var(--color-primary-500);
+  --tint-success-bg: var(--color-success-light);
+  --tint-success-fg: var(--color-success-dark);
+  --tint-warning-bg: var(--color-warning-light);
+  --tint-warning-fg: var(--color-warning-dark);
+  --tint-danger-bg:  var(--color-danger-light);
+  --tint-danger-fg:  var(--color-danger-dark);
+  --tint-accent-bg:  var(--color-accent-light);
+  --tint-accent-fg:  var(--color-accent-dark);
+  --tint-neutral-bg: var(--color-bg-hover);
+  --tint-neutral-fg: var(--color-text-tertiary);
+
+  // Medal · 里程碑奖牌（S07 连续天数里程碑 / S09 统计页排名）
+  // ⚠️ 两种形式**必须同时提供**，且**只有这一个定义点**：
+  //   --medal-*     纯色 → 用于 color / border-color（StreakBadge 的火焰徽章）
+  //   --medal-*-bg  渐变 → 用于 background（统计页排名徽章）
+  // 此前 pages.scss 与 stat.scss 各自定义了一套**同名但类型不同**的 --medal-*
+  // （纯色 vs 渐变），而 stat.scss 在 main.tsx 中最后加载 → 全局胜出为渐变 →
+  // StreakBadge 的 `color: var(--medal-gold)` 拿到的是 linear-gradient()，
+  // 对 color 属性非法，整条声明被浏览器丢弃，徽章**静默失去金色**。
+  // 这正是 A13 记录过的「最后加载者静默覆盖」同一类 bug，故在此收敛并拆分命名。
+  --medal-gold:      #FFD700;
+  --medal-silver:    #C0C0C0;
+  --medal-bronze:    #CD7F32;
+  --medal-gold-bg:   linear-gradient(135deg, #FFD700, #FFA500);
+  --medal-silver-bg: linear-gradient(135deg, #C0C0C0, #A0A0A0);
+  --medal-bronze-bg: linear-gradient(135deg, #CD7F32, #B87333);
+
+  // Colors · Neutral
+  --color-text-primary:    #{$text-primary};
+  --color-text-secondary:  #{$text-secondary};
+  --color-text-tertiary:   #{$text-tertiary};
+  --color-text-disabled:   #{$text-disabled};
+  --color-text-placeholder:#{$text-placeholder};
+
+  --color-bg-app:     #{$bg-app};
+  --color-bg-card:    #{$bg-card};
+  --color-bg-hover:   #{$bg-hover};
+  --color-bg-elevated:#{$bg-elevated};
+
+  --color-border-default:#{$border-default};
+  --color-border-light:  #{$border-light};
+  --color-border-strong: #{$border-strong};
+
+  /* ========== Period · 经期模块（记录模块第 5 维度，2026-09-19） ==========
+   * SYNC-FROM-MOBILE: life-assisitant-ui-mobile/src/styles/tokens.scss
+   * 语义：
+   *   period-soft / period       → 月历上的实际经期（红实心）；不用绿、不用强调色，
+   *                                 经期是生理事实，不是「警示」也不是「成就」
+   *   spotting                   → 点滴出血（不参与周期划分，只作提示点）
+   *   fertile-soft / -strong     → 易孕期（紫），与排卵日环同色系
+   * ⚠️ 「相对安全期」**刻意不给颜色令牌** —— 绿色是「安全/通过」的正向暗示，
+   *    在避孕场景里是危险的（日历法年失败率 7.2%–8.3%）。见 04 §3.3。
+   */
+  --color-period-soft: #FDE8E8;
+  --color-period: #E5484D;
+  --color-period-dark: #C62A2F;
+  --color-spotting: #F5A3A6;
+  --color-fertile-soft: #EDE9FE;
+  --color-fertile-strong: #6D28D9;
+  --color-ovulation: #8B5CF6;
+
+  /* 月历分类小点（2026-09-19 新增，与移动端同名同值）：
+   *   黄=心情 紫=精力/睡眠 蓝=体温 青=饮水 棕=排便 灰=体重
+   * ⚠️ 刻意不用 success/warning/danger 语义色（这是分类标识不是好坏评价），
+   *   也刻意避开 --color-period 那套红（红已是经期整格填充的专用色）。 */
+  --health-dot-mood: #F5B324;
+  --health-dot-energy: #8B5CF6;
+  --health-dot-bbt: #3B82F6;
+  --health-dot-water: #14B8A6;
+  --health-dot-bowel: #A16207;
+  --health-dot-weight: #94A3B8;
+
+  /* --- 月历格「整格实心填充」三档（2026-09-19 新增）---
+   * 月历改了与习惯打卡热力图同构的「整格填色」后，经量三档需要三个**填充**色。
+   * ⚠️ 不能直接拿上面三个语义色当填充：
+   *   1. 亮色下 fill 语义是「越深 = 量越多」，--color-period 系列正好满足；
+   *      但暗色下 --color-period-dark 是 #FCA5A5（它是**文字色**，比 --color-period
+   *      更浅），直接复用会让「大量」看着比「中量」还浅 —— 色阶方向会反转。
+   *      所以三档必须独立定义，保证两个主题下都单调递增。
+   *   2. 排卵日实心同理：暗色的 --color-ovulation(#A78BFA) 压白字只有 2.7:1 不可读，
+   *      需要一个更深的实心紫。
+   * 三档一律配 #FFFFFF 白字（亮色 3.9–5.6:1 / 暗色 3.9–10:1，粗体数字可读）。
+   */
+  --color-period-fill-mid: #E5484D;   /* 中量（= --color-period） */
+  --color-period-fill-heavy: #C62A2F; /* 大量（= --color-period-dark） */
+  --color-ovulation-fill: #8B5CF6;    /* 排卵实心（= --color-ovulation） */
+
+  // Spacing
+  --space-1: #{$space-1};
+  --space-2: #{$space-2};
+  --space-3: #{$space-3};
+  --space-4: #{$space-4};
+  --space-5: #{$space-5};
+  --space-6: #{$space-6};
+  --space-7: #{$space-7};
+  --space-8: #{$space-8};
+  --space-9: #{$space-9};
+  --space-10: #{$space-10};
+
+  // 特殊尺寸
+  --decor-bar: #{$decor-bar};
+  --bar-height: #{$bar-height};
+  --badge-size: #{$badge-size};
+
+  // Radius
+  --radius-xs:  #{$radius-xs};
+  --radius-sm:  #{$radius-sm};
+  --radius-md:  #{$radius-md};
+  --radius-lg:  #{$radius-lg};
+  --radius-xl:  #{$radius-xl};
+  --radius-2xl: #{$radius-2xl};
+  --radius-pill:#{$radius-pill};
+
+  // Shadow
+  --shadow-xs:           #{$shadow-xs};
+  --shadow-sm:           #{$shadow-sm};
+  --shadow-md:           #{$shadow-md};
+  --shadow-lg:           #{$shadow-lg};
+  --shadow-xl:           #{$shadow-xl};
+  --shadow-button:       #{$shadow-button};
+  --shadow-input-focus:  #{$shadow-input-focus};
+
+  // Type
+  --font-family: #{$font-family};
+  --font-mono:   #{$font-mono};
+  --font-num:    #{$font-num};
+
+  /* ----- 字号阶梯 -----
+   * ⚠️ 2026-09-19 补齐：这一整段此前**根本没输出**，而 pages.scss 里已有约 30 处
+   *    `font-size: var(--fs-*)` / `font-family: var(--font-num)` 在用。
+   *    `var()` 引用未定义的自定义属性 = 整条声明被丢弃（不是回退默认值），
+   *    所以那些字号一直退回继承值 —— 视觉上「看着还行」，没人发现是坏的。
+   *    这类问题**只读源码看不出来**（SCSS 变量和 var() 引用都在），必须
+   *    `grep dist/z1/assets/*.css` 看编译产物才能确认。
+   *    数值阶与移动端同名同值（SYNC-FROM-MOBILE）。
+   */
+  --fs-nano:       #{$fs-nano};
+  --fs-tab:        #{$fs-tab};
+  --fs-micro:      #{$fs-micro};
+  --fs-caption-sm: #{$fs-caption-sm};
+  --fs-caption:    #{$fs-caption};
+  --fs-body-sm:    #{$fs-body-sm};
+  --fs-body:       #{$fs-body};
+  --fs-h4:         #{$fs-h4};
+  --fs-h3:         #{$fs-h3};
+  --fs-h2:         #{$fs-h2};
+  --fs-h1:         #{$fs-h1};
+  --fs-display:    #{$fs-display};
+
+  // 数值阶（KPI / 金额 / 指标，统一配 --font-num + tabular-nums）
+  --fs-metric-sm:  #{$fs-metric-sm};
+  --fs-metric:     #{$fs-metric};
+  --fs-metric-lg:  #{$fs-metric-lg};
+  --fs-metric-xl:  #{$fs-metric-xl};
+  --fs-page-title: #{$fs-page-title};
+
+  // Layout
+  --sidebar-width: #{$sidebar-width};
+  --header-height: #{$header-height};
+
+  // Z-index
+  --z-base:    #{$z-base};
+  --z-dropdown:#{$z-dropdown};
+  --z-sticky:  #{$z-sticky};
+  --z-fixed:   #{$z-fixed};
+  --z-modal:   #{$z-modal};
+  --z-toast:   #{$z-toast};
+}
+
+// ==========================================================================
+// A02 · 暗色主题
+// 从 design-tokens.css 迁入并改写为 --color-* 体系。
+// 此前暗色只覆盖短名（--bg-app 等），而组件早已改用 --color-*，
+// 所以暗色实际上从未生效；此处修正。
+// ==========================================================================
+[data-theme='dark'] {
+  --color-bg-app:          #0A1628;
+  --color-bg-card:         #142845;
+  --color-bg-hover:        #1F3556;
+  --color-bg-elevated:     #142845;
+
+  --color-text-primary:    #F9F9F9;
+  --color-text-secondary:  #D1D5DB;
+  --color-text-tertiary:   #9CA3AF;
+  --color-text-disabled:   #6B7280;
+
+  --color-border-default:  #1F3556;
+  --color-border-light:    #142845;
+  --color-border-strong:   #2D4A6F;
+
+  // A02 未竟：语义色暗色适配。此前只有 bg/text/border 覆盖，导致 5 组彩色 tint
+  //（primary/success/warning/danger/accent）在暗色下不变暗。此处把「浅底」翻成深色底、
+  //「深前景」翻成浅前景，保证分类图标圈在暗色下仍有合理对比度。
+  // neutral 的 bg/fg 已别名到 --color-bg-hover / --color-text-tertiary，随上方联动，无需重复。
+
+  // Primary 蓝
+  --color-primary-50:  #0A2540;
+  --color-primary-100: #0E2E52;
+  --color-primary-300: #4D94FF;
+  --color-primary-500: #5B9DFF;
+  --color-primary-600: #6BA6FF;
+  --color-primary-700: #7FB2FF;
+  --color-primary-900: #B3D9FF;
+
+  // Success 绿
+  --color-success:       #34D399;
+  --color-success-light: #0B3D2E;
+  --color-success-dark:  #6EE7B7;
+
+  // Warning 橙
+  --color-warning:       #FBBF24;
+  --color-warning-light: #3A2E0A;
+  --color-warning-dark:  #FCD34D;
+
+  // Danger 红
+  --color-danger:        #F87171;
+  --color-danger-light:  #3A1F1F;
+  --color-danger-dark:   #FCA5A5;
+
+  // Accent 紫
+  --color-accent:        #A78BFA;
+  --color-accent-light:  #2A1F4D;
+  --color-accent-dark:   #C4B5FD;
+
+  /* 经期模块（见 :root 注释）：暗色下把「红/紫」整体提亮，保证在深底上可读 */
+  --color-period-soft: #3B1212;
+  --color-period: #F87171;
+  --color-period-dark: #FCA5A5;
+  --color-spotting: #9B4A4D;
+  --color-fertile-soft: #241A45;
+  --color-fertile-strong: #C4B5FD;
+  --color-ovulation: #A78BFA;
+
+  /* 月历分类小点（见 :root 注释）：暗色下整体提亮一档 */
+  --health-dot-mood: #FBBF24;
+  --health-dot-energy: #A78BFA;
+  --health-dot-bbt: #60A5FA;
+  --health-dot-water: #2DD4BF;
+  --health-dot-bowel: #D97706;
+  --health-dot-weight: #64748B;
+
+  /* 月历整格填充（见 :root 注释）：暗色下重排为「越亮 = 量越多」，
+     并给排卵日换更深的实心紫，避免白字压浅底。 */
+  --color-period-fill-mid: #7F1D1D;
+  --color-period-fill-heavy: #E5484D;
+  --color-ovulation-fill: #7C3AED;
+}

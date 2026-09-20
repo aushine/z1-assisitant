@@ -1,0 +1,77 @@
+# GoFrame 主配置
+# 环境变量覆盖规则：GF_<SECTION>_<KEY>（不区分大小写）
+# 例如 GF_DATABASE_DEFAULT_LINK=... 会覆盖 database.default.link
+
+server:
+  address: ":8090"
+  readTimeout: "30s"
+  writeTimeout: "30s"
+  idleTimeout: "60s"
+  # 头像等 multipart 上传兜底闸（细粒度 5MB 校验在 controller 层）
+  clientMaxBodySize: "10M"
+  # OpenAPI 文档（开发期可打开）
+  openapiPath: "/api.json"
+  swaggerPath: "/swagger"
+
+# 文件存储（D-03 第八轮：头像真文件上传，DB 只存 /uploads/... URL）
+storage:
+  # Windows: "D:/z1-data/uploads"  Linux: "/data/z1/uploads"  默认 "./data/uploads"
+  # 环境变量覆盖：GF_STORAGE_UPLOAD_DIR
+  upload_dir: "./data/uploads"
+
+# MySQL 数据源（指向老大提供的实例）
+database:
+  default:
+    link: "<DB_USER>:<DB_PASSWORD>@tcp(gouxiong-mysql:3306)/life_assistant?charset=utf8mb4&parseTime=true&loc=Local"
+    debug: true
+    charset: "utf8mb4"
+    maxIdle: 10
+    maxOpen: 50
+    maxLifetime: "1h"
+
+# Redis（v1 暂不用，老大要求用变量缓存代替，配置保留兼容）
+redis:
+  default:
+    address: "127.0.0.1:6379"
+    db: 0
+    pass: ""
+    maxIdle: 10
+    maxActive: 50
+    idleTimeout: "60s"
+    dialTimeout: "5s"
+    readTimeout: "3s"
+    writeTimeout: "3s"
+    enabled: false  # v1: 关掉 Redis，用变量缓存
+
+# JWT 配置
+jwt:
+  # ⚠️ 生产环境务必改为强随机字符串
+  accessSecret: "change-me-access-secret-at-least-32-chars-please-rotate"
+  refreshSecret: "change-me-refresh-secret-at-least-32-chars-please-rotate"
+  # access 4 小时，refresh 7 天
+  accessTtl: 14400
+  refreshTtl: 604800
+  issuer: "life-assistant"
+
+# 日志
+log:
+  path: "./logs"
+  level: "all"            # all/debug/info/warn/error
+  format: ""              # 留空=默认；"json" 走 JSON 格式
+  stdout: true
+  rotationSize: 100       # MB
+  rotationCount: 7        # 保留 7 份
+  ctxKeys: ["request_id", "user_id", "role"]
+
+# 业务配置
+app:
+  name: "life-assistant-api"
+  version: "1.0.0"
+  env: "dev"              # dev / staging / prod
+  # bcrypt cost
+  bcryptCost: 12
+  # 登录失败锁定：达到 5 次锁定 10 分钟
+  loginMaxFailures: 5
+  loginLockMinutes: 10
+  # 单用户最多在线设备数
+  maxDevicesPerUser: 5

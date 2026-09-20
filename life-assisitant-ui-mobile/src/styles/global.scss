@@ -1,0 +1,83 @@
+/**
+ * 全局工具类
+ * 命名风格：u-{category}-{name}
+ */
+
+.u-flex { display: flex; }
+.u-flex-col { display: flex; flex-direction: column; }
+.u-flex-center { display: flex; align-items: center; justify-content: center; }
+.u-flex-between { display: flex; align-items: center; justify-content: space-between; }
+.u-flex-1 { flex: 1; min-width: 0; }
+.u-flex-wrap { flex-wrap: wrap; }
+
+.u-text-center { text-align: center; }
+.u-text-left { text-align: left; }
+.u-text-right { text-align: right; }
+.u-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.u-ellipsis-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.u-mt-1 { margin-top: var(--space-1); }
+.u-mt-2 { margin-top: var(--space-2); }
+.u-mt-3 { margin-top: var(--space-3); }
+.u-mt-4 { margin-top: var(--space-4); }
+.u-mt-5 { margin-top: var(--space-5); }
+.u-mt-6 { margin-top: var(--space-6); }
+.u-mb-1 { margin-bottom: var(--space-1); }
+.u-mb-2 { margin-bottom: var(--space-2); }
+.u-mb-3 { margin-bottom: var(--space-3); }
+.u-mb-4 { margin-bottom: var(--space-4); }
+.u-mb-5 { margin-bottom: var(--space-5); }
+.u-mb-6 { margin-bottom: var(--space-6); }
+.u-ml-2 { margin-left: var(--space-2); }
+.u-ml-3 { margin-left: var(--space-3); }
+.u-mr-2 { margin-right: var(--space-2); }
+.u-mr-3 { margin-right: var(--space-3); }
+
+.u-p-4 { padding: var(--space-4); }
+.u-p-5 { padding: var(--space-5); }
+.u-px-5 { padding-left: var(--space-5); padding-right: var(--space-5); }
+.u-py-4 { padding-top: var(--space-4); padding-bottom: var(--space-4); }
+
+.u-text-primary { color: var(--color-text-primary); }
+.u-text-secondary { color: var(--color-text-secondary); }
+.u-text-tertiary { color: var(--color-text-tertiary); }
+.u-text-disabled { color: var(--color-text-disabled); }
+.u-text-primary-color { color: var(--color-primary); }
+.u-text-success { color: var(--color-success); }
+.u-text-warning { color: var(--color-warning); }
+.u-text-danger { color: var(--color-danger); }
+
+.u-bg-app { background: var(--color-bg-app); }
+.u-bg-card { background: var(--color-bg-card); }
+
+.u-card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-xs);
+}
+
+/* 移动端页面容器（左右内边距 20px，底部留 TabBar） */
+.u-page {
+  min-height: 100vh;
+  min-height: 100dvh; /* 第十五轮：收敛 iOS 26 底部白溢出带 */
+  padding: 0 var(--space-5);
+  padding-bottom: var(--space-5);
+}
+
+.u-page-title {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-4);
+}

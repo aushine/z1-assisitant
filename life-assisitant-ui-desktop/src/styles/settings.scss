@@ -1,0 +1,338 @@
+// ==========================================================================
+// 设置 / 管理类页面样式
+// 归属：task / me / user / permission 页面组。
+//
+// ⚠️ 加载顺序警告：本文件在 main.tsx 中于 stat.scss **之前**加载。
+// stat.scss 是全项目最后一个样式文件，历史上曾因「最后加载」静默覆盖
+// record / stat / task 三页的 .page-header（见 06-任务清单 A13 记录）。
+// 因此：
+//   1. 本文件内**不要**重定义 .page-header / .page-title / .page-subtitle，
+//      它们由 global.scss 统一提供。
+//   2. 所有选择器请加页面根类前缀（.task-page / .settings-page / …），
+//      用特异性自我隔离，不要依赖加载顺序取胜。
+// ==========================================================================
+@use './tokens.scss' as *;
+
+// --------------------------------------------------------------------------
+// 个人资料（M4：28px/20px → $fs-h1/$fs-h3）
+// --------------------------------------------------------------------------
+.profile-avatar-initials {
+  font-size: $fs-h1;
+}
+
+.profile-display-name {
+  font-size: $fs-h3;
+  font-weight: 700;
+}
+
+// --------------------------------------------------------------------------
+// 通知设置（M5：真实通知列表）
+// --------------------------------------------------------------------------
+.notif-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $space-4;
+}
+
+.notif-list-title {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  font-size: $fs-body-sm;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.notif-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.notif-item {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  padding: $space-3 0;
+  border-bottom: 1px solid var(--color-border-light);
+  cursor: pointer;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  .notif-item-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .notif-item-title {
+    font-size: $fs-body-sm;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  .notif-item-body {
+    font-size: $fs-caption;
+    color: var(--color-text-secondary);
+    margin-top: 2px;
+  }
+
+  .notif-item-time {
+    font-size: $fs-caption-sm;
+    color: var(--color-text-tertiary);
+    margin-top: 2px;
+  }
+
+  .notif-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-primary-500);
+    flex-shrink: 0;
+  }
+}
+
+// --------------------------------------------------------------------------
+// 用户管理 / 权限管理（A1-A4）
+// --------------------------------------------------------------------------
+.user-page,
+.perm-page {
+  display: flex;
+  flex-direction: column;
+  gap: $space-5;
+
+  .page-tip {
+    font-size: $fs-caption;
+    color: var(--color-text-tertiary);
+    padding: $space-2 0;
+
+    .warn { color: var(--color-danger); font-weight: 500; }
+    .who { color: var(--color-text-secondary); }
+  }
+
+  .hint {
+    font-size: $fs-caption;
+    color: var(--color-text-tertiary);
+    line-height: 1.6;
+  }
+
+  .pager-wrap {
+    margin-top: $space-4;
+    display: flex;
+    justify-content: flex-end;
+  }
+}
+
+.user-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $space-3;
+  margin-bottom: $space-4;
+
+  .user-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: $space-3;
+  }
+}
+
+// --------------------------------------------------------------------------
+// 权限管理（D-03 重写：左角色列表 + 右模块勾选，替代旧三列大矩阵）
+// --------------------------------------------------------------------------
+.perm-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: $space-5;
+  align-items: start;
+
+  @media (max-width: 960px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.role-panel {
+  .role-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: $space-3;
+
+    .role-panel-title {
+      font-size: $fs-body;
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+  }
+
+  .role-list {
+    display: flex;
+    flex-direction: column;
+    gap: $space-2;
+  }
+
+  .role-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: $space-3;
+    border: 1px solid var(--color-border-light);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+
+    &:hover { background: var(--color-bg-hover); }
+
+    &.active {
+      border-color: var(--color-primary);
+      background: var(--color-primary-light, rgba(1, 77, 178, 0.06));
+    }
+
+    .role-item-main {
+      display: flex;
+      align-items: baseline;
+      gap: $space-2;
+
+      .role-item-name {
+        font-size: $fs-body-sm;
+        font-weight: 600;
+        color: var(--color-text-primary);
+      }
+    }
+
+    .role-item-meta {
+      display: flex;
+      align-items: center;
+      gap: $space-2;
+      flex-wrap: wrap;
+
+      .role-item-count {
+        font-size: $fs-caption-sm;
+        color: var(--color-text-tertiary);
+      }
+    }
+  }
+}
+
+.perm-detail {
+  .perm-empty {
+    padding: $space-6;
+    text-align: center;
+    color: var(--color-text-tertiary);
+  }
+
+  .perm-detail-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: $space-3;
+    margin-bottom: $space-4;
+
+    .perm-detail-title {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: $fs-h3;
+      font-weight: 700;
+      color: var(--color-text-primary);
+
+      .perm-detail-desc {
+        font-size: $fs-caption;
+        font-weight: 400;
+        color: var(--color-text-tertiary);
+      }
+    }
+
+    .perm-detail-actions {
+      display: flex;
+      gap: $space-2;
+      flex-shrink: 0;
+    }
+  }
+
+  .perm-selectall {
+    padding: $space-2 0 $space-3;
+    border-bottom: 1px dashed var(--color-border-light);
+    margin-bottom: $space-3;
+  }
+
+  .perm-modules {
+    display: flex;
+    flex-direction: column;
+    gap: $space-4;
+    // 切换角色 → 骨架屏→勾选区重挂载，此处淡入让「权限候选框」的换内容可感知
+    animation: view-in 160ms ease-out both;
+  }
+
+  .perm-module {
+    border: 1px solid var(--color-border-light);
+    border-radius: 10px;
+    padding: $space-3 $space-4;
+
+    .perm-module-head {
+      display: flex;
+      align-items: center;
+      gap: $space-2;
+      padding-bottom: $space-2;
+      border-bottom: 1px dashed var(--color-border-light);
+
+      .perm-module-name {
+        font-size: $fs-body-sm;
+        font-weight: 600;
+        color: var(--color-text-primary);
+      }
+
+      .perm-module-count {
+        margin-left: auto;
+        font-size: $fs-caption-sm;
+        color: var(--color-text-tertiary);
+      }
+    }
+
+    .perm-module-points {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: $space-1 $space-4;
+      padding-top: $space-2;
+
+      .perm-point {
+        display: flex;
+        align-items: center;
+        gap: $space-2;
+      }
+    }
+  }
+
+  .perm-footer {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: $space-3;
+    margin-top: $space-4;
+    padding: $space-3 0;
+    background: var(--color-bg-card, #fff);
+    border-top: 1px solid var(--color-border-light);
+
+    .perm-footer-hint {
+      font-size: $fs-caption;
+      color: var(--color-text-tertiary);
+    }
+  }
+}
+
+.role-form {
+  display: flex;
+  flex-direction: column;
+  gap: $space-2;
+
+  label {
+    font-size: $fs-caption;
+    color: var(--color-text-secondary);
+    margin-top: $space-2;
+
+    &:first-child { margin-top: 0; }
+  }
+}

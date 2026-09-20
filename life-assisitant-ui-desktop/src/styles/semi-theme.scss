@@ -1,0 +1,641 @@
+// ==========================================================================
+// Semi UI 主题定制
+// 覆盖 Semi Design 默认 Design Tokens，与项目设计系统保持一致
+// 参考: https://semi.design/zh-CN/start/customize-theme
+// ==========================================================================
+
+// 导入项目设计 Tokens
+@use './tokens.scss' as *;
+
+// ----- 颜色系统映射 -----
+// Semi UI 使用 CSS 变量 --semi-xxx 作为 Design Tokens
+// 我们在 :root 中覆盖这些变量以统一风格
+
+:root {
+  // Primary - 主色 (使用项目主色 #014DB2)
+  --semi-color-primary: #{$primary-500};
+  --semi-color-primary-hover: #{$primary-300};
+  --semi-color-primary-active: #{$primary-700};
+  --semi-color-primary-disabled: #{$primary-100};
+  --semi-color-primary-light-default: #{$primary-50};
+  --semi-color-primary-light-hover: #{$primary-100};
+  --semi-color-primary-light-active: #{rgba($primary-500, 0.15)};
+
+  // Secondary - 次要色 (使用 accent 紫色)
+  --semi-color-secondary: #{$accent};
+  --semi-color-secondary-hover: #{$accent-light};
+  --semi-color-secondary-active: #{$accent-dark};
+  --semi-color-secondary-disabled: #{rgba($accent, 0.3)};
+  --semi-color-secondary-light-default: #{$accent-light};
+  --semi-color-secondary-light-hover: #{rgba($accent, 0.15)};
+  --semi-color-secondary-light-active: #{rgba($accent, 0.25)};
+
+  // Tertiary - 第三色 (中性灰)
+  --semi-color-tertiary: #{$text-tertiary};
+  --semi-color-tertiary-hover: #{$text-secondary};
+  --semi-color-tertiary-active: #{$text-primary};
+  --semi-color-tertiary-light-default: #{$bg-hover};
+  --semi-color-tertiary-light-hover: #{$border-default};
+  --semi-color-tertiary-light-active: #{$border-strong};
+
+  // Info - 信息色
+  --semi-color-info: #{$primary-500};
+  --semi-color-info-hover: #{$primary-300};
+  --semi-color-info-active: #{$primary-700};
+  --semi-color-info-disabled: #{$primary-100};
+  --semi-color-info-light-default: #{$primary-50};
+  --semi-color-info-light-hover: #{$primary-100};
+  --semi-color-info-light-active: #{rgba($primary-500, 0.15)};
+
+  // Success - 成功色
+  --semi-color-success: #{$success};
+  --semi-color-success-hover: #{lighten($success, 10%)};
+  --semi-color-success-active: #{$success-dark};
+  --semi-color-success-disabled: #{rgba($success, 0.3)};
+  --semi-color-success-light-default: #{$success-light};
+  --semi-color-success-light-hover: #{rgba($success, 0.15)};
+  --semi-color-success-light-active: #{rgba($success, 0.25)};
+
+  // Warning - 警告色
+  --semi-color-warning: #{$warning};
+  --semi-color-warning-hover: #{lighten($warning, 10%)};
+  --semi-color-warning-active: #{$warning-dark};
+  --semi-color-warning-disabled: #{rgba($warning, 0.3)};
+  --semi-color-warning-light-default: #{$warning-light};
+  --semi-color-warning-light-hover: #{rgba($warning, 0.15)};
+  --semi-color-warning-light-active: #{rgba($warning, 0.25)};
+
+  // Danger - 危险色
+  --semi-color-danger: #{$danger};
+  --semi-color-danger-hover: #{lighten($danger, 10%)};
+  --semi-color-danger-active: #{$danger-dark};
+  --semi-color-danger-disabled: #{rgba($danger, 0.3)};
+  --semi-color-danger-light-default: #{$danger-light};
+  --semi-color-danger-light-hover: #{rgba($danger, 0.15)};
+  --semi-color-danger-light-active: #{rgba($danger, 0.25)};
+
+  // ----- 文本颜色 -----
+  --semi-color-text-0: #{$text-primary};      // 主文本
+  --semi-color-text-1: #{$text-secondary};    // 次要文本
+  --semi-color-text-2: #{$text-tertiary};     // 辅助文本
+  --semi-color-text-3: #{$text-disabled};     // 禁用文本
+
+  // ----- 背景颜色 -----
+  --semi-color-bg-0: #{$bg-app};              // 页面背景
+  --semi-color-bg-1: #{$bg-card};             // 卡片背景
+  --semi-color-bg-2: #{$bg-hover};            // 悬浮背景
+  --semi-color-bg-3: #{$bg-elevated};         //  elevated 背景
+
+  // ----- 边框颜色 -----
+  --semi-color-border: #{$border-default};      // 默认边框
+  --semi-color-border-light: #{$border-light};  // 浅色边框
+  --semi-color-border-strong: #{$border-strong};// 强调边框
+
+  // ----- 阴影系统 -----
+  --semi-shadow-elevated: #{$shadow-sm};
+  --semi-shadow-knob: #{$shadow-md};
+  --semi-shadow-modal: #{$shadow-lg};
+  --semi-shadow-popover: #{$shadow-md};
+
+  // ----- 圆角系统 -----
+  --semi-border-radius-small: #{$radius-xs};
+  --semi-border-radius-medium: #{$radius-sm};
+  --semi-border-radius-large: #{$radius-lg};
+  --semi-border-radius-full: #{$radius-pill};
+
+  // ----- 字体系统 -----
+  --semi-font-family: #{$font-family};
+
+  // ----- 间距系统 -----
+  --semi-spacing-base: 4px;
+  --semi-spacing-tight: 4px;
+  --semi-spacing-base-loose: 8px;
+}
+
+// ----- Semi UI 组件样式覆盖 -----
+
+// Button 按钮样式优化
+.semi-button {
+  font-weight: 500;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  &-primary {
+    box-shadow: 0 1px 2px rgba(1, 77, 178, 0.1);
+
+    &:hover {
+      box-shadow: 0 4px 12px rgba(1, 77, 178, 0.25);
+      transform: translateY(-1px);
+    }
+
+    &:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(1, 77, 178, 0.1);
+    }
+  }
+
+  &-secondary {
+    border-color: var(--color-border-default);
+
+    &:hover {
+      border-color: var(--color-border-strong);
+      background: var(--color-bg-hover);
+    }
+  }
+
+  &-tertiary {
+    &:hover {
+      background: var(--color-bg-hover);
+    }
+  }
+}
+
+// Card 卡片样式优化
+// G13：删除此处的 border-radius —— 与 semi-overrides.css 的 var(--radius-xl) !important
+// 值相同且被其覆盖，是死代码；圆角由 semi-overrides.css 统一负责。
+.semi-card {
+  border: 1px solid transparent;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover {
+    border-color: var(--color-border-light);
+    box-shadow: #{$shadow-sm};
+  }
+
+  &-header {
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  &-body {
+    color: var(--color-text-secondary);
+  }
+}
+
+// Input 输入框样式优化
+.semi-input-wrapper {
+  border-radius: #{$radius-sm};
+  border-color: var(--color-border-default);
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover {
+    border-color: var(--color-border-strong);
+  }
+
+  &-focus {
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 3px rgba(1, 77, 178, 0.1) !important;
+  }
+
+  input {
+    font-size: 14px;
+  }
+}
+
+// Select 选择器样式优化
+.semi-select {
+  border-radius: #{$radius-sm};
+
+  &:hover {
+    border-color: var(--color-border-strong);
+  }
+}
+
+// Table 表格样式优化
+.semi-table {
+  border-radius: #{$radius-lg};
+  overflow: hidden;
+
+  &-thead {
+    background: var(--color-bg-hover);
+
+    th {
+      font-weight: 600;
+      color: var(--color-text-primary);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+  }
+
+  &-tbody {
+    tr {
+      transition: background 150ms ease;
+
+      &:hover {
+        background: var(--color-bg-hover);
+      }
+    }
+  }
+
+  // A13: 表格内边距契约 —— 统一 16px 20px，与列表项 / 折叠面板对齐。
+  // 此前 semi-overrides.css 的 `.semi-table-tbody > tr > td`（特异性 0,1,3 > 0,1,0）
+  // 静默覆盖了这里的 16px，使作者意图失效。现两处取同值，冲突不再有可见后果。
+  &-cell {
+    padding: $space-4 $space-5;  // 16px 20px
+    color: var(--color-text-secondary);
+  }
+
+  // th 用的是 semi-table-row-head，不是 semi-table-cell
+  &-row-head {
+    padding: $space-4 $space-5;
+  }
+}
+
+// Tag 标签样式优化
+.semi-tag {
+  border-radius: #{$radius-pill};
+  font-weight: 500;
+  font-size: 12px;
+  padding: 4px $space-2;
+
+  &-default {
+    background: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+  }
+}
+
+// Modal/Dialog 弹窗样式优化
+.semi-modal {
+  &-content {
+    border-radius: #{$radius-xl};
+    box-shadow: #{$shadow-xl};
+  }
+
+  &-header {
+    font-weight: 600;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--color-border-light);
+  }
+
+  &-body {
+    padding: 24px;
+  }
+
+  &-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--color-border-light);
+  }
+}
+
+// SideSheet 抽屉样式优化
+.semi-sidesheet {
+  &-content {
+    border-radius: #{$radius-xl} 0 0 #{$radius-xl};
+  }
+
+  &-header {
+    font-weight: 600;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--color-border-light);
+  }
+
+  &-body {
+    padding: 24px;
+  }
+
+  &-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--color-border-light);
+  }
+}
+
+// DatePicker 日期选择器优化
+.semi-datepicker {
+  border-radius: #{$radius-lg};
+
+  &-day {
+    border-radius: #{$radius-sm};
+  }
+}
+
+// Pagination 分页器优化
+.semi-pagination {
+  &-item {
+    border-radius: #{$radius-sm};
+    font-weight: 500;
+
+    &-active {
+      background: var(--color-primary-500);
+      color: white;
+    }
+  }
+}
+
+// Menu 菜单样式优化 (用于侧边栏导航)
+.semi-navigation {
+  &-item {
+    border-radius: #{$radius-sm};
+    margin: 4px 8px;
+    transition: all 150ms ease;
+
+    &:hover {
+      background: var(--color-bg-hover);
+    }
+
+    &-active {
+      background: var(--color-primary-50);
+      color: var(--color-primary-500);
+      font-weight: 600;
+
+      &::before {
+        display: none; // 移除默认的左边框指示器
+      }
+    }
+  }
+}
+
+// Avatar 头像样式优化
+.semi-avatar {
+  box-shadow: #{$shadow-xs};
+
+  &-bordered {
+    border: 2px solid white;
+    box-shadow: #{$shadow-sm};
+  }
+}
+
+// Dropdown 下拉菜单优化
+.semi-dropdown {
+  border-radius: #{$radius-lg};
+  box-shadow: #{$shadow-lg};
+  border: 1px solid var(--color-border-light);
+
+  &-item {
+    border-radius: #{$radius-sm};
+    margin: 2px 6px;
+    padding: 8px 12px;
+
+    &:hover {
+      background: var(--color-bg-hover);
+    }
+  }
+}
+
+// Tooltip 提示框优化
+.semi-tooltip {
+  border-radius: #{$radius-sm};
+  font-size: 13px;
+  padding: 8px 12px;
+  box-shadow: #{$shadow-md};
+}
+
+// Popover 气泡卡片优化
+// 注意外层 .semi-popover-wrapper 才是真正带底色/圆角的元素：Semi 的
+// --semi-color-bg-3 不会随本项目的 [data-theme='dark'] 翻转，不覆盖的话
+// 暗色主题下气泡仍是白底（白底 + 浅色文字 = 不可读）。
+.semi-popover-wrapper {
+  background-color: var(--color-bg-card);
+  border-radius: #{$radius-lg};
+}
+
+.semi-popover {
+  border-radius: #{$radius-lg};
+  box-shadow: #{$shadow-lg};
+  border: 1px solid var(--color-border-light);
+}
+
+// Empty 空状态优化
+.semi-empty {
+  padding: 48px 24px;
+
+  &-description {
+    color: var(--color-text-tertiary);
+    font-size: 14px;
+  }
+}
+
+// Skeleton 骨架屏优化
+.semi-skeleton {
+  border-radius: #{$radius-sm};
+}
+
+// Switch 开关优化
+.semi-switch {
+  &-checked {
+    background: var(--color-primary-500);
+  }
+}
+
+// Checkbox/Radio 优化
+// ⚠️ 可见小方框是 *-inner-display（16×16），*-inner 是 16×20 的容器：
+// 旧规则误给容器上底色，方框上下各渗出 2px 深蓝条，看起来「复选框被拉长」。
+// 必须画在 display 上；且保持 2 类特异度，让 Semi 自带的
+// disabled+checked（3 类，浅蓝 75%）继续覆盖禁用态（admin 全勾置灰页依赖它）。
+.semi-checkbox,
+.semi-radio {
+  &-inner-display {
+    border-radius: #{$radius-xs};
+  }
+
+  &-checked {
+    .semi-checkbox-inner-display,
+    .semi-radio-inner-display {
+      background: var(--color-primary-500);
+      box-shadow: inset 0 0 0 1px var(--color-primary-500);
+    }
+  }
+}
+
+// Steps 步骤条优化
+.semi-steps {
+  &-item {
+    &-icon {
+      border-radius: #{$radius-pill};
+    }
+
+    &-active {
+      .semi-steps-item-icon {
+        background: var(--color-primary-500);
+        box-shadow: 0 0 0 4px rgba(1, 77, 178, 0.15);
+      }
+    }
+  }
+}
+
+// Progress 进度条优化
+.semi-progress {
+  &-track {
+    border-radius: #{$radius-pill};
+    background: var(--color-bg-hover);
+  }
+
+  &-line-inner {
+    border-radius: #{$radius-pill};
+    background: linear-gradient(90deg, var(--color-primary-300), var(--color-primary-500));
+  }
+}
+
+// Slider 滑块优化
+.semi-slider {
+  &-rail {
+    border-radius: #{$radius-pill};
+    background: var(--color-bg-hover);
+  }
+
+  &-track {
+    border-radius: #{$radius-pill};
+    background: var(--color-primary-500);
+  }
+
+  &-handle {
+    border-color: var(--color-primary-500);
+    box-shadow: #{$shadow-sm};
+
+    &:hover {
+      box-shadow: #{$shadow-md};
+    }
+  }
+}
+
+// Badge 徽标优化
+.semi-badge {
+  &-count {
+    border-radius: #{$radius-pill};
+    font-weight: 600;
+    font-size: 11px;
+    min-width: $badge-size;
+    height: $badge-size;
+    line-height: $badge-size;
+  }
+}
+
+// Divider 分割线优化
+.semi-divider {
+  border-color: var(--color-border-light);
+
+  &-with-text {
+    color: var(--color-text-tertiary);
+    font-size: 13px;
+    font-weight: 500;
+  }
+}
+
+// Tabs 标签页优化
+.semi-tabs {
+  &-bar {
+    border-bottom-color: var(--color-border-light);
+  }
+
+  &-tab {
+    font-weight: 500;
+    border-radius: #{$radius-sm} #{$radius-sm} 0 0;
+
+    &-active {
+      color: var(--color-primary-500);
+      font-weight: 600;
+    }
+  }
+
+  &-ink-bar {
+    background: var(--color-primary-500);
+    border-radius: #{$radius-pill} #{$radius-pill} 0 0;
+    height: 3px;
+  }
+}
+
+// Collapse 折叠面板优化
+.semi-collapse {
+  border-radius: #{$radius-lg};
+  border: 1px solid var(--color-border-light);
+
+  &-header {
+    font-weight: 600;
+    padding: 16px 20px;
+  }
+
+  &-content {
+    padding: 0 20px 16px;
+  }
+}
+
+// Form 表单优化
+.semi-form {
+  &-label {
+    font-weight: 500;
+    color: var(--color-text-primary);
+    font-size: 14px;
+  }
+
+  &-field {
+    margin-bottom: 20px;
+  }
+}
+
+// Descriptions 描述列表优化
+.semi-descriptions {
+  &-item {
+    &-label {
+      color: var(--color-text-tertiary);
+      font-size: 13px;
+    }
+
+    &-content {
+      color: var(--color-text-primary);
+      font-weight: 500;
+    }
+  }
+}
+
+// List 列表优化
+.semi-list {
+  &-item {
+    padding: 16px 20px;
+    border-bottom-color: var(--color-border-light);
+    transition: background 150ms ease;
+
+    &:hover {
+      background: var(--color-bg-hover);
+    }
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+}
+
+// Timeline 时间线优化
+.semi-timeline {
+  &-item {
+    &-head {
+      border-radius: #{$radius-pill};
+    }
+
+    &-content {
+      color: var(--color-text-secondary);
+    }
+  }
+}
+
+// Upload 上传优化
+.semi-upload {
+  &-file-card {
+    border-radius: #{$radius-lg};
+    border-color: var(--color-border-default);
+
+    &:hover {
+      border-color: var(--color-border-strong);
+      background: var(--color-bg-hover);
+    }
+  }
+}
+
+// Notification 通知优化
+.semi-notification {
+  border-radius: #{$radius-lg};
+  box-shadow: #{$shadow-lg};
+  border: 1px solid var(--color-border-light);
+
+  &-title {
+    font-weight: 600;
+  }
+}
+
+// Toast 轻提示优化
+.semi-toast {
+  border-radius: #{$radius-lg};
+  box-shadow: #{$shadow-lg};
+
+  &-content {
+    font-weight: 500;
+  }
+}

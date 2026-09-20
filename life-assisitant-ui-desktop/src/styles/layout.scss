@@ -1,0 +1,570 @@
+@use './tokens.scss' as *;
+
+// ==========================================================================
+// Layout: Sidebar + Main
+// 优化后的布局样式，与登录页风格统一
+// ==========================================================================
+.layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--color-bg-app);
+}
+
+// ----- Sidebar -----
+.sidebar {
+  width: $sidebar-width;
+  min-width: $sidebar-width;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.8);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+  padding: $space-6 $space-5;  // A12: 24px 20px（spec 02-导航规范）
+  overflow-y: auto;
+  backdrop-filter: blur(10px);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  padding: 0 $space-2;
+  margin-bottom: $space-7;
+}
+
+.logo-square {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  display: block;
+}
+
+.logo-text {
+  font-size: $fs-h4;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  letter-spacing: -0.3px;
+}
+
+// ----- Navigation -----
+.nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: $space-1;
+}
+
+.nav-group {
+  margin-bottom: $space-5;
+}
+
+.group-title {
+  font-size: $fs-caption-sm;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  padding: $space-2 $space-3;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: $space-1;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  padding: $space-2 $space-3;
+  border-radius: $radius-lg;
+  cursor: pointer;
+  transition: all $duration-fast $ease-default;
+  color: var(--color-text-secondary);
+  font-size: $fs-body-sm;
+  font-weight: 500;
+  margin: 0 $space-1;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--color-text-primary);
+  }
+
+  &.active {
+    background: var(--color-primary-50);
+    color: var(--color-primary-500);
+    font-weight: 600;
+  }
+}
+
+// G9：移除 font-size（曾与 <Icon size={20}> 打架，Semi 时代遗留），
+// 尺寸改由组件 size prop 控制，仅保留 20px 容器盒。
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-label {
+  white-space: nowrap;
+}
+
+// ----- User card -----
+.user-card {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  padding: $space-4;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  margin-top: auto;
+  border-radius: $radius-lg;
+  transition: all $duration-fast $ease-default;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.04);
+  }
+}
+
+.user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-name {
+  font-size: $fs-body-sm;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-role {
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+  margin-top: 2px;
+}
+
+// ----- 用户卡快捷浮层（悬停左下卡片、在其上方展开，见 components/UserQuickPanel.tsx）-----
+// 背景不在这里设：由 .semi-popover-wrapper 统一吃 --color-bg-card（semi-theme.scss），
+// 这样暗色主题下浮层不会还是白的。
+// 宽度：侧栏 260px、内容区左右各留 $space-5(20px) → 卡片左边缘在 x=20。
+// 浮层 position=topLeft 与卡片左边缘对齐，取 240px 正好右边缘落在侧栏边界 (260)，
+// 不会斜跨到右侧内容区上。
+.user-panel {
+  width: 240px;
+  padding: $space-2 0;
+  font-size: $fs-body-sm;
+  color: var(--color-text-primary);
+  box-sizing: border-box;
+  // 第十一轮后面板块变多（上次登录 / 今日简报 / 心情 / 登录设备），
+  // 小屏笔记本上向上展开可能顶出视口，给个上限让它自己滚。
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+}
+
+.user-panel__head {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  padding: $space-3 $space-4 $space-4;
+}
+
+.user-panel__meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-panel__name {
+  font-size: $fs-body-sm;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-panel__sub {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  margin-top: $space-1;
+  min-width: 0;
+}
+
+.user-panel__email {
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-panel__divider {
+  height: 1px;
+  margin: $space-1 0;
+  background: var(--color-border-light);
+}
+
+.user-panel__section {
+  padding: $space-2 $space-4;
+}
+
+.user-panel__section-title {
+  font-size: $fs-caption-sm;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  margin-bottom: $space-2;
+  letter-spacing: 0.4px;
+}
+
+.user-panel__themes {
+  display: flex;
+  gap: $space-1;
+}
+
+.user-panel__theme {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $space-1;
+  padding: $space-2 0;
+  border: 1px solid var(--color-border-light);
+  border-radius: $radius-md;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: $fs-caption-sm;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all $duration-fast $ease-default;
+
+  &:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  &.active {
+    border-color: var(--color-primary-500);
+    background: var(--color-primary-50);
+    color: var(--color-primary-500);
+    font-weight: 600;
+  }
+}
+
+.user-panel__links {
+  padding: $space-1 0;
+}
+
+.user-panel__row {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  margin: 0 $space-2;
+  padding: $space-2 $space-3;
+  border-radius: $radius-md;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: all $duration-fast $ease-default;
+
+  &:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+}
+
+.user-panel__row-icon {
+  flex: none;
+  color: var(--color-text-tertiary);
+}
+
+.user-panel__row-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-panel__arrow {
+  flex: none;
+  color: var(--color-text-tertiary);
+}
+
+.user-panel__row--danger {
+  color: var(--color-danger);
+
+  .user-panel__row-icon { color: var(--color-danger); }
+
+  &:hover {
+    background: var(--color-danger-light);
+    color: var(--color-danger-dark);
+  }
+}
+
+.user-panel__row--muted {
+  color: var(--color-text-tertiary);
+  font-size: $fs-caption;
+}
+
+.user-panel__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-tertiary);
+
+  &--ok { background: var(--color-success); }
+  &--warn { background: var(--color-warning); }
+  &--err { background: var(--color-danger); }
+}
+
+// ----- 面板：上次登录（账号概要第三行，弱化）-----
+.user-panel__lastlogin {
+  margin-top: $space-1;
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// ----- 面板：双行内容行（今日简报）-----
+.user-panel__row-stack {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.user-panel__row-sub {
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// ----- 面板：心情快记 -----
+.user-panel__moods {
+  display: flex;
+  gap: $space-1;
+}
+
+.user-panel__mood {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border: 1px solid var(--color-border-light);
+  border-radius: $radius-md;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: all $duration-fast $ease-default;
+
+  &:hover:not(:disabled) {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  // 选中态底色/描边走 tint（组件内联注入，这里只兜住字体加粗）
+  &.active {
+    font-weight: 600;
+    opacity: 1;
+  }
+}
+
+// ----- 面板：登录设备（二级视图）-----
+.user-panel__backbar {
+  padding: $space-1 $space-2;
+}
+
+.user-panel__back {
+  display: flex;
+  align-items: center;
+  gap: $space-1;
+  width: 100%;
+  padding: $space-2 $space-3;
+  border: none;
+  border-radius: $radius-md;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: $fs-body-sm;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: all $duration-fast $ease-default;
+
+  &:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+}
+
+.user-panel__back-glyph {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--color-text-tertiary);
+}
+
+.user-panel__sessions {
+  padding: $space-1 0;
+}
+
+.user-panel__session {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  margin: 0 $space-2;
+  padding: $space-2 $space-3;
+  border-radius: $radius-md;
+}
+
+.user-panel__session-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-panel__session-top {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+}
+
+.user-panel__session-name {
+  font-size: $fs-body-sm;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.user-panel__self-tag {
+  padding: 0 $space-1;
+  border-radius: $radius-sm;
+  background: var(--color-primary-50);
+  color: var(--color-primary-500);
+  font-size: $fs-caption-sm;
+  font-weight: 500;
+}
+
+.user-panel__session-meta {
+  margin-top: 2px;
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-panel__revoke {
+  flex: none;
+  padding: 2px $space-3;
+  border: 1px solid var(--color-border-light);
+  border-radius: $radius-md;
+  background: transparent;
+  color: var(--color-danger);
+  font-family: inherit;
+  font-size: $fs-caption;
+  cursor: pointer;
+  transition: all $duration-fast $ease-default;
+
+  &:hover:not(:disabled) {
+    background: var(--color-danger-light);
+    border-color: var(--color-danger);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+.user-panel__empty {
+  padding: $space-4;
+  text-align: center;
+  font-size: $fs-caption;
+  color: var(--color-text-tertiary);
+}
+
+.user-panel__hint {
+  padding: $space-2 $space-4 $space-3;
+  font-size: $fs-caption-sm;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
+// ----- Main area -----
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: $header-height;      // A12: 引用令牌（此前 72px 硬编码，令 $header-height: 80px 成为死令牌）
+  min-height: $header-height;
+  padding: 0 $space-7;         // A12: 0 32px
+  background: rgba(255, 255, 255, 0.7);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(10px);
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.header-title {
+  font-size: $fs-h3;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.header-subtitle {
+  font-size: $fs-caption;
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: $space-6 $space-7;  // A12: 24px 32px
+  background: transparent;
+
+  // D-03 第五轮：菜单切页时页面整体淡入微移（React Router 换 key 重挂载即触发），
+  // 180ms ease-out——回应导航动作，仅此一处编排，避免满屏动画的 AI 味
+  > div {
+    animation: view-in 180ms ease-out both;
+  }
+}
+
+// A12: 窄屏收窄内边距，避免横向过挤
+@media (max-width: 1200px) {
+  .content {
+    padding: $space-6;
+  }
+}

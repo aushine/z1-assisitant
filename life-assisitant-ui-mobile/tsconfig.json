@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "jsx": "preserve",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "types": ["vite/client", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  // 说明：原先这里同时有 include "vite.config.ts" 与 references "./tsconfig.node.json"，
+  // 而后者是 composite: true 且同样 include vite.config.ts —— 同一个文件被两个项目重复纳入，
+  // `vue-tsc --noEmit` 直接报 TS6305（Output file 'vite.config.d.ts' has not been built）。
+  // 本工程用的是 --noEmit 而非 --build，项目引用不会被构建，故移除 references，
+  // 由单个程序统一检查 src 与 vite.config.ts（"types" 已含 node，满足其需要）。
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "vite.config.ts"
+  ]
+}

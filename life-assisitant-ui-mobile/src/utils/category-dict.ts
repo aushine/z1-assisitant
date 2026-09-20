@@ -1,0 +1,235 @@
+/**
+ * 分类字典 —— 四类分类的唯一来源（移动端）
+ *
+ * SYNC-FROM-DESKTOP: life-assisitant-ui-desktop/src/utils/category-dict.ts
+ * 最后同步：2026-09-18
+ *
+ * 桌面端把每个分类的「图标 + 语义色」收敛为唯一真相，消灭了同一个分类
+ * 在不同页面颜色/图标不一致的问题（如「学习 📚」在任务抽屉是深紫、
+ * 在记账抽屉是浅紫）。移动端沿用同一套 id / label / emoji / tint / icon，
+ * 图标本体也已完成对齐：移动端引入 `lucide-vue-next@0.300.0`
+ * （与桌面端 lucide-react 同版本号），渲染层输出 `<Icon>` 而非 emoji。
+ *
+ * 使用方式：
+ *   import { TASK_CATEGORIES, getTaskCategory } from '@/utils/category-dict'
+ *   import Icon from '@/components/icon/Icon.vue'
+ *
+ *   <div :style="{ background: c.vars.bg, color: c.vars.fg }">
+ *     <Icon :name="c.icon" :size="16" /><span>{{ c.label }}</span>
+ *   </div>
+ *
+ * ⚠️ `emoji` 是**存储契约**字段：后端交易的 category_emoji、习惯的 icon、
+ *    账户的 icon 直接存取这个 emoji。它不再用于渲染（渲染走 `icon`），
+ *    但**改 emoji 等于改数据**，务必两端同步。
+ */
+import { getTint, type TintName, type TintVars } from '@/utils/tint'
+import { getIconMapping } from '@/utils/icon-map'
+import type { IconName } from '@/components/icon/names'
+
+export interface CategoryDef {
+  /** 唯一 key：任务用 category_id（c_work…），习惯用 HabitCategory（sport…），收支用自定义 id */
+  id: string
+  /** 中文显示名 */
+  label: string
+  /** emoji —— 后端存储值（渲染层不再直出，见 `icon`） */
+  emoji: string
+  /** Lucide 图标名，配合 <Icon :name="..." /> 渲染 */
+  icon: IconName
+  /** 语义色名，配合 getTint() */
+  tint: TintName
+  /** 语义色解析结果（bg/fg），模板里可直接用 */
+  vars: TintVars
+}
+
+/** 内部构造：把 tint 名展开成可用的 bg/fg */
+function def(
+  id: string,
+  label: string,
+  emoji: string,
+  icon: IconName,
+  tint: TintName
+): CategoryDef {
+  return { id, label, emoji, icon, tint, vars: getTint(tint) }
+}
+
+// ==========================================================================
+// 任务分类（6）—— id 与后端 Task.category_id 一致
+// ==========================================================================
+export const TASK_CATEGORIES: readonly CategoryDef[] = [
+  def('c_work', '工作', '💼', 'Briefcase', 'primary'),
+  def('c_study', '学习', '📚', 'BookOpen', 'accent'),
+  def('c_life', '生活', '🏠', 'Home', 'success'),
+  def('c_health', '健康', '💪', 'Dumbbell', 'success'),
+  def('c_social', '社交', '👥', 'Users', 'accent'),
+  def('c_other', '其他', '📌', 'Pin', 'neutral'),
+]
+
+// ==========================================================================
+// 习惯分类（4）—— id 与后端 HabitCategory 一致（sport/diet/life/study）
+// ==========================================================================
+export const HABIT_CATEGORIES: readonly CategoryDef[] = [
+  def('sport', '运动', '💪', 'Dumbbell', 'success'),
+  def('diet', '饮食', '🍎', 'Apple', 'danger'),
+  def('life', '生活', '🏠', 'Home', 'success'),
+  def('study', '学习', '📚', 'BookOpen', 'accent'),
+]
+
+// ==========================================================================
+// 支出分类（8）—— emoji 为后端存储值
+// 注：不包含「转账」（transfer 是独立交易类型，非支出分类）。
+// ==========================================================================
+export const EXPENSE_CATEGORIES: readonly CategoryDef[] = [
+  def('food', '餐饮', '🍱', 'Utensils', 'warning'),
+  def('transit', '交通', '🚇', 'Route', 'primary'),
+  def('shopping', '购物', '🛍️', 'ShoppingBag', 'danger'),
+  def('fun', '娱乐', '🎬', 'Video', 'accent'),
+  def('home', '居住', '🏠', 'Home', 'success'),
+  def('medical', '医疗', '💊', 'HeartPulse', 'danger'),
+  def('study', '学习', '📚', 'BookOpen', 'accent'),
+  def('other_e', '其他', '📦', 'Package', 'neutral'),
+]
+
+// ==========================================================================
+// 收入分类（4）
+// ==========================================================================
+export const INCOME_CATEGORIES: readonly CategoryDef[] = [
+  def('salary', '工资', '💰', 'Banknote', 'success'),
+  def('part', '兼职', '💼', 'Briefcase', 'primary'),
+  def('invest', '投资', '📈', 'TrendingUp', 'success'),
+  def('other_i', '其他', '💵', 'Banknote', 'neutral'),
+]
+
+// ==========================================================================
+// 账户图标（14）—— 账户图标的**唯一真相**
+//
+// 桌面端曾把这段解析逻辑只写在 AccountManager 内部且未导出，导致统计页
+// 只能绕过它直接调 getIconMapping，于是同一个账户在两个页面颜色不同
+// （「现金 💰」记录页 neutral、统计页 danger）。移动端从第一天就收敛到字典。
+// ==========================================================================
+
+/** 账户图标定义：emoji 是后端 accounts.icon 的存储值 */
+export interface AccountIconDef {
+  /** emoji —— 后端存储值 */
+  emoji: string
+  label: string
+  /** Lucide 图标名 */
+  icon: IconName
+  tint: TintName
+  vars: TintVars
+}
+
+/**
+ * 14 个账户预设图标。
+ * 注意：icon-map 把「现金 💰」映射成 danger（那是**收支语境**的语义），
+ * 但账户语境下现金应是中性色，故此处以 neutral 为准 —— 两者刻意不同。
+ */
+export const ACCOUNT_ICON_KEYS: readonly AccountIconDef[] = [
+  def_account('🏦', '银行', 'Landmark', 'success'),
+  def_account('💳', '信用卡', 'CreditCard', 'warning'),
+  def_account('💙', '花呗', 'Wallet', 'accent'),
+  def_account('💚', '微信零钱', 'MessageCircle', 'success'),
+  def_account('💰', '现金', 'Banknote', 'neutral'),
+  def_account('💵', '储蓄', 'PiggyBank', 'success'),
+  def_account('💎', '资产', 'Gem', 'accent'),
+  def_account('📊', '投资', 'BarChart3', 'primary'),
+  def_account('🏠', '房产', 'Home', 'success'),
+  def_account('🔒', '保险柜', 'Lock', 'neutral'),
+  def_account('⚡', '快捷支付', 'Zap', 'warning'),
+  def_account('📱', '手机支付', 'Smartphone', 'primary'),
+  def_account('👤', '个人', 'User', 'accent'),
+  def_account('🔑', '密钥', 'Key', 'warning'),
+]
+
+function def_account(
+  emoji: string,
+  label: string,
+  icon: IconName,
+  tint: TintName
+): AccountIconDef {
+  return { emoji, label, icon, tint, vars: getTint(tint) }
+}
+
+/**
+ * 把后端存储的账户 emoji 反查成可渲染的语义色。
+ * 命中 14 个已知图标用其 tint；历史 / 自定义 emoji 回退到 icon-map。
+ *
+ * 所有渲染账户图标的页面都应调用此函数，不要直接调 getIconMapping，
+ * 否则同一账户在不同页面会出现不同颜色。
+ */
+export interface ResolvedAccountIcon {
+  /** emoji —— 原样返回，便于调用方做「未命中字典」的判断 */
+  emoji: string
+  /** Lucide 图标名 */
+  icon: IconName
+  tint: TintName
+  vars: TintVars
+}
+
+export function resolveAccountIcon(emoji: string): ResolvedAccountIcon {
+  const hit = ACCOUNT_ICON_KEYS.find((k) => k.emoji === emoji)
+  if (hit) return { emoji: hit.emoji, icon: hit.icon, tint: hit.tint, vars: hit.vars }
+  const m = getIconMapping(emoji)
+  return { emoji, icon: m.icon, tint: m.tint, vars: m.vars }
+}
+
+// ==========================================================================
+// 查询辅助
+// ==========================================================================
+
+/** 按 id 查任务分类 */
+export function getTaskCategory(id: string | undefined | null): CategoryDef | undefined {
+  if (!id) return undefined
+  return TASK_CATEGORIES.find((c) => c.id === id)
+}
+
+/** 按 id 查习惯分类 */
+export function getHabitCategory(id: string | undefined | null): CategoryDef | undefined {
+  if (!id) return undefined
+  return HABIT_CATEGORIES.find((c) => c.id === id)
+}
+
+/** 按 id 查支出分类 */
+export function getExpenseCategory(id: string | undefined | null): CategoryDef | undefined {
+  if (!id) return undefined
+  return EXPENSE_CATEGORIES.find((c) => c.id === id)
+}
+
+/** 按 id 查收入分类 */
+export function getIncomeCategory(id: string | undefined | null): CategoryDef | undefined {
+  if (!id) return undefined
+  return INCOME_CATEGORIES.find((c) => c.id === id)
+}
+
+/**
+ * 按后端存储的 emoji 反查收支分类（记录页拿到运行时 emoji 时用）。
+ * 优先在支出/收入里查，回退到任务/习惯。未命中返回 undefined。
+ */
+export function findCategoryByEmoji(emoji: string | undefined | null): CategoryDef | undefined {
+  if (!emoji) return undefined
+  return (
+    EXPENSE_CATEGORIES.find((c) => c.emoji === emoji) ??
+    INCOME_CATEGORIES.find((c) => c.emoji === emoji) ??
+    TASK_CATEGORIES.find((c) => c.emoji === emoji) ??
+    HABIT_CATEGORIES.find((c) => c.emoji === emoji)
+  )
+}
+
+/** 按交易类型取对应分类表（transfer 无分类，返回空数组） */
+export function categoriesByTransactionType(
+  type: 'expense' | 'income' | 'transfer'
+): readonly CategoryDef[] {
+  if (type === 'expense') return EXPENSE_CATEGORIES
+  if (type === 'income') return INCOME_CATEGORIES
+  return []
+}
+
+/**
+ * 把后端 emoji 解析成「可渲染分类」。
+ * 未命中字典时返回一个降级对象（Package 图标 + neutral），
+ * 保证列表项永远有图标有底色。
+ */
+export function resolveCategory(emoji: string | undefined | null): CategoryDef {
+  const hit = findCategoryByEmoji(emoji)
+  if (hit) return hit
+  return def('__fallback__', '未分类', emoji || '📦', 'Package', 'neutral')
+}

@@ -1,0 +1,41 @@
+# 依赖
+vendor/
+
+# 构建产物
+*.exe
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# 日志
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# 临时文件
+*.tmp
+*.bak
+*.orig
+.DS_Store
+Thumbs.db
+
+# 环境
+.env
+.env.local
+
+# 测试
+coverage.out
+*.test
+
+# Git
+.git/
+.gitignore
+
+# 文档
+README.md

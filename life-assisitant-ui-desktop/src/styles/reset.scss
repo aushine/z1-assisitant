@@ -1,0 +1,110 @@
+// 全局重置 —— 抹平浏览器默认差异，规范化盒模型与排版
+@use './tokens.scss' as *;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: $fs-body-sm;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  background: var(--color-bg-app);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  min-height: 100%;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--color-primary-500);
+  text-decoration: none;
+  transition: color $duration-fast $ease-default;
+
+  &:hover {
+    color: var(--color-primary-700);
+  }
+}
+
+ul, ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: $radius-md;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+// Only show focus ring for keyboard navigation, not mouse clicks.
+// Semi UI components manage their own focus styles.
+:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
+
+// Suppress browser default focus outline on mouse click for Semi UI form controls
+.semi-input:focus,
+.semi-input-number:focus,
+.semi-select:focus,
+.semi-select:focus-within,
+.semi-datepicker:focus,
+.semi-timepicker:focus,
+.semi-input-wrapper-focus,
+.semi-select-focus,
+.semi-input-number-focus {
+  outline: none;
+}

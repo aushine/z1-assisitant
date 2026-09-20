@@ -1,0 +1,347 @@
+/**
+ * 设计 Token · CSS 变量
+ * 来源：spec/03-设计系统.md
+ * 设计稿基准：移动端 375px
+ *
+ * 使用建议：
+ *  - 颜色 → var(--color-primary) 等
+ *  - 间距 → var(--space-4) 等
+ *  - 圆角 → var(--radius-xl) 等
+ *  - 阴影 → var(--shadow-xs) 等
+ */
+
+:root {
+  /* ========== Colors - Primary 品牌主色 ========== */
+  --primary-50: #E0F2FF;
+  --primary-100: #B3D9FF;
+  --primary-300: #4D94FF;
+  --primary-500: #014DB2;  /* 主色 */
+  --primary-700: #013D8E;  /* 按下态 */
+  --primary-900: #002A66;  /* 标题强调 */
+
+  /* 语义别名（业务层直接用） */
+  --color-primary: #014DB2;
+  --color-primary-light: #E0F2FF;
+  --color-primary-dark: #013D8E;
+
+  /* ========== Colors - Semantic 语义色 ========== */
+  --color-success: #10B981;
+  --color-success-light: #D1FAE5;
+  --color-success-dark: #047857;
+
+  --color-warning: #F59E0B;
+  --color-warning-light: #FEF3C7;
+  --color-warning-dark: #B45309;
+
+  --color-danger: #EF4444;
+  --color-danger-light: #FEE2E2;
+  --color-danger-dark: #B91C1C;
+
+  --color-info: #8B5CF6;       /* 紫，强调色 */
+  --color-info-light: #EDE9FE;
+  --color-info-dark: #6D28D9;
+
+  /* ========== Colors - Accent 强调色 ========== */
+  --color-accent: #8B5CF6;     /* 同 info，业务常用别名 */
+  /* light/dark 别名到 info，暗色下随 --color-info-* 自动翻转，无需在 dark 块重复 */
+  --color-accent-light: var(--color-info-light);
+  --color-accent-dark: var(--color-info-dark);
+
+  /* ========== Colors - Neutral 中性色 ========== */
+  --color-text-primary: #0A1628;     /* 主文字 */
+  --color-text-secondary: #374151;   /* 次级文字 */
+  --color-text-tertiary: #6B7280;    /* 弱化文字 */
+  --color-text-disabled: #9CA3AF;    /* 禁用态 */
+  --color-text-placeholder: #9CA3AF; /* 输入占位符 */
+
+  --color-bg-app: #F9F9F9;       /* 应用背景 */
+  --color-bg-card: #FFFFFF;      /* 卡片背景 */
+  --color-bg-hover: #F3F4F6;     /* 悬停背景 */
+  --color-bg-elevated: #FFFFFF;  /* 弹窗、Drawer */
+
+  --color-border: #E5E7EB;       /* 默认边框 */
+  --color-border-light: #F3F4F6; /* 浅边框 */
+  --color-border-strong: #D1D5DB;/* 强调边框 */
+
+  /* ========== Tint · 语义色 6 组 ==========
+   * SYNC-FROM-DESKTOP: life-assisitant-ui-desktop/src/components/icon/tints.ts
+   *                    life-assisitant-ui-desktop/src/styles/tokens.scss
+   * 每个 Token 名实际落地为 bg / fg 两个变量。
+   * 全部别名到 --color-*，因此暗色下**自动联动**，本文件 dark 块不需要重复声明。
+   * 用法：style="{ background: 'var(--tint-primary-bg)', color: 'var(--tint-primary-fg)' }"
+   */
+  --tint-primary-bg: var(--color-primary-light);
+  --tint-primary-fg: var(--color-primary);
+  --tint-success-bg: var(--color-success-light);
+  --tint-success-fg: var(--color-success-dark);
+  --tint-warning-bg: var(--color-warning-light);
+  --tint-warning-fg: var(--color-warning-dark);
+  --tint-danger-bg:  var(--color-danger-light);
+  --tint-danger-fg:  var(--color-danger-dark);
+  --tint-accent-bg:  var(--color-accent-light);
+  --tint-accent-fg:  var(--color-accent-dark);
+  --tint-neutral-bg: var(--color-bg-hover);
+  --tint-neutral-fg: var(--color-text-tertiary);
+
+  /* ========== Medal · 里程碑奖牌 ==========
+   * SYNC-FROM-DESKTOP: life-assisitant-ui-desktop/src/styles/tokens.scss
+   * ⚠️ 两种形式**必须同时提供**，且**只有这一个定义点**：
+   *    --medal-*    纯色   → 用于 color / border-color（StreakBadge 火焰徽章）
+   *    --medal-*-bg 渐变   → 用于 background（统计页排名徽章）
+   * 若把渐变塞进 --medal-*，`color: var(--medal-gold)` 拿到 linear-gradient()
+   * 属非法值，整条声明被浏览器丢弃 → 徽章静默失去颜色（桌面端踩过这个坑）。
+   */
+  --medal-gold:      #FFD700;
+  --medal-silver:    #C0C0C0;
+  --medal-bronze:    #CD7F32;
+  --medal-gold-bg:   linear-gradient(135deg, #FFD700, #FFA500);
+  --medal-silver-bg: linear-gradient(135deg, #C0C0C0, #A0A0A0);
+  --medal-bronze-bg: linear-gradient(135deg, #CD7F32, #B87333);
+
+  /* ========== Period · 经期模块（记录模块第 5 维度，2026-09-19） ==========
+   * SYNC-FROM-DESKTOP: life-assisitant-ui-desktop/src/styles/tokens.scss
+   * 语义：
+   *   period-soft / period       → 月历上的实际经期（红实心）；不用绿、不用强调色，
+   *                                 经期是生理事实，不是「警示」也不是「成就」
+   *   spotting                   → 点滴出血（不参与周期划分，只作提示点）
+   *   fertile-soft / -strong     → 易孕期（紫），与排卵日环同色系
+   * ⚠️ 「相对安全期」**刻意不给颜色令牌** —— 绿色是「安全/通过」的正向暗示，
+   *    在避孕场景里是危险的（日历法年失败率 7.2%–8.3%）。见 04 §3.3。
+   */
+  --color-period-soft: #FDE8E8;
+  --color-period: #E5484D;
+  --color-period-dark: #C62A2F;
+  --color-spotting: #F5A3A6;
+  --color-fertile-soft: #EDE9FE;
+  --color-fertile-strong: #6D28D9;
+  --color-ovulation: #8B5CF6;
+
+  /* --- 月历分类小点（2026-09-19 新增）---
+   * 日期下方那一排可重叠的小点，每类指标一个颜色：
+   *   黄=心情 紫=精力/睡眠 蓝=体温 青=饮水 棕=排便 灰=体重
+   *
+   * ⚠️ 刻意**不用** success / warning / danger 这类语义色：
+   *   这些点是「记了哪一类」的**分类标识**，不是「好 / 坏」的评价。
+   *   拿语义色当分类色会让用户读成「红色那点 = 有问题」。
+   * ⚠️ 也刻意避开 --color-period 那套红 —— 红已经是经期整格填充的专用色，
+   *   小点再出红色会和经期格子底色混淆。
+   */
+  --health-dot-mood: #F5B324;
+  --health-dot-energy: #8B5CF6;
+  --health-dot-bbt: #3B82F6;
+  --health-dot-water: #14B8A6;
+  --health-dot-bowel: #A16207;
+  --health-dot-weight: #94A3B8;
+
+  /* --- 月历格「整格实心填充」三档（2026-09-19 新增）---
+   * 月历改了与习惯打卡热力图同构的「整格填色」后，经量三档需要三个**填充**色。
+   * ⚠️ 不能直接拿上面三个语义色当填充：
+   *   1. 亮色下 fill 语义是「越深 = 量越多」，--color-period 系列正好满足；
+   *      但暗色下 --color-period-dark 是 #FCA5A5（它是**文字色**，比 --color-period
+   *      更浅），直接复用会让「大量」看着比「中量」还浅 —— 色阶方向会反转。
+   *      所以三档必须独立定义，保证两个主题下都单调递增。
+   *   2. 排卵日实心同理：暗色的 --color-ovulation(#A78BFA) 压白字只有 2.7:1 不可读，
+   *      需要一个更深的实心紫。
+   * 三档一律配 #FFFFFF 白字（亮色 3.9–5.6:1 / 暗色 3.9–10:1，粗体数字可读）。
+   */
+  --color-period-fill-mid: #E5484D;   /* 中量（= --color-period） */
+  --color-period-fill-heavy: #C62A2F; /* 大量（= --color-period-dark） */
+  --color-ovulation-fill: #8B5CF6;    /* 排卵实心（= --color-ovulation） */
+
+  /* ========== Spacing 间距（4px 网格） ========== */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+
+  /* ========== Radius 圆角 ========== */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-base: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 16px;     /* 卡片主标准 */
+  --radius-2xl: 20px;    /* 大型 Card、登录表单 */
+  --radius-pill: 9999px; /* 完全圆 */
+
+  /* ========== Shadow 阴影（全部向下） ========== */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.06);
+  --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.10), 0 8px 16px rgba(0, 0, 0, 0.08);
+  --shadow-button: 0 4px 12px rgba(1, 77, 178, 0.30);     /* 主按钮 */
+  --shadow-input-focus: 0 0 0 3px rgba(1, 77, 178, 0.15);  /* 输入框聚焦 */
+
+  /* ========== Type 字体 ========== */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+  --font-mono: 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+  --font-num: 'Inter', 'SF Mono', monospace;  /* 数字强调（tabular-nums） */
+
+  /* ========== Type 字号阶梯 ==========
+   * ⚠️ 铁律：**文本字号一律从这里取令牌，不要再写死 px**。
+   * 历史问题：全项目散落 250+ 处硬编码 font-size，同一个角色
+   * （如「卡片副标题」）在一处写 12px、另一处写 13px，日积月累就变成
+   * 「各个模块字体大小不一样」。令牌是唯一能防止漂移的手段。
+   * 新增字号请先想清楚它属于哪一级，而不是就近挑一个像的 px。
+   *
+   * 正文阶（由小到大）：
+   */
+  --fs-nano: 9px;          /* 极微字：热力图星期/月份标签、权限矩阵表头 */
+  --fs-tab: 10px;          /* 最小正文：密集元信息、徽标数字、待办 KPI 标签 */
+  --fs-micro: 11px;        /* 微字：卡片内辅助说明、进度百分比 */
+  --fs-caption-sm: 12px;   /* 小标注：卡片标题、KPI 标签、表单标签 */
+  --fs-caption: 13px;      /* 标准标注：页面副标题、日期、单位 */
+  --fs-body-sm: 14px;      /* 小正文：列表项主文本、选项卡文字 */
+  --fs-body: 15px;         /* 正文 */
+  --fs-h4: 16px;           /* 小标题 */
+  --fs-h3: 18px;           /* 区块标题 */
+  --fs-h2: 22px;           /* 次级标题 / 卡片大标题 */
+  --fs-h1: 26px;           /* 大标题 */
+  --fs-display: 32px;      /* 展示级：仅登录页品牌名等 */
+
+  /* 数值阶（KPI / 金额 / 指标，统一配 --font-num 等宽渲染）：
+   * 历史问题：KPI 主数值在首页 19px、待办 17px、统计 18px(--fs-h3)、
+   * 记录·习惯卡 22px、账户余额 17px —— 同一个「大数字」五种大小。
+   * 统一到 --fs-metric(20px) 后，各模块的数值观感一致。
+   * 需要更小/更大的数值时用 --fs-metric-sm / --fs-metric-lg，不要另起 px。 */
+  --fs-metric-sm: 13px;    /* 数值的次要部分（单位、分母），同 --fs-caption */
+  --fs-metric: 20px;       /* KPI 主数值 / 卡片汇总 / 币种符号 */
+  --fs-metric-lg: 24px;    /* 金额输入框等大号数值 */
+  --fs-metric-xl: 40px;    /* 超大数值：记账金额输入的主展示 */
+
+  /* Tab 页顶部标题统一字号（首页问候语 / 待办 / 记录 / 统计 / 我的 共用）。
+     历史问题：首页问候语 16px、待办记录我的 26px(--fs-h1)、统计 18px(--fs-h3)，
+     四个页面四种大小。统一到 22px 后各页顶部观感一致。
+     ⚠️ 新增 Tab 页请用这个令牌，不要再各自写死。 */
+  --fs-page-title: 22px;
+  /* Tab 页顶部栏统一高度（内容垂直居中，两行文本的首页会自动撑高几像素） */
+  --app-header-height: 64px;
+  /* 模块内二级选项卡（SubTabBar）统一高度。
+     历史问题：待办 40px / 记录 42px / 统计 44px，三个模块肉眼可见不一样。
+     统一 42px，由 components/SubTabBar.vue 消费。 */
+  --app-tabbar-height: 42px;
+
+  /* ========== Layout 尺寸 ========== */
+  --header-height: 40px;        /* 移动端每页内嵌 Header 高度 */
+  --status-bar-height: 44px;     /* iOS 状态栏预留 */
+  --safe-bottom: 34px;           /* iOS Home Indicator */
+  /* 旧令牌 --tabbar-height 已删除：滚动下沉到页面内部后，
+     底部留白统一由 --tabbar-reserve 承担，不再需要「内容区预留高度」。 */
+  --tabbar-pill-height: 62px;    /* Pill 容器高度 */
+  /* 胶囊底距（用户指定：固定在底部向上 5px）。
+     ⚠ 历史坑：此值曾为 -10px，但**负值对 padding 非法** ——
+     `padding: 12px 21px -10px` 整条简写在 computed-value 阶段失效，
+     三个方向的 padding 全部归零（这就是当年「改数值始终修不好」的原因）。
+     现在胶囊用 absolute 锚定在 .home-layout 内，容器底边 = .home-layout
+     底边 = --app-height 底边 = 屏幕物理底边，所以此值就是胶囊到屏幕底的真实
+     距离。**想调节胶囊高低只改这一个数**（0 = 完全贴底，负值会沉出屏幕被裁）。 */
+  --tabbar-bottom-gap: 12px;
+  /* 内容区 / 悬浮按钮为胶囊预留的高度 = 底距 + 胶囊高 + 呼吸位（12 + 62 + 16） */
+  --tabbar-reserve: 90px;
+  /* 由 utils/safe-area.ts 运行时实测写入，这里只是兜底默认值 */
+  --env-safe-bottom: 0px;
+  /* ⚠️ 已删除令牌 --fixed-bottom-inset：原用于「抵消 iOS 对 fixed 底边的自动
+     内缩」，属无效策略 —— iOS 根本不渲染超出视口的 fixed 元素，负 bottom 会被
+     忽略或裁掉；真凶是「视口高度被少算一个状态栏」，已由 --app-height 修正
+     （index.html + utils/safe-area.ts），不要再恢复这个令牌。 */
+
+  /* ========== Z-index ========== */
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-fixed: 300;
+  --z-modal-backdrop: 400;
+  --z-modal: 500;
+  --z-popover: 600;
+  --z-tooltip: 700;
+  --z-toast: 800;
+
+  /* ========== Duration / Easing 动效 ========== */
+  --duration-instant: 100ms;
+  --duration-fast: 200ms;
+  --duration-base: 300ms;
+  --duration-slow: 500ms;
+  /* 页面 / Tab 切换过渡，刻意比 --duration-fast 短：
+     transition 用 mode="out-in" 时总耗时 = 离开 + 进入两段之和，
+     沿用 200ms 合计 400ms，切 tab 会有明显空窗与迟滞感。 */
+  --duration-page: 130ms;
+  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  /* 带回弹的缓动：用于「位置需要被看见」的位移（胶囊里那块滑动背景）。
+     末段轻微过冲，末端 0.64 处到顶，位移本身很短所以不会显得晃。 */
+  --ease-spring: cubic-bezier(0.34, 1.32, 0.64, 1);
+}
+
+/* ========== 深色主题（<html data-theme="dark">） ========== */
+[data-theme='dark'] {
+  --color-text-primary: #F9F9F9;
+  --color-text-secondary: #D1D5DB;
+  --color-text-tertiary: #9CA3AF;
+  --color-text-disabled: #6B7280;
+  --color-text-placeholder: #6B7280;
+
+  --color-bg-app: #0A1628;
+  --color-bg-card: #142845;
+  --color-bg-hover: #1F3556;
+  --color-bg-elevated: #142845;
+
+  --color-border: #1F3556;
+  --color-border-light: #142845;
+  --color-border-strong: #2D4A6F;
+
+  --color-primary-light: #0D2A52;
+  --color-success-light: #062B20;
+  --color-warning-light: #3A2A08;
+  --color-danger-light: #3B1212;
+  --color-info-light: #241A45;
+
+  /* 语义色在暗色下必须反转明度。
+   * SYNC-FROM-DESKTOP: life-assisitant-ui-desktop/src/styles/tokens.scss [data-theme='dark']
+   * 原因：--color-primary / --color-*-dark 直接用作**文字与描边**色，原浅色主题取值
+   * （如 #014DB2 主蓝、#047857 深绿）叠在 #0A1628 上对比度不足，且会让
+   * --tint-*-fg 在暗底上不可读 —— 暗色模式会「生效但难看」。
+   * 这里只改这两个用途的色，--color-*-light 系列（tint 底色）已在上方翻转。
+   */
+  --color-primary: #5B9DFF;
+  --color-primary-dark: #7DB3FF;
+  --color-success-dark: #6EE7B7;
+  --color-warning-dark: #FCD34D;
+  --color-danger-dark: #FCA5A5;
+  --color-info-dark: #C4B5FD;
+  /* --color-accent-light/-dark 在 :root 别名到 --color-info-*，随上方自动联动 */
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.35);
+  --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.45), 0 8px 16px rgba(0, 0, 0, 0.4);
+
+  /* 经期模块（见 :root 注释）：暗色下把「红/紫」整体提亮，保证在深底上可读 */
+  --color-period-soft: #3B1212;
+  --color-period: #F87171;
+  --color-period-dark: #FCA5A5;
+  --color-spotting: #9B4A4D;
+  --color-fertile-soft: #241A45;
+  --color-fertile-strong: #C4B5FD;
+  --color-ovulation: #A78BFA;
+
+  /* 月历分类小点（见 :root 注释）：暗色下整体提亮一档，保证在深底上能看清 */
+  --health-dot-mood: #FBBF24;
+  --health-dot-energy: #A78BFA;
+  --health-dot-bbt: #60A5FA;
+  --health-dot-water: #2DD4BF;
+  --health-dot-bowel: #D97706;
+  --health-dot-weight: #64748B;
+
+  /* 月历整格填充（见 :root 注释）：暗色下重排为「越亮 = 量越多」，
+     并给排卵日换更深的实心紫，避免白字压浅底。 */
+  --color-period-fill-mid: #7F1D1D;
+  --color-period-fill-heavy: #E5484D;
+  --color-ovulation-fill: #7C3AED;
+}
