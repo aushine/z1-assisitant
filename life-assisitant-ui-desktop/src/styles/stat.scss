@@ -76,11 +76,20 @@
   align-items: center;
   gap: $space-4;
   margin-bottom: $space-4;
+  // 260920 修复：1440 视口下这行会把 .kpi-large-head-main 压成 0 宽，
+  // 标签被挤成「一字一行」（实测 main 宽 0 / 0 / 22 / 0 px）。
+  // 成因：图标 flex-shrink:0、dim 标签 white-space:nowrap 都不缩，
+  //       卡片 244px − padding 48 − 图标 48 − 间隔 16 − dim 74 ≈ 42px，
+  //       装不下「本周完成率」，只有 head-main 能被压 → 压到底。
+  // 允许换行：空间不够时让 dim 独占第二行，而不是把标题压扁。
+  flex-wrap: wrap;
 }
 
 .kpi-large-head-main {
-  flex: 1;
-  min-width: 0;
+  // ⚠️ 不要写回 `flex: 1`（= 1 1 0%）+ `min-width: 0`：
+  // 基准宽为 0 时它永远「放得下」，flex-wrap 不会触发，只会一路缩到 0。
+  flex: 1 1 auto;
+  min-width: 5em;
 }
 
 .kpi-large-icon {

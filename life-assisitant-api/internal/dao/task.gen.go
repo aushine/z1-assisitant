@@ -231,15 +231,22 @@ func (d *taskDao) CountDoneByRange(ctx context.Context, userID string, start, en
 }
 
 // GroupByDay 按日分组统计任务
+//
+// ⚠️ 260920 修复：`due_date as date` 与 transaction.gen.go 的 GroupByDay 同病 ——
+// DATE 列扫进 string 会被 GORM 落成 RFC3339（"2026-09-15T00:00:00+08:00"），
+// 与 dto.TaskDayStat.Date 声明的 YYYY-MM-DD 不符，前端 `date.slice(5)` 失效。
+// 改用 DATE_FORMAT 让 MySQL 直接产出字符串。
+// （WHERE 已限定 due_date 非空区间，不会出现 NULL。）
 func (d *taskDao) GroupByDay(ctx context.Context, userID string, start, end time.Time) ([]TaskDayRow, error) {
 	var rows []TaskDayRow
 	err := d.db.WithContext(ctx).
 		Model(&model.Task{}).
-		Select("due_date as date, COUNT(*) as total, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as completed", model.TaskStatusDone).
+		Select("DATE_FORMAT(due_date, '%Y-%m-%d') as date, COUNT(*) as total, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as completed", model.TaskStatusDone).
 		Where("user_id = ? AND due_date >= ? AND due_date < ?",
 			userID, start.Format("2006-01-02"), end.Format("2006-01-02")).
-		Group("due_date").
-		Order("due_date ASC").
+		// 与 SELECT 的表达式保持一致（同理规避 only_full_group_by，见 transaction.gen.go 的注释）
+		Group("DATE_FORMAT(due_date, '%Y-%m-%d')").
+		Order("date ASC").
 		Find(&rows).Error
 	return rows, err
 }

@@ -132,12 +132,21 @@ const expenseTrend = computed(() =>
   }))
 )
 
-/** 支出分类占比：后端 by_category 不带 color，交给 DonutChart 按 tint 循环取色 */
+/**
+ * 支出分类占比：分类色以 `category-dict` 的语义色为唯一真相。
+ *
+ * ⚠️ 后端 `by_category[].color` 目前对**所有**分类都返回写死的占位灰 `#6B7280`
+ *   （见 stats.go 的 FinanceCategoryStat）。照单全收会让整张饼只有一个颜色，
+ *   而且 DonutChart 的调色板兜底（`d.color || palette[i]`）永远走不到 ——
+ *   因为它只在「拿不到色」时才兜底。所以这里忽略后端色值：
+ *   按 emoji 反查字典 tint，再映射到**当前主题下的真实 hex**
+ *   （ECharts 画在 canvas 上吃不了 `var(--x)`；themeColors 的键名与 TintName 一一对应）。
+ */
 const categoryDoughnutData = computed(() =>
   (financeStats.value?.by_category ?? []).map((c) => ({
     label: c.category,
     value: c.amount,
-    color: c.color || undefined,
+    color: themeColors.value[resolveCategory(c.emoji).tint],
   }))
 )
 

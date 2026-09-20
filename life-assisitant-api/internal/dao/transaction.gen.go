@@ -169,17 +169,29 @@ func (d *transactionDao) SumByType(ctx context.Context, userID, txType string, s
 }
 
 // GroupByDay 按日分组统计收入/支出
+//
+// ⚠️ 260920 修复：原来写 `DATE(happened_at) as date`，MySQL 返回的是 DATE 类型，
+// 而 TransactionDayRow.Date 是 string —— 驱动（parseTime=true）把它转成
+// time.Time 后，GORM 落成 `time.Time` 的字符串形式，实测返回
+// "2026-09-15T00:00:00+08:00"，与 dto.FinanceDayStat.Date 声明的
+// "YYYY-MM-DD" 不符，前端 `date.slice(5)` 直接得到 "09-15T00:00:00+08:00"，
+// 图表 X 轴标签全变成完整时间戳（之前无数据所以没暴露）。
+// 用 DATE_FORMAT 让 MySQL 直接产出字符串，契约回到 YYYY-MM-DD。
+// （happened_at 为 NOT NULL，无需 COALESCE。）
 func (d *transactionDao) GroupByDay(ctx context.Context, userID string, start, end time.Time) ([]TransactionDayRow, error) {
 	var rows []TransactionDayRow
 	err := d.db.WithContext(ctx).
 		Model(&model.Transaction{}).
-		Select("DATE(happened_at) as date, "+
+		Select("DATE_FORMAT(happened_at, '%Y-%m-%d') as date, "+
 			"COALESCE(SUM(CASE WHEN type = ? THEN amount ELSE 0 END), 0) as expense, "+
 			"COALESCE(SUM(CASE WHEN type = ? THEN amount ELSE 0 END), 0) as income",
 			model.TransactionTypeExpense, model.TransactionTypeIncome).
 		Where("user_id = ? AND happened_at >= ? AND happened_at < ?", userID, start, end).
 		Where("type IN ?", []string{model.TransactionTypeExpense, model.TransactionTypeIncome}).
-		Group("DATE(happened_at)").
+		// ⚠️ GROUP BY 必须与 SELECT 里的表达式**逐字一致**：
+		// 写成 GROUP BY DATE(happened_at) 会踩 sql_mode=only_full_group_by
+		// （Error 1055：DATE_FORMAT 与 DATE 不构成函数依赖）。
+		Group("DATE_FORMAT(happened_at, '%Y-%m-%d')").
 		Order("date ASC").
 		Find(&rows).Error
 	return rows, err
