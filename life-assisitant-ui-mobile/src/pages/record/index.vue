@@ -46,6 +46,7 @@
  *   其余 Tab 用 v-if 惰性挂载，切 Tab 时不互抢列表状态。
  */
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog } from 'vant'
 import { useHabitStore } from '@/stores/habit'
 import { useFinanceStore } from '@/stores/finance'
@@ -68,6 +69,17 @@ import type {
 
 const habitStore = useHabitStore()
 const financeStore = useFinanceStore()
+const route = useRoute()
+const router = useRouter()
+
+/**
+ * 覆盖层子路由（`meta.overlay`，目前只有 /record/finance-categories）是否打开。
+ *
+ * 打开时本页**不卸载**，只在上面叠一层全屏页 —— 记一笔浮层里的草稿、
+ * 分类选择器的展开状态、页面滚动位置都原样保留，返回即回到记一笔。
+ * 覆盖层的内容由模板末尾的 `<router-view />` 渲染。
+ */
+const overlayOpen = computed(() => route.meta.overlay === true)
 
 // ==================== 顶层 Tab ====================
 // 选中值放在 uiStore（布局层的 SubTabBar 读写它，本页 watch 当前 tab 做副作用）：
@@ -143,16 +155,24 @@ async function onHabitDelete(h: Habit): Promise<void> {
 const txSheetShow = ref(false)
 const editingTx = ref<Transaction | null>(null)
 const txDefaultType = ref<TransactionType>('expense')
+/** 日历「长按补录」预填的日期（空 = 今天） */
+const txPresetDate = ref('')
 
-function openCreateTx(type: TransactionType = 'expense'): void {
+function openCreateTx(type: TransactionType = 'expense', date = ''): void {
   editingTx.value = null
   txDefaultType.value = type
+  txPresetDate.value = date
   txSheetShow.value = true
 }
 
 function onTxEditIntent(t: Transaction): void {
   editingTx.value = t
   txSheetShow.value = true
+}
+
+/** 流水行 / 日历明细行点击 → 账目详情页（v2 批次二） */
+function onTxViewIntent(t: Transaction): void {
+  void router.push(`/record/tx/${t.id}`)
 }
 
 /** 新建 / 编辑 / 转账 三合一提交（与 TransactionEditSheet 的 mode 参数对齐） */
@@ -202,9 +222,9 @@ function onFabClick(): void {
       openCreateHabit()
       break
     case 'finance':
-      // 收支走本页统一持有的 TransactionEditSheet（三态：支出/收入/转账）；
+      // 收支 / 日历都走本页统一持有的 TransactionEditSheet（三态：支出/收入/转账）；
       // 预算 / 账户的新建抽屉在各自组件里，由 FinancialSection 分发。
-      if (financeSub.value === 'transactions') {
+      if (financeSub.value === 'transactions' || financeSub.value === 'calendar') {
         openCreateTx('expense')
       } else {
         financialRef.value?.openCreate()
@@ -281,6 +301,8 @@ watch(
         ref="financialRef"
         @sub-change="financeSub = $event"
         @edit-transaction="onTxEditIntent"
+        @view-transaction="onTxViewIntent"
+        @create-transaction-at="(d) => openCreateTx('expense', d)"
       />
     </main>
 
@@ -313,8 +335,43 @@ watch(
       :accounts="financeStore.accounts"
       :transaction="editingTx"
       :default-type="txDefaultType"
+      :default-date="txPresetDate"
       :on-save="onTxSave"
     />
+
+    <!-- ==================== 覆盖层子路由 ====================
+         「记一笔 → 管理 ›」进的是 /record/finance-categories（本页的子路由，
+         见 router/index.ts），在这里**叠一层全屏页**，而不是离开本模块。
+
+         为什么不直接用顶层路由 /me/finance-categories（原来的写法）：
+         HomeLayout 与记录页会被整体卸载 → 记一笔的草稿、浮层开合状态全丢，
+         返回时页面重新挂载（用户看到「回到财务了」＋「选中动画又播一遍」）。
+         现在宿主页保持挂载，返回只是把这一层弹掉，记一笔原样还在。
+
+         两个技术点：
+         1. 用 `van-popup` 而不是自绘 `position:fixed` 层 —— Vant 的全局
+            z-index 计数器会给它分配一个「比已打开的浮层高」的值，
+            之后从管理页里打开的编辑浮层 / 图标选择器 / 长按菜单又会比它更高。
+            自绘固定 z-index 的话，要么盖不住记一笔，要么把管理页自己的浮层盖住。
+         2. `teleport="body"` 必留（漏了会被 .content 的合成层压住，见文件头铁律）；
+            也因此这一层不接收 `.content` 上的左右滑手势，不会误切模块内 tab。
+         3. `position="top"` + 显式高度 `--app-height`：几何与 #app 完全重合。
+            用 `position="center"` 会按视口居中，浏览器模式下地址栏一收一放
+            整层就上下错位；高度也不写 100vh/100dvh（standalone 下 WebKit
+            少算动态视口高度，见 reset.scss 的高度链注释）。
+         4. `:duration="0"`：进出都用瞬时切换，与其它二级页的 push 观感一致，
+            也避免关闭时「内容已经被路由换掉、空壳再淡出」的白闪。 -->
+    <van-popup
+      :show="overlayOpen"
+      position="top"
+      :style="{ height: 'var(--app-height)' }"
+      :overlay="false"
+      :lock-scroll="false"
+      :duration="0"
+      teleport="body"
+    >
+      <router-view />
+    </van-popup>
   </div>
 </template>
 

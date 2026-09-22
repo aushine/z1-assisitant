@@ -125,10 +125,26 @@ export function usePageChrome() {
   const taskStore = useTaskStore()
   const statsStore = useStatsStore()
 
-  /** 当前一级模块；二级页（任务详情等）为 null → 布局不渲染外壳，页面自带返回栏 */
+  /**
+   * 当前一级模块；二级页（任务详情等）为 null → 布局不渲染外壳，页面自带返回栏。
+   *
+   * ⚠️ 判定走 `route.matched`（取**最深的一个具名模块**），不是只看 `route.name`。
+   *    覆盖层子路由（`meta.overlay`，如 /record/finance-categories）的 name
+   *    不在 MODULE_TITLES 里，但它挂在 /record 之下 —— 只看 name 的话，
+   *    覆盖层一打开顶部栏与二级 tab 栏就会被卸载，返回时重新挂载，
+   *    用户看到「tab 下划线 / 选中动画又播了一遍」（这正是它要修的毛病）。
+   *
+   *    对既有路由没有影响：`/task/:id`、`/me/*` 都是**顶层**记录
+   *    （不是 task / me 的子路由），matched 里没有模块名 → 仍然是 null。
+   */
   const module = computed<TabModuleKey | null>(() => {
-    const name = route.name
-    return name && name in MODULE_TITLES ? (name as TabModuleKey) : null
+    for (let i = route.matched.length - 1; i >= 0; i--) {
+      const name = route.matched[i].name
+      if (typeof name === 'string' && name in MODULE_TITLES) {
+        return name as TabModuleKey
+      }
+    }
+    return null
   })
 
   /** 页面临时接管的头部（只认自己模块的那份，避免过渡期串台） */

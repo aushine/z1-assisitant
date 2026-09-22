@@ -396,128 +396,22 @@ const todayInMonth = computed(() => !!props.today && props.today.startsWith(prop
 </template>
 
 <style lang="scss" scoped>
-.cal-card {
-  padding: var(--space-4) var(--space-3) var(--space-3);
-  background: var(--color-bg-card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
-  margin-bottom: var(--space-3);
-}
+/* 布局与排版（.cal-card/.cal-head/.cal-nav/.cal-week/.cal-grid/.cal-cell/.cal-day
+   /.cal-sub 与图例排版）已迁共享层 styles/_calendar.scss（260921 二批，
+   逐 class diff 后只抽 Period/Health 两两完全相同的规则）。
+   本块只留经期专属：st-* 状态填色、已记录灰点、实心格白点反白。
+   ⚠️ @use 必须位于其它规则之前（SCSS 硬规则，放后面编译直接失败）。 */
+@use '@/styles/calendar';
 
-/* ==================== 头部 ==================== */
-.cal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: 0 var(--space-2);
-  margin-bottom: var(--space-2);
-}
-.cal-title {
-  font-size: var(--fs-caption);
-  color: var(--color-text-secondary);
-}
-.cal-nav-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.cal-nav {
-  min-width: 26px;
-  height: 26px;
-  padding: 0 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: var(--radius-base);
-  background: var(--color-bg-hover);
-  color: var(--color-text-secondary);
-  font-size: var(--fs-body);
-  line-height: 1;
-  -webkit-tap-highlight-color: transparent;
+/* ==================== 头部 ====================
+   .cal-head / .cal-title / .cal-nav-group / .cal-nav（含 .is-text）→ 共享层 */
 
-  &:active { transform: scale(0.94); }
-  &.is-text {
-    font-size: var(--fs-caption-sm);
-    color: var(--color-primary);
-    background: transparent;
-  }
-}
+/* ==================== 周标题 ====================
+   .cal-week / .cal-week-cell（含 .is-weekend）→ 共享层 */
 
-/* ==================== 周标题 ==================== */
-.cal-week {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  margin-bottom: 6px;
-}
-.cal-week-cell {
-  text-align: center;
-  padding: 4px 0;
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  color: var(--color-text-secondary);
-
-  &.is-weekend { color: var(--color-text-tertiary); }
-}
-
-/* ==================== 网格 ==================== */
-.cal-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-  touch-action: pan-y;
-}
-.cal-cell {
-  position: relative;
-  min-height: 52px;
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  border: 1.5px solid transparent;
-  border-radius: var(--radius-base);
-  background: transparent;
-  box-sizing: border-box;
-  text-align: left;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform var(--duration-fast) var(--ease-default);
-
-  &:active:not(:disabled) { transform: scale(0.96); }
-  /* 非本月：整格留白，只留淡日期做跨月参照 */
-  &.is-out {
-    background: transparent;
-    color: var(--color-text-disabled);
-    cursor: default;
-    opacity: 0.35;
-  }
-}
-.cal-day {
-  font-size: var(--fs-caption-sm);
-  font-weight: 600;
-  line-height: 1;
-  /* 等宽数字只给日期本身：--font-num 以 monospace 收尾，
-     若下沉到整格会让中文状态标签落到系统等宽的 CJK 回退字体上，观感与全站不一致 */
-  font-family: var(--font-num);
-  font-variant-numeric: tabular-nums;
-}
-.cal-sub {
-  margin-top: 2px;
-  max-width: 100%;
-  /* 比习惯热力图的农历/节气（--fs-nano）大一档：那里的字是装饰，
-     这里的状态标签（中量/预测/排卵）是要读的语义信息。 */
-  font-size: var(--fs-tab);
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-
-  /* 状态标签：颜色直接继承格子的前景色，保证压在同色系底色上可读 */
-  &.is-state { font-weight: 600; }
-  /* 节气/农历只会出现在中性底色格上（见 script 里 subClass 的说明） */
-  &.is-term { color: var(--color-success-dark); font-weight: 600; }
-  &.is-lunar { color: var(--color-text-tertiary); }
-}
+/* ==================== 网格 ====================
+   .cal-grid / .cal-cell（含 .is-out）/ .cal-day / .cal-sub（含 .is-state/
+   .is-term/.is-lunar）→ 共享层 */
 
 /* ==================== 状态 → 整格填色 ====================
    填充令牌见 styles/tokens.scss（暗色下重排，保证「越深/越亮 = 量越多」单调）。
@@ -568,18 +462,9 @@ const todayInMonth = computed(() => !!props.today && props.today.startsWith(prop
   border: 2px solid var(--color-primary);
 }
 
-/* ==================== 右下角圆点（点滴 / 已记录）==================== */
-.cal-dot {
-  position: absolute;
-  right: 4px;
-  bottom: 4px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-
-  &.is-spot { background: var(--color-period); }
-  &.is-logged { background: var(--color-text-tertiary); }
-}
+/* ==================== 右下角圆点（点滴 / 已记录）====================
+   基础 .cal-dot 与 .is-spot 在共享层；这里只留 Period 专属的已记录灰点。 */
+.cal-dot.is-logged { background: var(--color-text-tertiary); }
 /* 实心底（中量/大量/排卵）上任何圆点都换白色，否则看不见。
    注：spotting 与出血量互斥，所以红点只可能落在非实心格上。 */
 .cal-cell.st-medium .cal-dot,
@@ -588,35 +473,11 @@ const todayInMonth = computed(() => !!props.today && props.today.startsWith(prop
   background: rgba(255, 255, 255, 0.92);
 }
 
-/* ==================== 图例 ==================== */
-.cal-legend {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
-  padding: 0 var(--space-2);
-}
-.cal-legend-group,
-.cal-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--fs-caption-sm);
-  color: var(--color-text-tertiary);
-}
-.cal-legend-group { gap: 3px; }
-.cal-legend-text {
-  font-size: var(--fs-caption-sm);
-  color: var(--color-text-tertiary);
-}
+/* ==================== 图例 ====================
+   排版（.cal-legend* / .legend-box 基础 / .legend-dot 基础与 .is-ovu /
+   .cal-legend-note）→ 共享层。这里只留 Period 专属的点滴图例色：
+   底色变体（is-soft/is-mid/...）是经期语义色，按 03 §C「不抽语义色」留在本组件。 */
 .legend-box {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  box-sizing: border-box;
-  flex-shrink: 0;
-
   &.is-soft { background: var(--color-period-soft); }
   &.is-mid { background: var(--color-period-fill-mid); }
   &.is-heavy { background: var(--color-period-fill-heavy); }
@@ -626,18 +487,5 @@ const todayInMonth = computed(() => !!props.today && props.today.startsWith(prop
   }
   &.is-fertile { background: var(--color-fertile-soft); }
 }
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-
-  &.is-ovu { background: var(--color-ovulation-fill); }
-  &.is-spot { width: 6px; height: 6px; background: var(--color-period); }
-}
-.cal-legend-note {
-  margin-left: auto;
-  font-size: var(--fs-caption-sm);
-  color: var(--color-text-disabled);
-}
+.legend-dot.is-spot { width: 6px; height: 6px; background: var(--color-period); }
 </style>

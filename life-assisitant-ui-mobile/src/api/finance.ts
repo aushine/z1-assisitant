@@ -1,10 +1,12 @@
 /**
  * 财务模块 API
- * 路径前缀：/accounts + /transactions + /budgets
+ * 路径前缀：/accounts + /transactions + /budgets + /finance/categories
  *
  * SYNC-FROM-BACKEND: life-assisitant-api/internal/controller/finance.go
+ *                    life-assisitant-api/internal/controller/finance_category.go
  *                    life-assisitant-api/internal/model/dto/finance.go
- * 最后同步：2026-09-18
+ *                    life-assisitant-api/internal/model/dto/finance_category.go
+ * 最后同步：2026-09-21（分类体系）
  *
  * ⚠️ 修掉的既有缺陷：
  *   - `getAccount()` 打的 GET /accounts/:id 后端**不存在**该路由（只有
@@ -29,12 +31,18 @@ import { http } from './request'
 import type {
   Account,
   Budget,
+  CalendarResp,
   CreateAccountReq,
   CreateBudgetReq,
+  CreateFinanceCategoryReq,
   CreateTransactionReq,
+  DebtsResp,
+  FinanceCategoryResp,
   ListAccountsResp,
   ListBudgetsQuery,
   ListBudgetsResp,
+  ListFinanceCategoriesQuery,
+  ListFinanceCategoriesResp,
   ListTransactionsQuery,
   ListTransactionsResp,
   ReverseTransactionResp,
@@ -42,6 +50,7 @@ import type {
   TransferReq,
   UpdateAccountReq,
   UpdateBudgetReq,
+  UpdateFinanceCategoryReq,
   UpdateTransactionReq,
 } from './types'
 
@@ -89,6 +98,14 @@ export const financeApi = {
     return http.post<Transaction>('/transactions', data)
   },
 
+  /**
+   * 单笔交易（GET /transactions/:id）
+   * 详情页独立拉取用（列表项字段不全，且详情要能独立刷新）。
+   */
+  getTransaction(id: string): Promise<Transaction> {
+    return http.get<Transaction>(`/transactions/${id}`)
+  },
+
   /** 更新交易（PATCH /transactions/:id；仅 expense / income） */
   updateTransaction(id: string, data: UpdateTransactionReq): Promise<Transaction> {
     return http.patch<Transaction>(`/transactions/${id}`, data)
@@ -117,6 +134,22 @@ export const financeApi = {
     return http.post<ReverseTransactionResp>(`/transactions/${id}/reverse`)
   },
 
+  /**
+   * 收支月历（GET /finance/calendar?month=YYYY-MM）
+   * 只返回「有记录」的日期；net / summary 后端已算（口径含 exclude_stats=0）。
+   */
+  getCalendar(month: string): Promise<CalendarResp> {
+    return http.get<CalendarResp>('/finance/calendar', { params: { month } })
+  },
+
+  /**
+   * 债权债务（GET /finance/debts · Phase 4）
+   * 后端按 contact 聚合未结清（owed_to_me = reimburse+lend；i_owe = borrow）。
+   */
+  getDebts(): Promise<DebtsResp> {
+    return http.get<DebtsResp>('/finance/debts')
+  },
+
   // ==================== 预算（finance:view / finance:budget） ====================
 
   /** 预算列表（GET /budgets；裸 struct，不分页） */
@@ -141,5 +174,45 @@ export const financeApi = {
   /** 删除预算（DELETE /budgets/:id；204 无响应体） */
   removeBudget(id: string): Promise<void> {
     return http.delete<void>(`/budgets/${id}`)
+  },
+
+  // ==================== 收支分类（finance:view 查看 / finance:category 增删改） ====================
+
+  /**
+   * 分类树（GET /finance/categories）
+   * ⚠️ 本接口**同时承担懒创建播种**：用户从未播种过时，后端先播种内置分类再返回。
+   *    返回 `{ items, seeded }`，`seeded=true` 表示本次触发了播种。
+   */
+  listCategories(
+    params: ListFinanceCategoriesQuery = {}
+  ): Promise<ListFinanceCategoriesResp> {
+    return http.get<ListFinanceCategoriesResp>('/finance/categories', { params })
+  },
+
+  /**
+   * 新建分类（POST /finance/categories）
+   * - `parent_id = ''` → 一级；指向一级 id → 二级（只做两级，二级不能再挂二级）
+   * - `scope` 必填且必须与父级一致；同 user+scope+parent 下不可重名（后端 400002）
+   */
+  createCategory(data: CreateFinanceCategoryReq): Promise<FinanceCategoryResp> {
+    return http.post<FinanceCategoryResp>('/finance/categories', data)
+  },
+
+  /**
+   * 更新分类（PATCH /finance/categories/:id）
+   * ⚠️ `parent_id` / `scope` **不可改**（会让历史交易语义漂移）。
+   *    改一级名时后端会级联重拼其下所有二级的 `full_name`。
+   */
+  updateCategory(id: string, data: UpdateFinanceCategoryReq): Promise<FinanceCategoryResp> {
+    return http.patch<FinanceCategoryResp>(`/finance/categories/${id}`, data)
+  },
+
+  /**
+   * 删除分类（DELETE /finance/categories/:id；204 无响应体）
+   * ⚠️ **软删除**，且删一级时级联软删其所有二级（同一事务）。
+   *    删除只影响选择器，不影响历史交易（快照照常显示）。
+   */
+  removeCategory(id: string): Promise<void> {
+    return http.delete<void>(`/finance/categories/${id}`)
   },
 }

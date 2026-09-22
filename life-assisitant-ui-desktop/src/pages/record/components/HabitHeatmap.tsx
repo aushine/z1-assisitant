@@ -2,7 +2,11 @@
  * HabitHeatmap — 当月习惯打卡日历热力图
  * 7 列（周一~周日）× 最多 6 行，连续格子，热度沿用绿色色阶
  * 每个格子显示：几号（公历）、农历日、节气、节假日/调休标识
- * 周六日格子灰色；法定节假日/调休标红；节气标绿
+ * 周六日**无数据时**底色偏灰（有打卡数据则照常走热度色，260921 修）；
+ * 周末（非调休补班）文字行最左标「休」；法定节假日/调休标红；节气标绿
+ *
+ * ⚠️ 双端契约：`life-assisitant-ui-mobile/src/components/HabitHeatmap.vue`
+ *    必须与本文件同步改（周末灰底条件、休字位置、图例文案三处）。
  *
  * ⚠️ 本文件中的 hex 字面量（含 A07 §4.2 点名的 `#3B82F6` / `#DC2626`）
  * 是**刻意保留**的，不是漏改：
@@ -176,8 +180,12 @@ export function HabitHeatmap({ data, year, month }: Props) {
         {cells.map((c) => {
           const isToday = c.date === todayStr
           const bg = c.inMonth ? heatColor(c.ratio) : 'transparent'
-          // 周末且当月（非法定节假日）：灰色底；法定节假日不灰，用热度色，红色文字标识
-          const cellBg = c.isWeekend && c.inMonth && !c.isHoliday ? '#F9FAFB' : bg
+          // ⚠️ 周末灰底只是「无数据」的底噪，**不能盖掉打卡热度色**（260921 修：
+          //    原先无条件返灰，周末打了卡的格子整格变灰，看起来像没打卡）；
+          //    法定节假日同样不灰，走热度色 + 红字。
+          const cellBg = c.isWeekend && c.inMonth && !c.isHoliday && c.total === 0 ? '#F9FAFB' : bg
+          // 休息日（周末、且不是调休补班）→ 文字行最左标「休」
+          const isRest = c.inMonth && c.isWeekend && !c.isWorkdayInLieu
           // 热力深绿色背景上的农历文字用白色，浅色背景用灰色
           const lunarColor = c.inMonth && c.ratio >= 0.5 ? '#FFFFFF' : '#9CA3AF'
 
@@ -202,7 +210,7 @@ export function HabitHeatmap({ data, year, month }: Props) {
                   fontSize: 13,
                   fontWeight: 600,
                   lineHeight: 1,
-                  color: c.isWeekend && c.inMonth && !c.isHoliday ? '#9CA3AF' : 'var(--color-text-primary)',
+                  color: c.isWeekend && c.inMonth && !c.isHoliday && c.total === 0 ? '#9CA3AF' : 'var(--color-text-primary)',
                 }}
               >
                 {c.inMonth ? c.day : ''}
@@ -210,11 +218,15 @@ export function HabitHeatmap({ data, year, month }: Props) {
 
               {/* 农历 / 节气 / 节假日 标识 */}
               <div style={{ marginTop: 2, fontSize: 10, lineHeight: 1.3, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {c.solarTerm ? (
-                  <span style={{ color: '#059669', fontWeight: 600 }}>{c.solarTerm}</span>
-                ) : c.lunarDay && c.inMonth ? (
-                  <span style={{ color: lunarColor }}>{c.lunarDay}</span>
-                ) : null}
+                {/* 首行：「休」标 + 节气/农历（休字在最左，节日名与「班」各自成行、原样保留） */}
+                <span style={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0 }}>
+                  {isRest ? <span style={{ color: '#DC2626', fontWeight: 600 }}>休</span> : null}
+                  {c.solarTerm ? (
+                    <span style={{ color: '#059669', fontWeight: 600 }}>{c.solarTerm}</span>
+                  ) : c.lunarDay && c.inMonth ? (
+                    <span style={{ color: lunarColor }}>{c.lunarDay}</span>
+                  ) : null}
+                </span>
                 {c.isHoliday && c.holidayName ? (
                   <span style={{ color: '#DC2626', fontWeight: 600 }}>{c.holidayName}</span>
                 ) : null}
@@ -248,7 +260,7 @@ export function HabitHeatmap({ data, year, month }: Props) {
           <div key={r} style={{ width: 14, height: 14, borderRadius: 3, background: heatColor(r) }} />
         ))}
         <span style={{ fontSize: 11, color: '#9CA3AF' }}>多</span>
-        <span style={{ marginLeft: 12, fontSize: 11, color: '#9CA3AF' }}>周末灰色 · 节气绿色 · 节日红色</span>
+        <span style={{ marginLeft: 12, fontSize: 11, color: '#9CA3AF' }}>周末「休」· 调休「班」· 节气绿 · 节日红</span>
       </div>
     </div>
   )

@@ -1,0 +1,17 @@
+# 部署脚本换行符保护
+# shell 脚本必须 LF，否则 Linux 报 bad interpreter: /bin/bash^M
+*.sh        text eol=lf
+# Windows 批处理必须 CRLF
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# 图片/二进制不转换
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.tar       binary
+*.gz        binary
+*.woff      binary
+*.woff2     binary

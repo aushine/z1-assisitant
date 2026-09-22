@@ -106,6 +106,8 @@ type FinanceDayStat struct {
 
 // FinanceCategoryStat 按分类财务统计
 type FinanceCategoryStat struct {
+	// CategoryID 分类 id（权威）；历史未映射数据为空串，前端按 emoji/name 兜底（06 §2.3）
+	CategoryID string  `json:"category_id"`
 	Category   string  `json:"category"`
 	Emoji      string  `json:"emoji"`
 	Color      string  `json:"color"`

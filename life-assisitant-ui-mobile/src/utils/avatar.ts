@@ -62,16 +62,52 @@ export function compressAvatar(file: File, size = 256): Promise<File> {
 }
 
 /**
+ * 上传文件对外基址（后端 storage.public_url 下发，见 App.UploadsBase）。
+ * '' = 未配置或探活失败 → 回落「当前连接的后端」（同源 /z1/uploads 静态映射）。
+ * 启动时 initUploadsBase() 异步填充，resolveFileUrl 同步读取。
+ */
+let uploadsBase = ''
+
+/**
+ * 启动时探测上传文件对外基址（入口处 await，最多 ~4s）。
+ * ① GET <api>/app/uploads-base 拿 storage.public_url；空 → 保持 ''；
+ * ② 非空再探活 <base>/z1/api/v1/health，不通 → 也回落 ''。
+ * 任何一步失败都静默回落，绝不阻塞/影响启动。
+ */
+export async function initUploadsBase(): Promise<void> {
+  try {
+    const base = import.meta.env.VITE_API_BASE || '/api/v1'
+    const api = new URL(base, location.href)
+    const url =
+      api.origin + api.pathname.replace(/\/+$/, '') + '/app/uploads-base'
+    const res = await fetch(url, { signal: AbortSignal.timeout(2000) })
+    if (!res.ok) return
+    const body = await res.json()
+    const u = String(body?.data?.uploads_base_url || '').trim().replace(/\/+$/, '')
+    if (!u) return
+    const probe = await fetch(u + '/z1/api/v1/health', {
+      signal: AbortSignal.timeout(2000),
+    })
+    if (probe.ok) uploadsBase = u
+  } catch {
+    /* 探测失败保持 ''：走当前连接的后端 */
+  }
+}
+
+/**
  * 把后端返回的文件地址换算成浏览器可加载的完整 URL。
  * - http(s):// / data: / blob: → 原样（历史值 / 外链 / 本地预览）
- * - /uploads/... 等以 / 开头的受管相对路径 → 拼 API origin：
- *   VITE_API_BASE 为相对（dev 走 vite proxy）时得当前站点 origin，代理已含 /uploads；
- *   为绝对地址（独立部署）时直达后端域名。
+ * - /uploads/... 等以 / 开头的受管相对路径：
+ *   ① 后端配了 storage.public_url 且探活通过 → 拼「配置基址」的绝对 URL
+ *     （本地后端连线上同库时，文件字节只在部署机上，同源取会 404）；
+ *   ② 未配置/不通 → 拼 API origin：VITE_API_BASE 为相对（dev 走 vite proxy）
+ *     时得当前站点 origin，代理已含 /uploads；为绝对地址（独立部署）时直达后端域名。
  */
 export function resolveFileUrl(src?: string | null): string | undefined {
   if (!src) return undefined
   if (/^(https?:|data:|blob:)/i.test(src)) return src
   if (src.startsWith('/')) {
+    if (uploadsBase) return uploadsBase + src
     const base = import.meta.env.VITE_API_BASE || '/api/v1'
     try {
       return new URL(src, new URL(base, location.href).origin).href

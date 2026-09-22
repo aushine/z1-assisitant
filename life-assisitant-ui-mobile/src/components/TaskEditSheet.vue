@@ -418,15 +418,17 @@ function pad(n: string | number): string {
 </script>
 
 <template>
-  <!-- ⚠️ teleport="body" 必留（iOS 弹层层叠坑，说明见 components/period/PeriodDaySheet.vue） -->
+  <!--
+    ⚠️ teleport="body" 必留（iOS 弹层层叠坑，说明见 components/period/PeriodDaySheet.vue）
+    ⚠️ 不要加 `closeable`：Vant 的关闭叉叉固定在弹层左上角，与 nav-bar 的「取消」
+       并排出现两个关闭入口（260921 点名去掉的「灰色叉叉」）。
+  -->
   <van-popup
     :show="show"
     position="bottom"
     :style="{ height: '84%' }"
     round
-    closeable
     teleport="body"
-    close-icon-position="top-left"
     :close-on-click-overlay="!submitting"
     @update:show="(v: boolean) => emit('update:show', v)"
   >

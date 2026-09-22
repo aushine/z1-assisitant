@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
+    "check:icon-groups": "node scripts/check-icon-groups.mjs",
     "lint": "eslint . --ext .ts,.tsx --fix",
     "deploy": "tsc --noEmit && vite build --outDir ../dist/desktop"
   },
@@ -19,7 +20,7 @@
     "chart.js": "^4.5.1",
     "chinese-days": "^1.5.9",
     "dayjs": "^1.11.10",
-    "lucide-react": "^0.300.0",
+    "lucide-react": "0.300.0",
     "react": "^18.3.0",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.0",

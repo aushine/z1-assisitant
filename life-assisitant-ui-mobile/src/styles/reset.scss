@@ -40,6 +40,23 @@ body {
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
+  /**
+   * ⚠️ 全局禁止「长按选中文本」，压掉 iOS/Android 的原生「全选 / 拷贝」菜单。
+   *
+   * 这个 App 里长按是**业务手势**：账户卡片长按出菜单、分类格子长按出增删菜单
+   * （`composables/useLongPress.ts`）、任务卡长按……
+   * 之前只设了 `-webkit-touch-callout: none`（那只管链接/图片的长按预览），
+   * 漏了 `user-select`，于是长按会**同时**做两件事：弹出业务菜单 + 选中整块文本
+   * 并浮出「拷贝 / 全选」气泡（老大在账户卡片上撞到的就是这个）。
+   *
+   * `user-select` 虽然规范上不是继承属性，但 `auto` 的计算行为会向上找父级
+   * 的 used value ⇒ 在 html/body 上设一次即可覆盖整棵树，子元素按需放开
+   * （见下方 input / textarea / [contenteditable]）。
+   * 项目内**没有任何复制功能**（无 clipboard / execCommand 调用），所以全域
+   * 关闭不会误伤业务。
+   */
+  -webkit-user-select: none;
+  user-select: none;
   overflow-x: hidden;
   /**
    * ⚠️ 禁掉**根的滚动链与橡皮筋**，这是「上下滑带着胶囊一起弹」的收口。
@@ -138,6 +155,18 @@ button {
   cursor: pointer;
   padding: 0;
   color: inherit;
+}
+
+/**
+ * ⚠️ 输入控件必须**把选中能力要回来**，否则没法选中已输入的片段做替换。
+ * 这是上面全局 `user-select: none` 的唯一合法例外集合，别再往里加别的选择器。
+ */
+input,
+textarea,
+select,
+[contenteditable='true'] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 input,

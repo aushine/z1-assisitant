@@ -1,7 +1,7 @@
 /**
  * TransactionsTab — 收支 Tab（D-03 第十六轮由「支出」正名）
  *
- * 收支交易统一入口：支出/收入混合列表（排除转账）+ 类型筛选 + 收入/总资产汇总卡。
+ * 收支交易统一入口：支出/收入/转账混合列表 + 类型筛选 + 收入/总资产汇总卡。
  * 原「支出」「收入」两个 Tab 本就渲染同一份混合列表（IncomeTab 是其纯子集），
  * 第十六轮删除重复的收入 Tab，合并为单一「收支」。记收入经「记一笔」抽屉内
  * 的类型切换完成（TransactionEditDrawer 自带 expense/income/transfer 三态）。
@@ -9,6 +9,12 @@
  * R8/R9：搜索经防抖写入 txQuery.keyword 并重新拉取（见 TransactionToolbar）。
  * R10：类别 emoji 直出改为 <Icon>，走 findCategoryByEmoji（category-dict）反查 icon+tint，
  *      查不到则降级 HelpCircle + neutral（B12 兜底）。
+ *
+ * Phase 3.3（09-schedule）：类型筛选改**服务端过滤**（txQuery.type 透传 + 切类型重置
+ * 第 1 页重拉）；「全部类型」= 不传 type（**含转账**）；删除原先「排除转账 +
+ * 客户端过滤」的 useMemo。列表无「支出/收入合计」汇总行，无需另行排除转账。
+ * Phase 4：类型列下加来源中性标签（待报销/借出/借入/退款/余额调整）；
+ * 债权债务卡跳转带 contact 筛选 → 本组件渲染可移除的「对方」chip。
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Table, Skeleton, Tooltip, Modal } from '@douyinfe/semi-ui'
@@ -17,6 +23,7 @@ import { Icon } from '@/components/icon'
 import { useFinanceStore } from '@/stores/finance'
 import { financeApi } from '@/api/finance'
 import TransactionEditDrawer from '@/components/TransactionEditDrawer'
+import TransactionDetailDrawer from '@/components/TransactionDetailDrawer'
 import ErrorState from '@/components/ErrorState'
 import { EmptyHint } from '@/components/EmptyState'
 import { TransactionToolbar } from './components/TransactionToolbar'
@@ -24,7 +31,8 @@ import { CategoryIconCell } from './components/CategoryIconCell'
 import { ReverseButton } from './components/ReverseButton'
 import { IncomeSummaryCard } from './components/IncomeSummaryCard'
 import { AssetSummaryCard } from './components/AssetSummaryCard'
-import type { Transaction, TransactionType, CreateTransactionReq } from '@/api/types'
+import { sourceLabel } from '@/utils/money'
+import type { Transaction, TransactionType, CreateTransactionReq, UpdateTransactionReq } from '@/api/types'
 
 const TX_TYPE_META: Record<TransactionType, { label: string; bg: string; fg: string }> = {
   expense: { label: '支出', bg: 'var(--color-danger-light)', fg: 'var(--color-danger-dark)' },
@@ -47,10 +55,15 @@ function formatAmount(t: Transaction) {
 
 export function TransactionsTab() {
   const financeStore = useFinanceStore()
-  const [txDrawerVisible, setTxDrawerVisible] = useState(false)
   const [txSaving, setTxSaving] = useState(false)
-  const [drawerType, setDrawerType] = useState<TransactionType>('expense')
-  const [typeFilter, setTypeFilter] = useState<TransactionType | undefined>(undefined)
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [editState, setEditState] = useState<{
+    visible: boolean
+    mode: 'create' | 'edit'
+    transaction: Transaction | null
+    defaultType: TransactionType
+    defaultDate?: string
+  }>({ visible: false, mode: 'create', transaction: null, defaultType: 'expense', defaultDate: undefined })
   const [error, setError] = useState(false)
 
   // 初次加载探错（index.tsx 已在 mount 时 fetchTransactions，但 store 会静默吞错）
@@ -63,14 +76,21 @@ export function TransactionsTab() {
     return () => { alive = false }
   }, [])
 
-  // 排除转账，再按客户端类型筛选
-  const filteredTransactions = useMemo(() =>
-    financeStore.transactions.filter((t) =>
-      (t.type === 'expense' || t.type === 'income') &&
-      (!typeFilter || t.type === typeFilter)
-    ),
-    [financeStore.transactions, typeFilter]
-  )
+  // Phase 3.3：列表直接用服务端返回（筛选已下推 txQuery；不再排除转账）
+  const filteredTransactions = financeStore.transactions
+  const typeFilter = financeStore.txQuery.type
+
+  /** 类型筛选切换：写入 txQuery.type（setTxQuery 自动重置第 1 页）并重拉 */
+  function onTypeFilterChange(t: TransactionType | undefined) {
+    financeStore.setTxQuery({ type: t })
+    financeStore.fetchTransactions()
+  }
+
+  /** 清除「对方」筛选（债权债务卡跳转留下的 contact） */
+  function onClearContact() {
+    financeStore.setTxQuery({ contact: undefined })
+    financeStore.fetchTransactions()
+  }
 
   const totalIncome = useMemo(() => {
     const now = new Date()
@@ -95,9 +115,18 @@ export function TransactionsTab() {
       title: '类型',
       dataIndex: 'type',
       width: 90,
-      render: (v: TransactionType) => {
+      render: (v: TransactionType, r: Transaction) => {
         const m = TX_TYPE_META[v]
-        return <span style={{ background: m.bg, color: m.fg, padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>{m.label}</span>
+        const src = sourceLabel(r.source)
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ background: m.bg, color: m.fg, padding: '2px 8px', borderRadius: 4, fontSize: 12, alignSelf: 'flex-start' }}>{m.label}</span>
+            {/* Phase 4：来源中性色小标（source 空值 JSON 不出现 → 真值判断，B18） */}
+            {src && (
+              <span style={{ color: 'var(--color-text-tertiary)', fontSize: 11, alignSelf: 'flex-start' }}>{src}</span>
+            )}
+          </div>
+        )
       },
     },
     {
@@ -105,7 +134,7 @@ export function TransactionsTab() {
       dataIndex: 'category_name',
       width: 140,
       render: (_v: any, r: Transaction, _i: number) => (
-        <CategoryIconCell emoji={r.category_emoji} name={r.category_name} />
+        <CategoryIconCell categoryId={r.category_id} categoryName={r.category_name} categoryEmoji={r.category_emoji} />
       ),
     },
     {
@@ -168,18 +197,41 @@ export function TransactionsTab() {
         </div>
       ),
     },
-  ], [financeStore])
+    // ⚠️ 依赖必须是 []：useFinanceStore() 无 selector 返回整个 state 对象，每次 set
+    // 都换引用；依赖它会让 columns 频繁重建，Semi Table getDerivedStateFromProps
+    // 检测到新 columns 引用就重算 queries → componentDidUpdate 再 setState，
+    // 是 Maximum update depth 的经典诱因。columns 闭包里用到的 store actions
+    // （removeTransaction / fetchTransactions）是 zustand 定义期固定引用，捕获首次即可。
+  ], [])
 
   function openCreateTx(type: TransactionType = 'expense') {
-    setDrawerType(type)
-    setTxDrawerVisible(true)
+    setEditState({ visible: true, mode: 'create', transaction: null, defaultType: type, defaultDate: undefined })
   }
 
-  async function onTxSubmit(data: CreateTransactionReq) {
+  // 详情抽屉「编辑」→ 打开 edit 模式并回填；同时关闭详情（编辑保存后由 onTxEdit 重新打开详情刷新）
+  function onDetailEdit(tx: Transaction) {
+    setEditState({ visible: true, mode: 'edit', transaction: tx, defaultType: tx.type, defaultDate: undefined })
+    setDetailId(null)
+  }
+
+  async function onTxCreate(data: CreateTransactionReq) {
     setTxSaving(true)
     try {
       const created = await financeStore.createTransaction(data)
-      if (created) setTxDrawerVisible(false)
+      if (created) setEditState((s) => ({ ...s, visible: false }))
+    } finally {
+      setTxSaving(false)
+    }
+  }
+
+  async function onTxEdit(id: string, data: UpdateTransactionReq) {
+    setTxSaving(true)
+    try {
+      const updated = await financeStore.updateTransaction(id, data)
+      if (updated) {
+        setEditState((s) => ({ ...s, visible: false }))
+        setDetailId(id) // 留在详情页并刷新（详情抽屉会按 id 重新拉取）
+      }
     } finally {
       setTxSaving(false)
     }
@@ -193,7 +245,7 @@ export function TransactionsTab() {
       <TransactionToolbar
         showTypeFilter
         typeFilter={typeFilter}
-        onTypeFilterChange={setTypeFilter}
+        onTypeFilterChange={onTypeFilterChange}
         primaryLabel="记一笔"
         primaryType="primary"
         primaryTheme="solid"
@@ -201,12 +253,50 @@ export function TransactionsTab() {
         onError={setError}
       />
 
+      {/* 对方筛选 chip（债权债务卡点行跳转留下；可移除防「看不见的过滤」残留） */}
+      {financeStore.txQuery.contact && (
+        <div className="tx-contact-filter">
+          <span>对方：{financeStore.txQuery.contact}</span>
+          <Button
+            theme="borderless"
+            type="tertiary"
+            size="small"
+            icon={<Icon name="X" size={14} />}
+            onClick={onClearContact}
+            aria-label="清除对方筛选"
+          />
+        </div>
+      )}
+
       {loadingEmpty ? (
         <div className="skeleton-wrap"><Skeleton><Skeleton.Paragraph rows={3} /></Skeleton></div>
       ) : showError ? (
         <ErrorState compact message="交易加载失败，请重试" onRetry={() => { setError(false); financeStore.fetchTransactions() }} />
       ) : filteredTransactions.length > 0 ? (
-        <Table columns={txColumns as any} dataSource={filteredTransactions} pagination={false} loading={financeStore.txLoading} rowKey="id" size="middle" className="tx-table" />
+        <Table
+          columns={txColumns as any}
+          dataSource={filteredTransactions}
+          pagination={false}
+          loading={financeStore.txLoading}
+          rowKey="id"
+          size="middle"
+          className="tx-table"
+          // Semi 的 OnRow 回调参数类型是 `Transaction | undefined`（虚拟滚动/占位行），
+          // 故此处收窄后再返回行属性；undefined 时返回空对象（行为与之前一致）
+          onRow={(record) =>
+            record
+              ? {
+                  style: { cursor: 'pointer' as const },
+                  onClick: (e: React.MouseEvent) => {
+                    // 点操作列（撤销/删除）不触发详情，避免误开
+                    const t = e.target as HTMLElement
+                    if (t.closest('.col-actions')) return
+                    setDetailId(record.id)
+                  },
+                }
+              : {}
+          }
+        />
       ) : (
         <EmptyHint icon="Inbox" title="还没有交易" desc="点击「记一笔」开始" />
       )}
@@ -217,7 +307,25 @@ export function TransactionsTab() {
         <div style={{ flex: 1 }}><AssetSummaryCard totalBalance={financeStore.totalBalance} accounts={financeStore.accounts.length} /></div>
       </div>
 
-      <TransactionEditDrawer visible={txDrawerVisible} accounts={financeStore.accounts} defaultType={drawerType} saving={txSaving} onClose={() => setTxDrawerVisible(false)} onSubmit={onTxSubmit} />
+      <TransactionDetailDrawer
+        visible={detailId !== null}
+        txId={detailId}
+        onClose={() => setDetailId(null)}
+        onEdit={onDetailEdit}
+      />
+
+      <TransactionEditDrawer
+        visible={editState.visible}
+        mode={editState.mode}
+        transaction={editState.transaction}
+        defaultType={editState.defaultType}
+        defaultDate={editState.defaultDate}
+        accounts={financeStore.accounts}
+        saving={txSaving}
+        onClose={() => setEditState((s) => ({ ...s, visible: false }))}
+        onSubmit={onTxCreate}
+        onEditSubmit={onTxEdit}
+      />
     </div>
   )
 }

@@ -22,6 +22,13 @@ storage:
   #   默认相对路径 ./data/uploads（相对于启动进程的工作目录）
   # 环境变量覆盖：GF_STORAGE_UPLOAD_DIR（GoFrame GF_<SECTION>_<KEY> 规则）
   upload_dir: "./data/uploads"
+  # 上传文件对外访问基址（可选）。前端启动时经 GET /app/uploads-base 拿到它，
+  # 配了 → 用它拼 /z1/uploads/* 的绝对地址（图片从该地址取）；
+  # 留空 → 前端回落「当前连接的后端」（同源 /z1/uploads 静态映射）。
+  # 典型值："http://192.168.101.75"（内网直连部署机 nginx）或 "https://voz21.cn"（公网域名）；
+  # 不写协议头会自动补 http://。前端探活失败（超时/不通）也会自动回落，后端只管如实下发。
+  # 环境变量覆盖：GF_STORAGE_PUBLIC_URL
+  public_url: ""
 
 # MySQL 数据源（指向老大提供的实例）
 database:

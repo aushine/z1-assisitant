@@ -81,6 +81,7 @@ func isWhitelist(path, method string) bool {
 		consts.APIPrefix + "/auth/forgot-password": {"POST"},
 		consts.APIPrefix + "/auth/reset-password":  {"POST"},
 		consts.APIPrefix + "/health":               {"GET"},
+		consts.APIPrefix + "/app/uploads-base":     {"GET"},
 		"/api.json":                                {"GET"},
 		"/swagger":                                 {"GET"},
 	}

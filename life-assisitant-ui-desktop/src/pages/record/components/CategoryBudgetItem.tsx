@@ -1,12 +1,12 @@
 /**
  * CategoryBudgetItem — 分类预算条目。
  *
- * 分类图标不再直出 category_emoji（B09），改经 category-dict 反查 icon+tint。
- * 新增 onEdit（R22 预算编辑入口）；删除图标 IconDelete → Lucide X。
+ * ⭐ 升级：分类图标改按 `budget.category_id` 渲染（id 优先、快照兜底），
+ * 不再按 emoji 比对（05 §3）。删除图标用 Lucide X。
  */
 import { Button, Tag } from '@douyinfe/semi-ui'
 import { Icon, TINT_VARS } from '@/components/icon'
-import { findCategoryByEmoji } from '@/utils/category-dict'
+import { useFinanceCategoryStore, resolveCategoryView } from '@/stores/financeCategory'
 import type { Budget } from '@/api/types'
 
 interface Props {
@@ -31,24 +31,30 @@ function barColor(b: Budget) {
 }
 
 export function CategoryBudgetItem({ budget, onDelete, onEdit }: Props) {
+  const flat = useFinanceCategoryStore((s) => s.flat)
   const pct = budget.amount > 0 ? Math.min(100, Math.round((budget.used / budget.amount) * 100)) : 0
   const color = barColor(budget)
   const status = budgetStatus(budget)
-  const cat = budget.category_emoji ? findCategoryByEmoji(budget.category_emoji) : undefined
+  const cat = resolveCategoryView(
+    {
+      category_id: budget.category_id,
+      category_name: budget.category_name,
+      category_emoji: budget.category_emoji,
+    },
+    flat,
+  )
 
   return (
     <div className="budget-item category-budget-item">
       <div className="budget-head">
         <div className="budget-name">
-          {cat && (
-            <span
-              className="cat-emoji"
-              style={{ marginRight: 6, background: TINT_VARS[cat.tint].bg, color: TINT_VARS[cat.tint].fg }}
-            >
-              <Icon name={cat.icon} size={14} />
-            </span>
-          )}
-          {budget.category_name || budget.name}
+          <span
+            className="cat-emoji"
+            style={{ marginRight: 6, background: TINT_VARS[cat.tint].bg, color: TINT_VARS[cat.tint].fg }}
+          >
+            <Icon name={cat.icon} size={14} />
+          </span>
+          {cat.name || budget.name}
         </div>
         <div className="budget-amounts">
           <span style={{ color, fontWeight: 600 }}>¥{budget.used.toFixed(0)}</span>

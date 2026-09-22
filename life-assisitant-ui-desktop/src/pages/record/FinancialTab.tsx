@@ -22,12 +22,15 @@ import { RadioGroup, Radio } from '@douyinfe/semi-ui'
 import TransactionsTab from './TransactionsTab'
 import BudgetTab from './BudgetTab'
 import AccountTab from './AccountTab'
+import CalendarView from '@/components/finance/CalendarView'
+import { useFinanceStore } from '@/stores/finance'
 
-/** 财务的三个子视图 —— 与移动端 FinanceSub 逐字一致 */
-export type FinanceSub = 'transactions' | 'budget' | 'account'
+/** 财务的四个子视图 —— 与移动端 FinanceSub 逐字一致（v2 加「日历」） */
+export type FinanceSub = 'transactions' | 'budget' | 'account' | 'calendar'
 
 const SUB_OPTIONS: ReadonlyArray<{ value: FinanceSub; label: string }> = [
   { value: 'transactions', label: '收支' },
+  { value: 'calendar', label: '日历' },
   { value: 'budget', label: '预算' },
   { value: 'account', label: '账户' },
 ]
@@ -51,6 +54,23 @@ export function FinancialTab({
     onSubChange?.(next)
   }
 
+  // 日历「查看全部」→ 切回收支子视图并带上该日筛选（左闭右开）
+  function handleViewAll(date: string) {
+    const next = new Date(`${date}T00:00:00`)
+    next.setDate(next.getDate() + 1)
+    const end = next.toISOString().slice(0, 10)
+    useFinanceStore.getState().setTxQuery({ start_date: date, end_date: end, type: undefined })
+    useFinanceStore.getState().fetchTransactions()
+    change('transactions')
+  }
+
+  // Phase 4.2：债权债务卡点行 → 切收支子视图并按对方筛选（contact 服务端等值参数）
+  function handleViewContact(contact: string) {
+    useFinanceStore.getState().setTxQuery({ contact, type: undefined, start_date: undefined, end_date: undefined })
+    useFinanceStore.getState().fetchTransactions()
+    change('transactions')
+  }
+
   return (
     <div className="financial-tab">
       <div className="fin-sub">
@@ -68,8 +88,9 @@ export function FinancialTab({
       </div>
 
       {sub === 'transactions' && <TransactionsTab />}
+      {sub === 'calendar' && <CalendarView onViewAll={handleViewAll} />}
       {sub === 'budget' && <BudgetTab />}
-      {sub === 'account' && <AccountTab />}
+      {sub === 'account' && <AccountTab onViewContact={handleViewContact} />}
     </div>
   )
 }

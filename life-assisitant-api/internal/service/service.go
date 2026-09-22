@@ -26,6 +26,8 @@ var (
 	// 260919 v1：健康模块（三表事务）与纪念日（next_date 实时推导）
 	localHealth      IHealthService
 	localAnniversary IAnniversaryService
+	// 260921：记账分类（用户级，内置种子懒创建）
+	localFinanceCategory IFinanceCategoryService
 )
 
 // 注册器：main.go 启动时调用 impl.Register() 自动注入
@@ -49,6 +51,8 @@ func SetPeriod(s IPeriodService)             { localPeriod = s }
 func SetHealth(s IHealthService)             { localHealth = s }
 func SetAnniversary(s IAnniversaryService)   { localAnniversary = s }
 
+func SetFinanceCategory(s IFinanceCategoryService) { localFinanceCategory = s }
+
 func Auth() IAuthService                 { return localAuth }
 func User() IUserService                 { return localUser }
 func Role() IRoleService                 { return localRole }
@@ -66,3 +70,5 @@ func Timeline() ITimelineService         { return localTimeline }
 func Period() IPeriodService             { return localPeriod }
 func Health() IHealthService             { return localHealth }
 func Anniversary() IAnniversaryService   { return localAnniversary }
+
+func FinanceCategory() IFinanceCategoryService { return localFinanceCategory }

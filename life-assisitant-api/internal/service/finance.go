@@ -38,4 +38,10 @@ type IFinanceService interface {
 	CreateBudget(ctx context.Context, req *dto.CreateBudgetReq) (*dto.BudgetResp, error)
 	UpdateBudget(ctx context.Context, id string, req *dto.UpdateBudgetReq) (*dto.BudgetResp, error)
 	DeleteBudget(ctx context.Context, id string) error
+
+	// ====== 收支日历 / 债权债务（260921 v2 + v4） ======
+	// GetCalendar 收支日历（复用 DAO.GroupByDay）
+	GetCalendar(ctx context.Context, req *dto.CalendarReq) (*dto.CalendarResp, error)
+	// GetDebts 债权债务聚合
+	GetDebts(ctx context.Context) (*dto.DebtsResp, error)
 }

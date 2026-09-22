@@ -80,6 +80,11 @@ func InitDB(dsn string, debug bool) error {
 		&model.HealthEvent{},
 		&model.HealthSetting{},
 		&model.Anniversary{},
+		// 记账分类（20260921 新增）—— 漏登记不报错，接口只返 DATABASE_ERROR 500002
+		// ⚠️ 索引名已在 model 里显式写好（uk_fin_cat_user_scope_parent_name /
+		//    idx_fin_cat_user_scope / idx_fin_cat_parent），与手写 DDL 逐字一致；
+		//    主键为复合主键 (id, user_id)（详见 model/finance_category.go 的说明）
+		&model.FinanceCategory{},
 	); err != nil {
 		return fmt.Errorf("AutoMigrate 失败: %w", err)
 	}

@@ -145,6 +145,14 @@ var (
 	BudgetCategoryRequired = BusinessCode{CodeValue: 400506, CodeMessage: "BUDGET_CATEGORY_REQUIRED", CodeDetail: "分类预算必须指定分类"}
 )
 
+// ====== 分类错误 9xx（记账分类，20260921 新增；错误码取值对齐 06 §1.2）======
+var (
+	FinanceCategoryNotFound      = BusinessCode{CodeValue: 404601, CodeMessage: "FINANCE_CATEGORY_NOT_FOUND", CodeDetail: "分类不存在"}
+	FinanceCategoryInvalid       = BusinessCode{CodeValue: 400001, CodeMessage: "FINANCE_CATEGORY_INVALID", CodeDetail: "分类参数校验失败"}
+	FinanceCategoryNameExists    = BusinessCode{CodeValue: 400002, CodeMessage: "FINANCE_CATEGORY_NAME_EXISTS", CodeDetail: "同层级下已存在同名分类"}
+	FinanceCategoryParentInvalid = BusinessCode{CodeValue: 400003, CodeMessage: "FINANCE_CATEGORY_PARENT_INVALID", CodeDetail: "父分类无效（必须是一级分类且收支方向一致）"}
+)
+
 // ====== 统计错误 8xx ======
 var (
 	StatsNotAvailable = BusinessCode{CodeValue: 500501, CodeMessage: "STATS_NOT_AVAILABLE", CodeDetail: "统计数据暂不可用"}

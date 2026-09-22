@@ -88,6 +88,24 @@ export function todayWallClockISO(dateStr?: string | null): string {
   return toLocalISOString(d)
 }
 
+/**
+ * 「用户选的日期 + 用户选的时分」的带偏移 ISO 8601（02 §B.3 #3）。
+ *
+ * 入参是本地墙钟串 `YYYY-MM-DD HH:mm`（也容忍 ISO 形态），秒固定补 `:00`。
+ * 取代记账链路里 `todayWallClockISO`（那个函数名把"用今天此刻"写死了 ——
+ * 补记「昨天 18:30」会被写成「昨天 + 此刻」）。⚠️ `todayWallClockISO` 保留
+ * 但**不再被记账链路调用**（仍有其它潜在调用方，删前先 grep）。
+ */
+export function wallClockISOFrom(local: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec((local || '').trim())
+  if (!m) {
+    // 兜底：只有日期 → 退回「该天此刻」的旧语义
+    return todayWallClockISO(local)
+  }
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), 0, 0)
+  return toLocalISOString(d)
+}
+
 /* ==================== 日期字符串运算 ==================== */
 
 /** 把任意可解析输入规整成 `YYYY-MM-DD`（空值返回 ''） */

@@ -308,6 +308,18 @@
   }
 }
 
+// Phase 3：记一笔日期换 type="dateTime" 后浮出的选择面板走独立 portal，
+// Semi 的 --semi-color-bg-* 不随本项目 [data-theme='dark'] 翻转 ⇒ 暗色下白块。
+// 与 .semi-popover-wrapper 同一写法：改走本项目会联动翻转的 --color-* 令牌。
+.semi-datepicker-wrapper,
+.semi-datepicker {
+  background-color: var(--color-bg-card);
+}
+
+.semi-datepicker .semi-icon {
+  color: var(--color-text-secondary);
+}
+
 // Pagination 分页器优化
 .semi-pagination {
   &-item {
@@ -368,6 +380,22 @@
     &:hover {
       background: var(--color-bg-hover);
     }
+  }
+}
+
+// ⚠️ 与 .semi-popover-wrapper 同一个坑：Semi 的 --semi-color-bg-3 / --semi-color-text-0
+// 不随本项目的 [data-theme='dark'] 翻转。不覆盖的话，暗色主题下菜单悬停底色翻转、
+// 文字色不翻转 ⇒ 深底深字不可读。这里显式改走本项目会联动翻转的 --color-* 令牌。
+// 浅色下 --color-bg-elevated / --color-text-primary 与 Semi 默认值同值，无视觉变化。
+.semi-dropdown-wrapper {
+  background: var(--color-bg-elevated);
+}
+
+.semi-dropdown-item {
+  color: var(--color-text-primary);
+
+  &-danger {
+    color: var(--color-danger);
   }
 }
 

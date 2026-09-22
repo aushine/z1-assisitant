@@ -1,15 +1,15 @@
 /**
  * TransactionToolbar — 支出/收入共用的交易工具栏（R11 提取，勿复制粘贴）。
  *
- * 承担：类型筛选（可选，客户端过滤）、账户筛选（服务端）、备注/分类关键字搜索（服务端）、
- * 刷新、分页加载。
+ * 承担：类型筛选、账户筛选（服务端）、备注/分类关键字搜索（服务端）、刷新、分页加载。
  * - 搜索真正写入 store 的 txQuery.keyword（P0-07/R8：此前 txSearch 只存本地，从未生效）。
  * - 防抖定时器用 useRef 持有（R9：此前 let 声明在函数体内，每次 render 被重置为 null）。
  * - 错误探测（E02）：store 的 fetchTransactions 静默吞错并置空列表，无法区分「失败」与「空」，
  *   故额外发一次真实请求作探针，失败经 onError 上报，由 Tab 渲染 ErrorState。
  *
- * 类型筛选设计为「客户端过滤」而非写 txQuery.type：两个 Tab 共用同一个 store，
- * 若写 txQuery.type 会在切换 Tab 时互相污染（与 03 R1 转账死按钮同类问题）。
+ * Phase 3.3（09-schedule）：类型筛选改**服务端过滤**——写入 txQuery.type 并重拉
+ * （切段重置第 1 页由 setTxQuery 保证）。「全部」= 不传 type（含转账）。
+ * 当前财务 Tab 只剩一个收支视图，写共享 store 的 txQuery.type 不再有两 Tab 互污染问题。
  */
 import { useMemo, useRef } from 'react'
 import { Button, Input, Select } from '@douyinfe/semi-ui'
@@ -22,12 +22,13 @@ const txTypeOptions = [
   { value: undefined as TransactionType | undefined, label: '全部类型' },
   { value: 'expense' as TransactionType, label: '支出' },
   { value: 'income' as TransactionType, label: '收入' },
+  { value: 'transfer' as TransactionType, label: '转账' },
 ]
 
 interface Props {
-  /** 是否显示类型筛选（支出 Tab 显示；收入 Tab 隐藏） */
+  /** 是否显示类型筛选（收支 Tab 显示） */
   showTypeFilter?: boolean
-  /** 当前类型筛选值（客户端过滤，由父级持有） */
+  /** 当前类型筛选值（Phase 3.3 起由父级写入 txQuery.type 做服务端过滤） */
   typeFilter?: TransactionType | undefined
   /** 类型筛选变更 */
   onTypeFilterChange?: (t: TransactionType | undefined) => void
@@ -73,6 +74,7 @@ export function TransactionToolbar({
         type: q.type,
         account_id: q.account_id,
         keyword: q.keyword,
+        contact: q.contact,
         start_date: q.start_date,
         end_date: q.end_date,
         page: q.page,

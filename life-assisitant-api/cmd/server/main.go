@@ -24,8 +24,15 @@ import (
 	"github.com/life-assistant/api/internal/utility"
 )
 
+// buildVersion 由 CI 在链接期注入（-ldflags "-X main.buildVersion=..."），
+// 值为当次构建的 git commit 短 SHA；本地 `go build` 时为默认值。
+// 启动日志里会打印它，便于线上确认「当前跑的是哪一次提交」。
+var buildVersion = "dev"
+
 func main() {
 	ctx := context.Background()
+
+	fmt.Printf("🚀 生活助手 API 启动中 (build=%s)\n", buildVersion)
 
 	// 1. 初始化 MySQL
 	dsn := g.Cfg().MustGet(ctx, "database.default.link").String()

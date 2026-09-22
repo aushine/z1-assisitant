@@ -8,7 +8,13 @@
  * 最后同步：2026-09-18（Phase 3.3）
  *
  * 7 列（周一~周日）× 最多 6 行，连续格子，热度沿用 `utils/heatmap` 的绿色阶。
- * 每格显示：公历日、农历日或节气、节假日名、调休「班」标。
+ * 每格显示：公历日、农历日或节气、节假日名、调休「班」标、周末休息「休」标。
+ *
+ * ⚠️ 260921 修订（老大看图报的 bug）：
+ *   ① 周末灰底曾**无条件**覆盖打卡热度色 ⇒ 周末打了卡的格子也变灰。
+ *      现在灰底只在 `total === 0`（该格没有打卡数据）时兜底。
+ *   ② 周末（非调休补班）在文字行最左侧加「休」字，**不动**节日名与「班」字。
+ *   桌面端 `pages/record/components/HabitHeatmap.tsx` 同步同改（双端契约）。
  *
  * ⚠️ 与桌面端的差异（交互层，不是视觉）：
  *   桌面端用 Semi Tooltip 悬浮展示某日详情；移动端没有 hover，
@@ -147,22 +153,34 @@ function onCellClick(c: DayCell): void {
   selectedDate.value = selectedDate.value === c.date ? '' : c.date
 }
 
+/**
+ * ⚠️「周末」只是**底噪**，不能盖掉打卡热度色（260921 修）。
+ *
+ * 原来这里是 `if (c.isWeekend && !c.isHoliday) return '#F9FAFB'` —— 无条件返灰，
+ * 于是周末只要打了卡，整格就从热力绿变成灰，看起来像"没打卡"。
+ * 现在灰底只在**这一格完全没有打卡数据**（total === 0）时兜底。
+ */
+function cellBg(c: DayCell): string {
+  if (!c.inMonth) return 'transparent'
+  if (c.isWeekend && !c.isHoliday && c.total === 0) return '#F9FAFB'
+  return heatColor(c.ratio)
+}
+
+/** 该格是否为「休息日」（周末、且不是调休补班）→ 文字行左侧标「休」 */
+function isRestDay(c: DayCell): boolean {
+  return c.inMonth && c.isWeekend && !c.isWorkdayInLieu
+}
+
 /** 格内数字颜色：热力深绿底用白色，浅底用灰/主文本色 */
 function dayNumColor(c: DayCell): string {
   if (c.ratio >= 0.5 && c.inMonth) return '#FFFFFF'
-  if (c.isWeekend && c.inMonth && !c.isHoliday) return '#9CA3AF'
+  // 灰字同样只属于「周末且无数据」，有数据的周末走主文本色（浅绿底上可读）
+  if (c.isWeekend && c.inMonth && !c.isHoliday && c.total === 0) return '#9CA3AF'
   return 'var(--color-text-primary)'
 }
 
 function lunarColor(c: DayCell): string {
   return c.ratio >= 0.5 ? '#FFFFFF' : '#9CA3AF'
-}
-
-function cellBg(c: DayCell): string {
-  if (!c.inMonth) return 'transparent'
-  // 周末且当月（非法定节假日）灰底；法定节假日不灰，用热度色 + 红字
-  if (c.isWeekend && !c.isHoliday) return '#F9FAFB'
-  return heatColor(c.ratio)
 }
 
 function pad(n: number): string {
@@ -203,9 +221,17 @@ function pad(n: number): string {
         <span class="cell-day" :style="{ color: dayNumColor(c) }">{{ c.inMonth ? c.day : '' }}</span>
 
         <span class="cell-sub">
-          <span v-if="c.solarTerm" class="sub-term">{{ c.solarTerm }}</span>
-          <span v-else-if="c.lunarDay && c.inMonth" class="sub-lunar" :style="{ color: lunarColor(c) }">
-            {{ c.lunarDay }}
+          <!--
+            首行：休息日「休」标 + 节气 / 农历。
+            ⚠️「休」只能加在**这一行的最左边**，节日名（.sub-holiday）与调休「班」
+            各自成行、原样保留 —— 260921 老大明确要求「不要覆盖当前的调休和节日字样」。
+          -->
+          <span class="cell-sub-line">
+            <span v-if="isRestDay(c)" class="sub-rest">休</span>
+            <span v-if="c.solarTerm" class="sub-term">{{ c.solarTerm }}</span>
+            <span v-else-if="c.lunarDay && c.inMonth" class="sub-lunar" :style="{ color: lunarColor(c) }">
+              {{ c.lunarDay }}
+            </span>
           </span>
           <span v-if="c.isHoliday && c.holidayName" class="sub-holiday">{{ c.holidayName }}</span>
           <span v-if="c.isWorkdayInLieu" class="sub-holiday">班</span>
@@ -230,7 +256,7 @@ function pad(n: number): string {
         :style="{ background: heatColor(r) }"
       />
       <span class="legend-text">多</span>
-      <span class="legend-hint">周末灰色 · 节气绿色 · 节日红色</span>
+      <span class="legend-hint">周末「休」· 调休「班」· 节气绿 · 节日红</span>
     </div>
 
     <!-- 选中日详情（移动端替代桌面端 Tooltip） -->
@@ -303,6 +329,17 @@ function pad(n: number): string {
   margin-top: 2px;
   font-size: var(--fs-nano);
   line-height: 1.25;
+}
+/* 首行：「休」+ 节气/农历 横向排（休字在最左） */
+.cell-sub-line {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+}
+.sub-rest {
+  color: #DC2626;
+  font-weight: 600;
 }
 .sub-term {
   color: #059669;

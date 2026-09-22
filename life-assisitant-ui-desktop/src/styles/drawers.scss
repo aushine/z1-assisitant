@@ -103,6 +103,7 @@
 }
 
 .cat-chip {
+  position: relative; // 承载 hover 时右上角露出的 ⋮
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -138,10 +139,71 @@
   background: var(--color-bg-hover);
 }
 
+// 名字 + `›` 标记同一行（05 §1.2.1：位置 = 名字右侧、gap 2px）
+.cat-name-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  max-width: 100%;
+  min-width: 0;
+}
+
 .cat-name {
   font-size: $fs-caption-sm;
   color: var(--color-text-secondary);
   font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// `›`：12px / --color-text-tertiary；选中态跟随主色
+.cat-arrow {
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+}
+
+.cat-chip.active .cat-arrow {
+  color: var(--color-primary-500);
+}
+
+// hover 时右上角露出的 ⋮（点它等同右键，05 §2.6）
+.cat-more {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: $radius-sm;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity $duration-fast $ease-default, background $duration-fast $ease-default;
+
+  &:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+  }
+}
+
+.cat-chip:hover .cat-more,
+.cat-chip:focus-within .cat-more {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+// MoreHorizontal 旋转 90° → 竖向 ⋮（不新增图标名，保持两端 ICONS 一致）
+.cat-more-icon {
+  transform: rotate(90deg);
 }
 
 // ==========================================================================
@@ -492,4 +554,443 @@
   background: transparent;
   outline: none;
   font-size: $fs-body-sm;
+}
+
+// ==========================================================================
+// 记账分类选择器（CategoryPicker / IconPicker）
+// ==========================================================================
+.field-tip {
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+  margin-top: $space-2;
+}
+
+// ----- CategoryPicker -----
+.cat-picker {
+  position: relative;
+}
+
+// 老大拍板：一级 4 列平铺常驻
+.cat-grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.cat-create-btn {
+  margin-top: $space-3;
+  display: inline-flex;
+  align-items: center;
+  gap: $space-2;
+  padding: $space-2 $space-4;
+  border: 1px dashed var(--color-border-default);
+  border-radius: $radius-lg;
+  background: transparent;
+  color: var(--color-primary-600);
+  font-size: $fs-caption;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $duration-fast $ease-default;
+
+  &:hover {
+    border-color: var(--color-primary-400);
+    background: var(--color-primary-50);
+  }
+}
+
+// 动作行：左「＋ 新建分类」/ 右「管理 ›」（05 §2.6）
+.cat-actions {
+  margin-top: $space-3;
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+}
+
+.cat-actions .cat-create-btn {
+  margin-top: 0;
+}
+
+.cat-manage-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: $space-2 $space-3;
+  border: 0;
+  border-radius: $radius-md;
+  background: transparent;
+  color: var(--color-primary-600);
+  font-size: $fs-caption;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background $duration-fast $ease-default;
+
+  &:hover {
+    background: var(--color-primary-50);
+  }
+}
+
+// 删除确认弹窗里的补充说明行
+.cat-del-md-line {
+  margin-top: 8px;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+}
+
+// hover 浮出的二级面板（浮层，不占表单高度）
+.cat-flyout {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: $space-2;
+  padding: $space-3;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: $radius-lg;
+  box-shadow: $shadow-lg;
+}
+
+.cat-flyout-title {
+  display: flex;
+  align-items: center;
+  gap: $space-1;
+  font-size: $fs-caption-sm;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: $space-2;
+}
+
+.cat-flyout-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-2;
+}
+
+.cat-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-2;
+  padding: $space-2 $space-3;
+  border-radius: $radius-md;
+  border: 1px solid var(--color-border-light);
+  background: var(--color-bg-hover);
+  font-size: $fs-caption-sm;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all $duration-fast $ease-default;
+
+  &:hover {
+    border-color: var(--color-primary-300);
+    color: var(--color-text-primary);
+  }
+
+  &.active {
+    background: var(--color-primary-50);
+    border-color: var(--color-primary-500);
+    color: var(--color-primary-700);
+  }
+}
+
+// 内联新建分类表单
+.cat-create-form {
+  margin-top: $space-3;
+  padding: $space-4;
+  border: 1px dashed var(--color-border-default);
+  border-radius: $radius-lg;
+  background: var(--color-bg-hover);
+}
+
+.cat-input {
+  width: 100%;
+  padding: $space-3;
+  border: 1px solid var(--color-border-default);
+  border-radius: $radius-md;
+  font-size: $fs-body-sm;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  outline: none;
+  transition: border-color $duration-fast $ease-default;
+
+  &:focus {
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 3px rgba(1, 77, 178, 0.1);
+  }
+}
+
+.cat-icon-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-2;
+  padding: $space-2 $space-4;
+  border: 1px solid var(--color-border-light);
+  border-radius: $radius-md;
+  cursor: pointer;
+  font-size: $fs-caption-sm;
+  font-weight: 600;
+}
+
+.cat-icon-pick-text {
+  color: inherit;
+}
+
+// ----- IconPicker -----
+.icon-group-chips {  display: flex;
+  flex-wrap: wrap;
+  gap: $space-2;
+  margin: $space-3 0;
+}
+
+.icon-group-chip {
+  padding: $space-1 $space-3;
+  border-radius: $radius-pill;
+  border: 1px solid var(--color-border-light);
+  background: var(--color-bg-hover);
+  font-size: $fs-caption-sm;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all $duration-fast $ease-default;
+
+  &:hover {
+    border-color: var(--color-primary-300);
+  }
+
+  &.active {
+    background: var(--color-primary-500);
+    border-color: var(--color-primary-500);
+    color: white;
+  }
+}
+
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: $space-2;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: $space-1;
+}
+
+.icon-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $radius-md;
+  border: 1px solid var(--color-border-light);
+  background: var(--color-bg-hover);
+  cursor: pointer;
+  transition: all $duration-fast $ease-default;
+
+  &:hover {
+    border-color: var(--color-primary-300);
+    background: var(--color-primary-50);
+  }
+
+  &.focus {
+    border-color: var(--color-primary-400);
+    box-shadow: 0 0 0 2px rgba(1, 77, 178, 0.15);
+  }
+
+  &.active {
+    background: var(--color-primary-500);
+    border-color: var(--color-primary-500);
+    color: white;
+  }
+}
+
+.icon-picker-empty {
+  padding: $space-6;
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: $fs-caption;
+}
+
+// ==========================================================================
+// 记一笔 · Phase 3/4（金额表达式 / 更多选项 / 性质与对方 / 详情抽屉 / 核销）
+// ==========================================================================
+
+// ----- 金额表达式实时预览（02 §D6：= 精确 / ≈ 舍入；无效红字走 .field-error）-----
+.amount-preview {
+  font-size: $fs-body-sm;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-primary-500);
+  white-space: nowrap;
+}
+
+// ----- 更多选项折叠区（05 §A3.1：默认收起；右侧「已开启 N 项」N=0 不显示）-----
+.more-options-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $space-2 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.more-options-title {
+  font-size: $fs-body-sm;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.more-options-right {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-1;
+  color: var(--color-text-tertiary);
+}
+
+.more-options-count {
+  font-size: $fs-caption-sm;
+  color: var(--color-primary-500);
+}
+
+.more-options-body {
+  display: flex;
+  flex-direction: column;
+  gap: $space-2;
+  padding: $space-2 $space-3;
+  background: var(--color-bg-hover);
+  border-radius: $radius-lg;
+}
+
+.more-option-label {
+  font-size: $fs-body-sm;
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.more-option-desc {
+  display: block;
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+}
+
+// ----- 「对方」最近候选 chips（Q12：本地最近 ≤5，不做通讯录）-----
+.contact-candidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-2;
+  margin-top: $space-2;
+}
+
+.contact-chip {
+  padding: $space-1 $space-3;
+  border: 1px solid var(--color-border-light);
+  border-radius: $radius-pill;
+  background: var(--color-bg-hover);
+  color: var(--color-text-secondary);
+  font-size: $fs-caption-sm;
+  cursor: pointer;
+  transition: all $duration-fast $ease-default;
+
+  &:hover {
+    border-color: var(--color-primary-300);
+    color: var(--color-text-primary);
+  }
+}
+
+// ==========================================================================
+// 账目详情抽屉（TransactionDetailDrawer）
+// ⚠️ Phase 2 时这些类名未落样式（抽屉仍可用但排版裸奔），Phase 4 一并补齐
+// ==========================================================================
+.tx-detail-drawer {
+  .drawer-body {
+    overflow-y: auto;
+  }
+}
+
+.tx-detail-amount {
+  font-size: $fs-h1;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tx-detail-type {
+  font-size: $fs-caption;
+  margin-top: $space-1;
+}
+
+.tx-detail-divider {
+  height: 1px;
+  background: var(--color-border-light);
+  margin: $space-2 0;
+}
+
+.tx-detail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: $space-3;
+  padding: $space-2 0;
+  font-size: $fs-body-sm;
+}
+
+.tx-detail-label {
+  flex-shrink: 0;
+  width: 64px;
+  color: var(--color-text-tertiary);
+}
+
+.tx-detail-value {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+
+.tx-detail-banner {
+  padding: $space-2 $space-3;
+  border-radius: $radius-md;
+  background: var(--color-warning-light);
+  color: var(--color-warning-dark, var(--color-warning));
+  font-size: $fs-caption;
+  font-weight: 500;
+}
+
+.tx-detail-scope,
+.tx-detail-source,
+.tx-detail-progress {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.tx-detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $space-3;
+  padding: $space-8 0;
+  color: var(--color-text-tertiary);
+}
+
+.tx-detail-empty-text {
+  font-size: $fs-body-sm;
+}
+
+.tx-detail-actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.tx-detail-action-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: $space-3;
+}
+
+// ----- 「对方」筛选 chip（债权债务卡跳转留下的可移除过滤）-----
+.tx-contact-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-1;
+  padding: $space-1 $space-2;
+  border: 1px solid var(--color-border-light);
+  border-radius: $radius-md;
+  background: var(--color-bg-hover);
+  font-size: $fs-caption-sm;
+  color: var(--color-text-secondary);
+  width: fit-content;
 }

@@ -4,7 +4,7 @@
  * ⚠️ 必须从**普通 script 块**导出：`<script setup>` 不允许 ES module exports，
  *    而父级（record/index.vue）的 FAB 文案与分发需要这个类型。
  */
-export type FinanceSub = 'transactions' | 'budget' | 'account'
+export type FinanceSub = 'transactions' | 'calendar' | 'budget' | 'account'
 </script>
 
 <script setup lang="ts">
@@ -30,6 +30,7 @@ import { ref } from 'vue'
 import TransactionList from '@/components/TransactionList.vue'
 import AccountManager from '@/components/AccountManager.vue'
 import BudgetList from '@/components/BudgetList.vue'
+import CalendarView from '@/components/finance/CalendarView.vue'
 import type { Transaction } from '@/api/types'
 
 /** 财务的三个子视图 */
@@ -44,14 +45,37 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'sub-change', v: FinanceSub): void
   (e: 'edit-transaction', t: Transaction): void
+  /** 日历明细行点击 → 账目详情页（父级按 id 路由跳转） */
+  (e: 'view-transaction', t: Transaction): void
+  /** 日历长按 / 「记一笔」→ 打开记一笔并预填该日期（父级持有浮层） */
+  (e: 'create-transaction-at', date: string): void
 }>()
 
 const sub = ref<FinanceSub>(props.defaultSub)
 
+/**
+ * 日历「查看全部」要带给流水列表的单日筛选（presetDate），
+ * 债权债务卡「按对方看流水」要带给流水列表的对方筛选（presetContact · Phase 4）。
+ * 在触发时记下、切到 transactions 时作为 preset 传入；
+ * 离开 transactions 视图时清空 —— 避免下次普通切回还残留旧筛选。
+ */
+const calendarJumpDate = ref('')
+const debtJumpContact = ref('')
+
 function switchTo(v: FinanceSub): void {
   if (sub.value === v) return
+  if (v !== 'transactions') {
+    calendarJumpDate.value = ''
+    debtJumpContact.value = ''
+  }
   sub.value = v
   emit('sub-change', v)
+}
+
+/** 债权债务卡点行：记下对方 → 切到流水列表（TransactionList 挂载时写入服务端筛选） */
+function onViewContact(contact: string): void {
+  debtJumpContact.value = contact
+  switchTo('transactions')
 }
 
 const accountManagerRef = ref<InstanceType<typeof AccountManager> | null>(null)
@@ -71,8 +95,9 @@ function openCreate(): void {
       accountManagerRef.value?.openCreateAccount()
       break
     default:
-      // 收支：记一笔在父级（TransactionEditSheet 由 record/index.vue 统一持有）
-      emit('sub-change', 'transactions')
+      // 收支 / 日历：记一笔在父级（TransactionEditSheet 由 record/index.vue 统一持有）。
+      // ⚠️ 保持当前子视图（日历下 FAB 补录也不切走），只回传一次让父级文案对齐。
+      emit('sub-change', sub.value)
       break
   }
 }
@@ -98,6 +123,16 @@ defineExpose({ openCreate, sub })
       <button
         type="button"
         role="tab"
+        :aria-selected="sub === 'calendar'"
+        class="fin-seg-btn"
+        :class="{ 'is-on': sub === 'calendar' }"
+        @click="switchTo('calendar')"
+      >
+        日历
+      </button>
+      <button
+        type="button"
+        role="tab"
         :aria-selected="sub === 'budget'"
         class="fin-seg-btn"
         :class="{ 'is-on': sub === 'budget' }"
@@ -119,9 +154,26 @@ defineExpose({ openCreate, sub })
 
     <!-- ⚠️ v-if 惰性挂载：三个列表各自持有筛选/月份等本地状态，
          同时挂载会互相抢，且一次性打三组接口。 -->
-    <TransactionList v-if="sub === 'transactions'" @edit="emit('edit-transaction', $event)" />
+    <TransactionList
+      v-if="sub === 'transactions'"
+      :preset-date="calendarJumpDate"
+      :preset-contact="debtJumpContact"
+      @edit="emit('edit-transaction', $event)"
+      @view="emit('view-transaction', $event)"
+    />
+    <CalendarView
+      v-else-if="sub === 'calendar'"
+      @view="emit('view-transaction', $event)"
+      @view-all="
+        (d) => {
+          calendarJumpDate = d
+          switchTo('transactions')
+        }
+      "
+      @create-at="emit('create-transaction-at', $event)"
+    />
     <BudgetList v-if="sub === 'budget'" ref="budgetListRef" />
-    <AccountManager v-if="sub === 'account'" ref="accountManagerRef" />
+    <AccountManager v-if="sub === 'account'" ref="accountManagerRef" @view-contact="onViewContact" />
   </div>
 </template>
 

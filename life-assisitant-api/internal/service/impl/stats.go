@@ -485,6 +485,7 @@ func (s *StatsService) GetFinanceStats(ctx context.Context, rng string) (*dto.Fi
 			pct = round2(row.Amount / expense)
 		}
 		out.ByCategory = append(out.ByCategory, dto.FinanceCategoryStat{
+			CategoryID: row.CategoryID,
 			Category:   row.CategoryName,
 			Emoji:      row.CategoryEmoji,
 			Color:      "#6B7280",

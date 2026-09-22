@@ -271,3 +271,30 @@ func (c *FinanceController) DeleteBudget(r *ghttp.Request) {
 	}
 	response.NoContent(r)
 }
+
+// ====== 收支日历 / 债权债务（260921 v2 + v4） ======
+
+// GetCalendar GET /api/v1/finance/calendar?month=YYYY-MM
+func (c *FinanceController) GetCalendar(r *ghttp.Request) {
+	var req dto.CalendarReq
+	if err := r.Parse(&req); err != nil {
+		response.Error(r, ecode.ValidationFailed, err)
+		return
+	}
+	out, err := service.Finance().GetCalendar(r.Context(), &req)
+	if err != nil {
+		writeError(r, err)
+		return
+	}
+	response.Success(r, out)
+}
+
+// GetDebts GET /api/v1/finance/debts
+func (c *FinanceController) GetDebts(r *ghttp.Request) {
+	out, err := service.Finance().GetDebts(r.Context())
+	if err != nil {
+		writeError(r, err)
+		return
+	}
+	response.Success(r, out)
+}

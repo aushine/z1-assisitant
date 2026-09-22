@@ -277,10 +277,13 @@ export function HabitSection() {
     })
   }
 
-  const filteredItems = habitStore.items.filter((h) => {
+  // ⚠️ 必须 useMemo：Semi Table 的 componentDidUpdate 会对「dataSource 引用变化」
+  // 做 setState（setAllDisabledRowKeys / 重算分页），裸 .filter() 每次渲染都产新数组，
+  // 一旦叠加 HMR 中间态或 store 高频更新，就会触发 Maximum update depth 死循环。
+  const filteredItems = useMemo(() => habitStore.items.filter((h) => {
     if (habitStore.categoryFilter && h.category !== habitStore.categoryFilter) return false
     return true
-  })
+  }), [habitStore.items, habitStore.categoryFilter])
 
   const showError = error && !habitStore.loading && filteredItems.length === 0
 

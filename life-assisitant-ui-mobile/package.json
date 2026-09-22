@@ -9,6 +9,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit",
+    "check:icon-groups": "node scripts/check-icon-groups.mjs",
     "lint": "eslint . --ext .ts,.vue --max-warnings 0"
   },
   "dependencies": {

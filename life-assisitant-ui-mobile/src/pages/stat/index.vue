@@ -40,13 +40,14 @@ import dayjs from 'dayjs'
 import { useStatsStore, STATS_RANGES } from '@/stores/stats'
 import { useHabitStore } from '@/stores/habit'
 import { useFinanceStore } from '@/stores/finance'
+import { useFinanceCategoryStore } from '@/stores/finance-category'
 import { healthApi } from '@/api/health'
 import { BOWEL_TYPE_OPTIONS, DEFAULT_WATER_GOAL_ML } from '@/constants/health'
-import type { ExportType, HealthDayDetail, HealthSettings, StatsRange } from '@/api/types'
+import type { ExportType, FinanceCategoryStat, HealthDayDetail, HealthSettings, StatsRange } from '@/api/types'
 import { getTint } from '@/utils/tint'
 import { formatMoney, todayDate, addDays } from '@/utils/date'
 import { heatColor } from '@/utils/heatmap'
-import { findCategoryByEmoji, resolveAccountIcon, resolveCategory } from '@/utils/category-dict'
+import { findCategoryByEmoji, resolveAccountIcon } from '@/utils/category-dict'
 import { getIconMapping } from '@/utils/icon-map'
 import Icon from '@/components/icon/Icon.vue'
 import { useHeaderAction } from '@/composables/usePageChrome'
@@ -61,6 +62,7 @@ const router = useRouter()
 const statsStore = useStatsStore()
 const habitStore = useHabitStore()
 const financeStore = useFinanceStore()
+const catStore = useFinanceCategoryStore()
 const { themeColors } = useChartTheme()
 
 const {
@@ -133,20 +135,19 @@ const expenseTrend = computed(() =>
 )
 
 /**
- * 支出分类占比：分类色以 `category-dict` 的语义色为唯一真相。
+ * 支出分类占比：分类色以 `finance-category` 的 tint 为唯一真相。
  *
- * ⚠️ 后端 `by_category[].color` 目前对**所有**分类都返回写死的占位灰 `#6B7280`
- *   （见 stats.go 的 FinanceCategoryStat）。照单全收会让整张饼只有一个颜色，
- *   而且 DonutChart 的调色板兜底（`d.color || palette[i]`）永远走不到 ——
- *   因为它只在「拿不到色」时才兜底。所以这里忽略后端色值：
- *   按 emoji 反查字典 tint，再映射到**当前主题下的真实 hex**
+ * ⚠️ 后端 `by_category[].color` 目前对**所有**分类都返回写死的占位灰 `#6B7280`，
+ *   照单全收会让整张饼只有一个颜色。所以这里忽略后端色值：
+ *   **按 `category_id` 查分类缓存**的 tint（05 §3），再映射到**当前主题下的真实 hex**
  *   （ECharts 画在 canvas 上吃不了 `var(--x)`；themeColors 的键名与 TintName 一一对应）。
+ *   已删分类 → 中性色；无 id 的历史数据 → 快照 emoji 兜底。
  */
 const categoryDoughnutData = computed(() =>
   (financeStats.value?.by_category ?? []).map((c) => ({
     label: c.category,
     value: c.amount,
-    color: themeColors.value[resolveCategory(c.emoji).tint],
+    color: themeColors.value[catOf(c).tint],
   }))
 )
 
@@ -205,8 +206,21 @@ async function onExportSelect(action: { name: string }): Promise<void> {
 }
 
 // ==================== 分类图标 ====================
+/** 习惯 / 数据驱动 emoji 的 tint（task/habit 语义，非收支分类） */
 function categoryTint(emoji: string): { bg: string; fg: string } {
   return getTint(findCategoryByEmoji(emoji)?.tint ?? 'neutral')
+}
+
+/**
+ * 财务分类渲染（05 §3）：**按 `category_id` 优先**、快照 emoji 兜底。
+ * 后端统计接口已改按 id 聚合返回 `category_id`。
+ */
+function catOf(c: FinanceCategoryStat) {
+  return catStore.resolveCat({
+    category_id: c.category_id,
+    category_name: c.category,
+    category_emoji: c.emoji,
+  })
 }
 
 /** 习惯图标：数据驱动的 emoji（习惯 icon 字段）走 icon-map 解析出 Lucide 名 + 语义色 */
@@ -531,6 +545,9 @@ onMounted(async () => {
     statsStore.refresh(),
     habitStore.fetchHabits(),
     financeStore.fetchAccounts(),
+    // 分类缓存：占比 / 明细按 category_id 查图标与色（未加载时快照兜底）
+    // SWR：有缓存立即返回 + 后台静默刷新，不阻塞统计页首屏
+    catStore.ensureFresh(),
   ])
 })
 
@@ -980,12 +997,12 @@ function retryHealth(): void {
         <div v-else-if="categoryTableData.length > 0" class="detail-list">
           <div v-for="(c, i) in categoryTableData" :key="c.category" class="detail-row">
             <span class="detail-rank" :data-rank="i + 1">{{ i + 1 }}</span>
-            <span class="detail-emoji" :style="{ background: resolveCategory(c.emoji).vars.bg }">
-              <Icon :name="resolveCategory(c.emoji).icon" :size="16" :style="{ color: resolveCategory(c.emoji).vars.fg }" />
+            <span class="detail-emoji" :style="{ background: catOf(c).vars.bg }">
+              <Icon :name="catOf(c).icon" :size="16" :style="{ color: catOf(c).vars.fg }" />
             </span>
             <div class="detail-body">
               <div class="detail-top">
-                <span class="detail-name">{{ c.category }}</span>
+                <span class="detail-name">{{ catOf(c).name }}</span>
                 <span class="detail-amount">¥{{ formatMoney(c.amount) }}</span>
               </div>
               <div class="detail-bottom">

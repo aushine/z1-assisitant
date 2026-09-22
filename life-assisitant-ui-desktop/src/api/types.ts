@@ -543,15 +543,22 @@ export interface TimelineResp {
 // ============================================================================
 
 /** 账户类型 */
-export type AccountType = 'saving' | 'credit' | 'huabei' | 'wechat'
+/**
+ * 账户类型（spec-20260922-v1 扩到 18 值，唯一真源在 constants/account.ts，
+ * 与后端 account_vocab.go 同源；此处 re-export 保持既有 import 路径可用）
+ */
+import type { AccountType } from '@/constants/account'
+export type { AccountType }
 
 /** 账户实体 */
 export interface Account {
   id: string
   name: string
   type: AccountType
-  icon: string            // emoji
+  icon: string            // 图标引用三态：brand:<slug> | lucide:<Name> | emoji（存量）
   color: string           // 图标底色
+  /** 银行 code（spec-20260922-v1 新增；'' = 未指定） */
+  institution?: string
   balance: number
   created_at: string
   updated_at?: string
@@ -563,11 +570,20 @@ export interface CreateAccountReq {
   type: AccountType
   icon?: string
   color?: string
+  /** 银行 code，'' = 未指定（后端只校验长度 ≤20，不校验白名单，01 §8.3 D20） */
+  institution?: string
   balance?: number
 }
 
 /** 更新账户请求体 */
-export interface UpdateAccountReq extends Partial<CreateAccountReq> {}
+export interface UpdateAccountReq extends Partial<CreateAccountReq> {
+  /**
+   * 余额调整流水（v2，05 §5.3 约束 3）：**只有显式 true 才生成**（nil/false 都不生成，
+   * 向后兼容老前端）。新前端「默认记录」= 编辑保存时显式传 true；
+   * 勾「不记录收支」则不传（不生成）。新建账户永不生成。
+   */
+  record_flow?: boolean
+}
 
 /** 账户列表响应 */
 export interface ListAccountsResp {
@@ -583,6 +599,7 @@ export interface Transaction {
   id: string
   type: TransactionType
   amount: number          // 始终为正
+  category_id?: string | null     // ⭐ 新增：分类身份（按 id 渲染图标/色，失败再走快照）
   category_emoji: string
   category_name: string
   account_id: string
@@ -592,12 +609,28 @@ export interface Transaction {
   note?: string
   happened_at: string     // ISO datetime
   created_at: string
+  // ===== v2 后端新增字段（04 §2.3 / 07 §3 Phase 1）=====
+  /** 不计入预算（口径开关一） */
+  exclude_budget?: boolean
+  /** 不计入收支（口径开关二） */
+  exclude_stats?: boolean
+  /** 来源：''=普通 / balance_adjust / reimburse / lend / borrow / refund */
+  source?: string
+  /** 对方（待报销 / 借入借出 / 退款） */
+  contact?: string
+  /** 关联的原交易 id（核销笔指向原笔） */
+  settle_of?: string
+  /** 更新时间（v2 补 TransactionResp 缺失字段，见 09-schedule §B4） */
+  updated_at?: string
+  /** 该笔已被撤销时，指向撤销生成的反向交易 id */
+  reversed_by?: string
 }
 
 /** 创建交易请求体 */
 export interface CreateTransactionReq {
   type: TransactionType
   amount: number
+  category_id?: string | null    // ⭐ 新增（可选，向后兼容）：分类身份
   category_emoji?: string
   category_name?: string
   account_id: string
@@ -605,6 +638,17 @@ export interface CreateTransactionReq {
   to_account_id?: string
   note?: string
   happened_at?: string
+  // ===== v2/v4 后端已支持（05 §统一模型；前端不许传 source='balance_adjust'，400001）=====
+  /** 不计入预算（口径开关一） */
+  exclude_budget?: boolean
+  /** 不计入收支（口径开关二） */
+  exclude_stats?: boolean
+  /** 性质：''=普通 / reimburse / lend / borrow / refund（⛔ balance_adjust 由后端余额调整专用） */
+  source?: string
+  /** 对方（待报销=报销对象选填；借出/借入必填；退款=商家选填） */
+  contact?: string
+  /** 核销关联的原笔 id（核销动作从详情抽屉发起时携带） */
+  settle_of?: string
 }
 
 /** 转账请求体（同时影响两账户）
@@ -639,6 +683,7 @@ export interface ListTransactionsQuery {
   type?: TransactionType
   account_id?: string
   keyword?: string        // 按备注 / 分类名模糊搜索（后端 note LIKE ? OR category_name LIKE ?）
+  contact?: string         // v2：按对方筛选（等值）
   start_date?: string
   end_date?: string
   page?: number
@@ -650,6 +695,74 @@ export interface ListTransactionsResp {
   items: Transaction[]
   total: number
   has_more: boolean
+}
+
+/**
+ * 更新交易请求体（PUT /transactions/:id）
+ * ⚠️ 后端 `UpdateTransactionReq` **不含 `type`**（注释明写「仅 expense / income」），
+ *    故此处也不带 type；转账编辑大概率走不通（09-schedule §B3 / Q6），前端对转账隐藏编辑。
+ *    可选字段沿用后端 7 个 + v2 的口径/对方字段；指针语义不在此（创建时才定）。
+ */
+export interface UpdateTransactionReq {
+  amount?: number
+  category_id?: string | null
+  category_emoji?: string
+  category_name?: string
+  account_id?: string
+  to_account_id?: string
+  note?: string
+  happened_at?: string
+  exclude_budget?: boolean
+  exclude_stats?: boolean
+  contact?: string
+}
+
+// ===== 收支日历（GET /finance/calendar，07 §3 / 03 §B）=====
+/** 月历中的一天（只返回有记录的日期） */
+export interface CalendarDay {
+  date: string            // YYYY-MM-DD
+  income: number
+  expense: number
+}
+
+/** 该月汇总（net 后端已算） */
+export interface CalendarSummary {
+  income: number
+  expense: number
+  net: number
+}
+
+/** GET /finance/calendar 响应 */
+export interface CalendarResp {
+  month: string           // YYYY-MM
+  days: CalendarDay[]
+  summary: CalendarSummary
+}
+
+// ===== 债权债务（GET /finance/debts，05 §C3 / 06 §4）=====
+/** 交易性质（与后端 source 白名单一致；'' = 普通） */
+export type TxSource = '' | 'balance_adjust' | 'reimburse' | 'lend' | 'borrow' | 'refund'
+
+/** 按对方聚合的未结清项（open 后端已算：Σ原笔 amount − Σ核销，HAVING open > 0.005） */
+export interface DebtItem {
+  /** 对方（contact 原值，无实体） */
+  contact: string
+  /** 该对方名下涉及的性质 ⊆ reimburse / lend / borrow */
+  kinds: string[]
+  /** 未结清金额 */
+  open: number
+  /** 未结清原笔数 */
+  count: number
+}
+
+/** GET /finance/debts 响应 */
+export interface DebtsResp {
+  /** 别人欠我（reimburse + lend） */
+  owed_to_me: DebtItem[]
+  /** 我欠别人（borrow） */
+  i_owe: DebtItem[]
+  /** 净额 = Σowed_to_me − Σi_owe */
+  net: number
 }
 
 // ============================================================================
@@ -675,6 +788,7 @@ export interface Budget {
   alert_threshold: number
   is_alerted: boolean
   scope?: BudgetScope
+  category_id?: string | null    // ⭐ 新增：分类预算绑定的大类 id（scope=category 时必填）
   category_emoji?: string
   category_name?: string
   created_at: string
@@ -689,8 +803,23 @@ export interface CreateBudgetReq {
   end_date?: string
   alert_threshold?: number
   scope?: BudgetScope
+  category_id?: string | null    // ⭐ 新增（scope=category 时必填，且必须是一级分类）
   category_emoji?: string
   category_name?: string
+}
+
+/** 更新预算请求体（06 §3.2：补齐分类字段，原 dto 完全不含分类字段） */
+export interface UpdateBudgetReq {
+  name?: string
+  period?: BudgetPeriod
+  amount?: number
+  start_date?: string
+  end_date?: string
+  alert_threshold?: number
+  scope?: BudgetScope
+  category_id?: string | null
+  category_name?: string
+  category_emoji?: string
 }
 
 /** 预算列表查询参数 */
@@ -701,6 +830,64 @@ export interface ListBudgetsQuery {
 /** 预算列表响应 */
 export interface ListBudgetsResp {
   items: Budget[]
+}
+
+// ============================================================================
+// 收支分类（Finance Categories）—— 用户级实体（记账分类体系升级）
+// 规范：md/spec-20260921-v1/06-API规范.md §1 / 04-图标分组与自选.md
+//
+// 分类从「前端写死的 12 个枚举」升级为「数据库里的用户级实体」：
+// 两级（大类 + 明细）、可增删改、自选图标颜色。每个分类有唯一 id，
+// 所有渲染 / 统计 / 预算都按 id，不再按 name / emoji 比对。
+// ============================================================================
+
+/** 分类作用域（与交易 type 对齐：expense ↔ expense / income ↔ income） */
+export type CategoryScope = 'expense' | 'income'
+
+/** 语义色（与 TINT_NAMES 对齐）：二级可继承父级时该字段为 null */
+export type CategoryTint = 'primary' | 'success' | 'warning' | 'danger' | 'accent' | 'neutral' | null
+
+/**
+ * 单个分类节点（树形返回，children 内嵌二级）。
+ * icon / tint 在二级上可能为 null = 继承父级（04 §5）。
+ */
+export interface FinanceCategory {
+  id: string
+  parent_id: string          // '' = 一级分类
+  scope: CategoryScope
+  name: string
+  full_name: string         // 二级为「父-子」拼接，如「餐饮-三餐」
+  emoji: string | null      // 兼容旧客户端 / 历史数据，渲染层不使用
+  icon: string | null       // PascalCase Lucide 图标名（如 'Utensils'），null = 继承父级
+  tint: CategoryTint        // 语义色，null = 继承父级
+  sort: number
+  is_builtin: boolean
+  is_deleted?: boolean      // 软删除标记（前端降级用，正常接口不返回已删除）
+  children: FinanceCategory[]
+}
+
+/** 拉取分类树响应（06 §1.1） */
+export interface ListCategoriesResp {
+  items: FinanceCategory[]
+  seeded: boolean
+}
+
+/** 创建分类请求（06 §1.2）。parent_id '' = 一级 */
+export interface CreateCategoryReq {
+  parent_id?: string
+  scope: CategoryScope
+  name: string
+  icon?: string | null
+  tint?: CategoryTint
+  emoji?: string | null
+}
+
+/** 更新分类请求（06 §1.3）。只改 name / icon / tint / emoji；parent_id / scope 不可改 */
+export interface PatchCategoryReq {
+  name?: string
+  icon?: string | null
+  tint?: CategoryTint
+  emoji?: string | null
 }
 
 // ============================================================================
@@ -795,6 +982,7 @@ export interface FinanceDayStat {
 
 /** 按分类财务统计 */
 export interface FinanceCategoryStat {
+  category_id?: string | null   // ⭐ 新增：聚合口径按 id（前端按 id 查图标/色，name 兜底）
   category: string
   emoji: string
   color: string

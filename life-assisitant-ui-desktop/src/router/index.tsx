@@ -12,6 +12,7 @@ import RecordPage from '@/pages/record'
 import StatPage from '@/pages/stat'
 import MePage from '@/pages/me'
 import MeAnniversariesPage from '@/pages/me/anniversaries'
+import MeFinanceCategoriesPage from '@/pages/me/finance-categories'
 import MeProfilePage from '@/pages/me/profile'
 import MeNotificationsPage from '@/pages/me/notifications'
 import MeSecurityPage from '@/pages/me/security'
@@ -88,6 +89,15 @@ export const router = createBrowserRouter([
         ),
       },
       { path: 'me/profile', element: <MeProfilePage /> },
+      // 记账分类管理（spec 05 §2）—— 权限点 finance:view（与选择器同权限）
+      {
+        path: 'me/finance-categories',
+        element: (
+          <AuthGuard requiresPermission="finance:view">
+            <MeFinanceCategoriesPage />
+          </AuthGuard>
+        ),
+      },
       { path: 'me/notifications', element: <MeNotificationsPage /> },
       { path: 'me/security', element: <MeSecurityPage /> },
       { path: 'me/sync', element: <MeSyncPage /> },

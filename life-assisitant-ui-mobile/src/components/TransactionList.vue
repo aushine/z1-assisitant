@@ -8,11 +8,11 @@
  * SYNC-FROM-BACKEND: life-assisitant-api/internal/controller/finance.go
  * 最后同步：2026-09-19（第十六轮收支合并：mode prop 退役，组件即完整收支视图）
  *
- * 与桌面端一致的关键设计：
- *   1. **类型筛选是客户端过滤**，不写进 store 的 txQuery.type（服务端参数
- *      留给账户/关键字；口径与桌面端 TransactionsTab 一致）。
- *   2. 列表排除 transfer（转账走账户 Tab 的动作，不是收支流水）。
- *   3. 本月收入 = 已在本地列表里的 income 求和（与桌面端同口径）。
+ * 与桌面端一致的关键设计（260921 Phase 3.3 起更新）：
+ *   1. **类型筛选改服务端**：切段直接写 store 的 txQuery.type（`setTxFilter({type})`
+ *      重置第 1 页重拉）；「全部」= 不传 type（**含 transfer**）。
+ *      旧的「客户端过滤 + 排除转账」口径已删除。
+ *   2. 本月收入 = 已在本地列表里的 income 求和（转账不是 income，天然排除）。
  *
  * 移动端差异（交互层）：
  *   - 表格 → 按日期分组的卡片列表（复用 Phase 0 的 txGroups 分组逻辑）
@@ -23,28 +23,55 @@
  * ⚠️ 撤销（reverse）语义：后端生成一笔反向交易并回滚余额，原交易保留；
  *    已撤销过再调会返回 400403。transfer 不可撤销（桌面端同）。
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { showConfirmDialog } from 'vant'
 import { useFinanceStore } from '@/stores/finance'
-import { resolveCategory } from '@/utils/category-dict'
+import { useFinanceCategoryStore } from '@/stores/finance-category'
 import { formatDayLabel, formatMoney, isoToDate } from '@/utils/date'
+import { amountColorClass, formatSignedAmount } from '@/utils/money'
+import { txDeleteConfirm, TX_REVERSE_CONFIRM, TX_SOURCE_LABEL } from '@/constants/finance'
 import Icon from '@/components/icon/Icon.vue'
+import IconBox from '@/components/IconBox.vue'
+import type { ResolvedCategory } from '@/stores/finance-category'
 import type { Transaction, TransactionType } from '@/api/types'
 
 const emit = defineEmits<{
   (e: 'edit', tx: Transaction): void
+  (e: 'view', tx: Transaction): void
 }>()
 
+/**
+ * 外部带入的服务端筛选（挂载时写入 store，卸载时清理，防「看不见的过滤」残留）：
+ *   - presetDate：日历「查看全部」的单日筛选（YYYY-MM-DD）
+ *   - presetContact：债权债务卡「按该对方看流水」（Phase 4）
+ */
+const props = withDefaults(
+  defineProps<{
+    presetDate?: string
+    presetContact?: string
+  }>(),
+  { presetDate: '', presetContact: '' }
+)
+
+/** 本次挂载是否由 presetDate / presetContact 设置过筛选（卸载时据此清理） */
+let datePresetApplied = false
+let contactPresetApplied = false
+
 const financeStore = useFinanceStore()
+const catStore = useFinanceCategoryStore()
 
 // ==================== 筛选 ====================
-/** 客户端类型筛选（仅支出 tab 显示） */
-const typeFilter = ref<TransactionType | ''>('')
+/** 类型切段（服务端筛选：「全部」不传 type，含 transfer） */
 const TYPE_OPTIONS: Array<{ value: TransactionType | ''; label: string }> = [
-  { value: '', label: '全部类型' },
+  { value: '', label: '全部' },
   { value: 'expense', label: '支出' },
   { value: 'income', label: '收入' },
+  { value: 'transfer', label: '转账' },
 ]
+
+function onTypeChange(value: TransactionType | ''): void {
+  void financeStore.setTxFilter({ type: value })
+}
 
 /** 账户筛选（服务端）与关键词（服务端，带防抖） */
 const accountIndex = ref(0)
@@ -77,12 +104,11 @@ function onAccountChange(index: number | string): void {
 }
 
 // ==================== 列表 ====================
-const list = computed<Transaction[]>(() => {
-  // 收支混合列表：排除转账，再按客户端类型筛选（全部 / 支出 / 收入）
-  return financeStore.transactions.filter(
-    (t) => (t.type === 'expense' || t.type === 'income') && (!typeFilter.value || t.type === typeFilter.value)
-  )
-})
+/**
+ * 列表 = store 数据原样渲染（类型筛选已改**服务端**，不再客户端过滤；
+ * 「全部」含 transfer —— 转账行有自己的渲染路径：Send 图标盒 + 中性金额）。
+ */
+const list = computed<Transaction[]>(() => financeStore.transactions)
 
 interface TxGroup {
   dateKey: string
@@ -105,7 +131,7 @@ const txGroups = computed<TxGroup[]>(() => {
   return groups.sort((a, b) => b.dateKey.localeCompare(a.dateKey))
 })
 
-/** 本月收入（与桌面端同口径：仅统计已加载的 income 记录） */
+/** 本月收入（仅 income 求和；转账不是 income，天然排除出该口径） */
 const monthIncome = computed(() => {
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
@@ -114,22 +140,35 @@ const monthIncome = computed(() => {
     .reduce((sum, t) => sum + t.amount, 0)
 })
 
+/** 来源标签（Phase 4：待报销/借出/借入/退款，中性色小标） */
+function sourceLabel(t: Transaction): string {
+  return t.source ? (TX_SOURCE_LABEL[t.source] ?? '') : ''
+}
+
 // ==================== 行内操作 ====================
 /** 账户名兜底（后端 account_name 可能缺省） */
 function accountName(t: Transaction): string {
   return t.account_name || t.account_id
 }
 
+/**
+ * 分类渲染：**按 `category_id` 优先**，快照兜底（05 §3）。
+ * 已删分类 → 中性灰；无 id 的历史数据 → 走 category_name + category_emoji。
+ */
+function catOf(t: Transaction): ResolvedCategory {
+  return catStore.resolveCat({
+    category_id: t.category_id,
+    category_name: t.category_name,
+    category_emoji: t.category_emoji,
+  })
+}
+
 function amountText(t: Transaction): string {
-  if (t.type === 'income') return `+¥${formatMoney(t.amount)}`
-  if (t.type === 'expense') return `-¥${formatMoney(t.amount)}`
-  return `¥${formatMoney(t.amount)}`
+  return formatSignedAmount(t.amount, t.type)
 }
 
 function amountClass(t: Transaction): string {
-  if (t.type === 'income') return 'is-income'
-  if (t.type === 'expense') return 'is-expense'
-  return 'is-transfer'
+  return amountColorClass(t.type)
 }
 
 /** 类型 Tag 文案（支出 tab 才需要区分支出/收入） */
@@ -143,9 +182,7 @@ function typeLabel(t: Transaction): string {
 async function onReverse(t: Transaction): Promise<void> {
   try {
     await showConfirmDialog({
-      title: '撤销交易',
-      message: '将生成一笔反向交易，原账户余额回滚。确认撤销？',
-      confirmButtonText: '确认撤销',
+      ...TX_REVERSE_CONFIRM,
       confirmButtonColor: 'var(--color-danger)',
     })
     await financeStore.reverseTransaction(t.id)
@@ -157,9 +194,7 @@ async function onReverse(t: Transaction): Promise<void> {
 async function onDelete(t: Transaction): Promise<void> {
   try {
     await showConfirmDialog({
-      title: '删除交易',
-      message: `确定删除「${t.category_name || typeLabel(t)} ¥${formatMoney(t.amount)}」吗？`,
-      confirmButtonText: '删除',
+      ...txDeleteConfirm(t),
       confirmButtonColor: 'var(--color-danger)',
     })
     await financeStore.removeTransaction(t.id)
@@ -168,10 +203,9 @@ async function onDelete(t: Transaction): Promise<void> {
   }
 }
 
-/** 点击行 → 编辑（transfer 不支持编辑，后端 UpdateTransactionReq 无 transfer 字段） */
+/** 点击行 → 进详情（不再直接编辑；transfer 现在也能看，不再 return） */
 function onRowClick(t: Transaction): void {
-  if (t.type === 'transfer') return
-  emit('edit', t)
+  emit('view', t)
 }
 
 async function loadMore(): Promise<void> {
@@ -186,7 +220,34 @@ async function refresh(): Promise<void> {
 onMounted(async () => {
   // 账户下拉需要账户列表；交易列表只有在未加载时才拉（切 tab 不重复请求）
   if (financeStore.accounts.length === 0) await financeStore.fetchAccounts()
-  if (financeStore.transactions.length === 0) await financeStore.fetchTransactions()
+  // 外部带入的服务端筛选（setTxFilter 内部会按新参数重拉首页）
+  if (props.presetDate) {
+    datePresetApplied = true
+    await financeStore.setTxFilter({ startDate: props.presetDate, endDate: props.presetDate })
+  }
+  if (props.presetContact) {
+    contactPresetApplied = true
+    await financeStore.setTxFilter({ contact: props.presetContact })
+  }
+  if (!props.presetDate && !props.presetContact && financeStore.transactions.length === 0) {
+    await financeStore.fetchTransactions()
+  }
+  // 分类缓存（渲染按 category_id 查图标/色；未加载时走快照兜底）
+  // SWR：有缓存立刻渲染 + 后台静默刷新
+  void catStore.ensureFresh()
+})
+
+onUnmounted(() => {
+  // 清掉本次挂载写入的筛选，避免 store 里残留「看不见的过滤」。
+  // setTxFilter 会触发一次拉取 —— 组件已卸载，这次请求只为把 store 数据归位。
+  if (datePresetApplied) {
+    datePresetApplied = false
+    void financeStore.setTxFilter({ startDate: '', endDate: '' })
+  }
+  if (contactPresetApplied) {
+    contactPresetApplied = false
+    void financeStore.setTxFilter({ contact: '' })
+  }
 })
 
 defineExpose({ refresh })
@@ -194,22 +255,55 @@ defineExpose({ refresh })
 
 <template>
   <div class="tx-list-wrap">
-    <!-- ============ 筛选工具栏 ============ -->
+    <!-- ============ 筛选工具栏（3 行 → 2 行：① 类型独占整行 ② 账户+搜索同行）============ -->
     <div class="tx-toolbar">
-      <!-- 类型：客户端筛选（全部 / 支出 / 收入）-->
+      <!-- 类型：服务端筛选（切段重置第 1 页重拉；「全部」不传 type，含转账）-->
       <div class="seg-row">
         <button
           v-for="o in TYPE_OPTIONS"
           :key="o.value || 'all'"
           type="button"
           class="seg-item"
-          :class="{ 'is-active': typeFilter === o.value }"
-          @click="typeFilter = o.value"
+          :class="{ 'is-active': (financeStore.txType || '') === o.value }"
+          @click="onTypeChange(o.value)"
         >
           {{ o.label }}
         </button>
       </div>
 
+      <!-- 服务端筛选 chips（可移除） -->
+      <div
+        v-if="(financeStore.txStartDate && financeStore.txEndDate) || financeStore.txContact"
+        class="date-chip-row"
+      >
+        <span
+          v-if="financeStore.txStartDate && financeStore.txEndDate"
+          class="date-chip"
+        >
+          {{ formatDayLabel(financeStore.txStartDate) }}
+          <button
+            type="button"
+            class="date-chip-x"
+            aria-label="移除日期筛选"
+            @click="financeStore.setTxFilter({ startDate: '', endDate: '' })"
+          >
+            ×
+          </button>
+        </span>
+        <span v-if="financeStore.txContact" class="date-chip">
+          对方：{{ financeStore.txContact }}
+          <button
+            type="button"
+            class="date-chip-x"
+            aria-label="移除对方筛选"
+            @click="financeStore.setTxFilter({ contact: '' })"
+          >
+            ×
+          </button>
+        </span>
+      </div>
+
+      <!-- 账户下拉 + 搜索同行 -->
       <div class="filter-row">
         <van-dropdown-menu class="acct-filter" :overlay="false">
           <van-dropdown-item
@@ -218,17 +312,16 @@ defineExpose({ refresh })
             @change="onAccountChange"
           />
         </van-dropdown-menu>
-      </div>
-
-      <div class="search-row">
-        <input
-          v-model="keyword"
-          type="search"
-          class="search-input"
-          placeholder="搜索备注 / 分类…"
-          @input="onSearchInput"
-        >
-        <button v-if="keyword" type="button" class="search-clear" aria-label="清空" @click="onSearchClear">×</button>
+        <div class="search-row">
+          <input
+            v-model="keyword"
+            type="search"
+            class="search-input"
+            placeholder="搜索备注 / 分类…"
+            @input="onSearchInput"
+          >
+          <button v-if="keyword" type="button" class="search-clear" aria-label="清空" @click="onSearchClear">×</button>
+        </div>
       </div>
     </div>
 
@@ -251,21 +344,23 @@ defineExpose({ refresh })
           <div v-for="t in g.items" :key="t.id" class="tx-swipe">
             <van-swipe-cell>
               <div class="tx-row" @click="onRowClick(t)">
-                <Icon
+                <!--
+                  图标盒走 components/IconBox.vue：**40 档位 / 图标 20**。
+
+                  ⚠️ 这里必须用 40，不能回落到 32：行内文本是两行块
+                  （标题 20 + 间距 2 + 元信息 16 = 38px，见 .tx-title/.tx-sub
+                  的行高契约），32 的盒比文本块矮 6px，视觉上就是
+                  「黄块比右边的类别名矮一截」。40 盒与 38 文本块在
+                  `align-items: center` 下上下各差 1px，肉眼齐平。
+                  （32 档留给「记一笔」浮层的类别宫格，那里的行高由宫格决定。）
+                -->
+                <IconBox
                   v-if="t.type !== 'transfer'"
-                  class="tx-emoji"
-                  :name="resolveCategory(t.category_emoji).icon"
-                  :size="16"
-                  :style="{
-                    background: resolveCategory(t.category_emoji).vars.bg,
-                    color: resolveCategory(t.category_emoji).vars.fg,
-                  }"
+                  :name="catOf(t).icon"
+                  :tint="catOf(t).tint"
+                  :size="40"
                 />
-                <span
-                  v-else
-                  class="tx-emoji"
-                  :style="{ background: 'var(--tint-accent-bg)', color: 'var(--tint-accent-fg)' }"
-                >⇄</span>
+                <IconBox v-else name="Send" tint="accent" :size="40" />
 
                 <div class="tx-body">
                   <div class="tx-title">
@@ -273,11 +368,12 @@ defineExpose({ refresh })
                       转账：{{ accountName(t) }} → {{ t.to_account_name || '账户' }}
                     </template>
                     <template v-else>
-                      {{ t.category_name || '未分类' }}
+                      {{ catOf(t).name }}
                     </template>
                   </div>
                   <div class="tx-sub">
                     <span class="tx-type-tag" :class="`is-${t.type}`">{{ typeLabel(t) }}</span>
+                    <span v-if="sourceLabel(t)" class="tx-source-tag">{{ sourceLabel(t) }}</span>
                     <span class="tx-acct">{{ accountName(t) }}</span>
                     <span v-if="t.note" class="tx-note">· {{ t.note }}</span>
                   </div>
@@ -389,9 +485,43 @@ defineExpose({ refresh })
 }
 .filter-row {
   display: flex;
+  gap: 8px;
+}
+.date-chip-row {
+  display: flex;
+}
+.date-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 6px 0 10px;
+  font-size: var(--fs-caption-sm);
+  font-weight: 500;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  border-radius: 999px;
+}
+.date-chip-x {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+  &:active { opacity: 0.6; }
 }
 .acct-filter {
-  flex: 1;
+  /* 账户下拉占固定比例，与搜索框同行（Phase 3.3 两行布局） */
+  flex: 0 0 38%;
+  min-width: 0;
   border-radius: 10px;
   overflow: hidden;
   :deep(.van-dropdown-menu__bar) {
@@ -408,6 +538,8 @@ defineExpose({ refresh })
   position: relative;
   display: flex;
   align-items: center;
+  flex: 1;
+  min-width: 0;
 }
 .search-input {
   flex: 1;
@@ -472,23 +604,38 @@ defineExpose({ refresh })
   -webkit-tap-highlight-color: transparent;
   &:active { background: var(--color-bg-hover); }
 }
-.tx-emoji {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  border-radius: 10px;
-  line-height: 1;
-}
+/**
+ * 列表行图标已改用 components/IconBox.vue（40px 盒 + 20px 图标 + 语义 tint）。
+ *
+ * ⚠️ 历史反模式（已废弃，别再写回来）：`<Icon class="tx-emoji" :size="16">`
+ *    然后把 `width/height: 36px` 写在 `.tx-emoji` 上 —— class 是落在真正的
+ *    `<svg>` 上的（Icon.vue `inheritAttrs: false` + `v-bind="$attrs"`），
+ *    CSS 的 width/height 会**覆盖** svg 的 width/height 属性，于是图标被
+ *    整体缩放到 36×36（描边也跟着放大 ~1.5 倍），比宫格里的 16px 图标
+ *    大了两倍多。而 `display:inline-flex` 对 SVG 元素不成立，居中也无效。
+ *    视觉呈现就是「列表里的图标又大又糊」。盒子必须是 div，图标才是 svg。
+ */
 .tx-body { flex: 1; min-width: 0; }
+/*
+ * 行内两行文本的高度契约（图标 / 标题 / 类型·备注 三者对齐的关键）：
+ *
+ *   标题 20px  +  间距 2px  +  元信息 16px  =  38px 的文本块
+ *
+ * 两行都**写死行高**，行盒才不随字号与标签 padding 漂移。
+ * 之前只有 font-size：标题按 1.5 倍行高算 21px，元信息行里的类型标签
+ * （10px 字 + 上下各 1px padding = 17px）比同行的 11px 文字（16.5px）高，
+ * 于是元信息行高由标签决定、两行的垂直节奏跟着变 —— 图标盒
+ * 居中在这块忽高忽低的文本上，看起来就是「怎么都对不齐」。
+ *
+ * 行高钉死后，图标盒的档位就有了唯一正确答案：文本块 38px ⇒ 图标盒取
+ * 40 档（见 template 里的注释），别再往 32 掉。
+ */
 .tx-title {
   font-size: var(--fs-body-sm);
   font-weight: 500;
+  line-height: 20px;
   color: var(--color-text-primary);
-  margin-bottom: 3px;
+  margin-bottom: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -497,19 +644,41 @@ defineExpose({ refresh })
   display: flex;
   align-items: center;
   gap: 4px;
+  /* 固定行高：所有子项都不许把它撑高（含下面的类型标签） */
+  height: 16px;
   font-size: var(--fs-micro);
+  line-height: 16px;
   color: var(--color-text-tertiary);
   overflow: hidden;
   white-space: nowrap;
 }
 .tx-type-tag {
   flex-shrink: 0;
-  padding: 1px 5px;
-  font-size: var(--fs-tab);
+  /* 盒高与 .tx-sub 行高同为 16px ⇒ 不再撑高行盒；文字在盒内垂直居中 */
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 5px;
+  font-size: var(--fs-micro);
+  line-height: 1;
   border-radius: 4px;
   &.is-expense { background: var(--color-danger-light); color: var(--color-danger-dark); }
   &.is-income { background: var(--color-success-light); color: var(--color-success-dark); }
   &.is-transfer { background: var(--tint-accent-bg); color: var(--tint-accent-fg); }
+}
+/* 来源标签（Phase 4：待报销/借出/借入/退款）——中性色小标，不用红绿
+   （它不是收支，05 §B.4.3 验收：与详情页标签样式一致的中性表达） */
+.tx-source-tag {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 5px;
+  font-size: var(--fs-micro);
+  line-height: 1;
+  border-radius: 4px;
+  background: var(--color-bg-hover);
+  color: var(--color-text-tertiary);
 }
 .tx-acct {
   overflow: hidden;

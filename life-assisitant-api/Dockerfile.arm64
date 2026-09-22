@@ -33,6 +33,13 @@ WORKDIR /app
 # binary produced by build.bat (static, CGO_ENABLED=0)
 COPY build/server ./server
 
+# ⚠️ chmod +x 必须显式写：COPY 会**保留源文件权限**，而二进制是从 Windows 用
+# scp 传上来的、源文件是 0644（Windows 没有可执行位概念）。少了这行，容器启动
+# 会报 `exec: "./server": permission denied`。
+# 以前在 Windows 主机上 docker build 时，Docker Desktop 会自动给 COPY 的文件
+# 0755，所以这个坑没暴露；改在 Pi 上原生构建后就暴露了。
+RUN chmod +x ./server
+
 # baked default config; override any key via GF_* env at runtime
 COPY manifest/config/config.yaml manifest/config/config.yaml
 # full-set external template: cp it out of the image, edit, then mount it back

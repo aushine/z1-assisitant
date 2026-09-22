@@ -34,6 +34,11 @@ func RegisterRoutes(s *ghttp.Server) {
 		group.POST("/auth/forgot-password", Auth.ForgotPassword)
 		group.POST("/auth/reset-password", Auth.ResetPassword)
 
+		// ====== 应用级公开配置（白名单，不需要 token） ======
+		// 前端启动时探测上传文件对外基址（storage.public_url，可选），
+		// 配了 → 用它拼 /z1/uploads/* 绝对地址；没配/不通 → 回落当前后端
+		group.GET("/app/uploads-base", App.UploadsBase)
+
 		// ====== 会话生命周期（任何已登录用户，不挂权限点） ======
 		group.GET("/auth/me", Auth.Me)
 		group.POST("/auth/logout", Auth.Logout)
@@ -146,6 +151,9 @@ func RegisterRoutes(s *ghttp.Server) {
 			g.GET("/transactions", Finance.ListTransactions)
 			g.GET("/transactions/:id", Finance.GetTransaction)
 			g.GET("/budgets", Finance.ListBudgets)
+			// 260921 v2 + v4：收支日历 / 债权债务（沿用 finance:view，不新增权限点）
+			g.GET("/finance/calendar", Finance.GetCalendar)
+			g.GET("/finance/debts", Finance.GetDebts)
 		})
 		group.Group("", func(g *ghttp.RouterGroup) {
 			g.Middleware(middleware.RequirePermission("finance:account"))
@@ -169,6 +177,17 @@ func RegisterRoutes(s *ghttp.Server) {
 			g.POST("/budgets", Finance.CreateBudget)
 			g.PATCH("/budgets/:id", Finance.UpdateBudget)
 			g.DELETE("/budgets/:id", Finance.DeleteBudget)
+		})
+		// 收支分类（20260921 新增）：查看走 finance:view，增删改走新权限点 finance:category
+		group.Group("", func(g *ghttp.RouterGroup) {
+			g.Middleware(middleware.RequirePermission("finance:view"))
+			g.GET("/finance/categories", FinanceCategory.List)
+		})
+		group.Group("", func(g *ghttp.RouterGroup) {
+			g.Middleware(middleware.RequirePermission("finance:category"))
+			g.POST("/finance/categories", FinanceCategory.Create)
+			g.PATCH("/finance/categories/:id", FinanceCategory.Update)
+			g.DELETE("/finance/categories/:id", FinanceCategory.Delete)
 		})
 
 		// ====== period 经期（记录模块的第 5 个维度）======

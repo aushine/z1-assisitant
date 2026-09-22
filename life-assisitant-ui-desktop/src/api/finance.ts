@@ -8,6 +8,9 @@ import type {
   CreateTransactionReq,
   ListTransactionsQuery,
   ListTransactionsResp,
+  CalendarResp,
+  DebtsResp,
+  UpdateTransactionReq,
   TransferReq,
   ReverseTransactionReq,
   ReverseTransactionResp,
@@ -15,6 +18,10 @@ import type {
   CreateBudgetReq,
   ListBudgetsQuery,
   ListBudgetsResp,
+  FinanceCategory,
+  CreateCategoryReq,
+  PatchCategoryReq,
+  ListCategoriesResp,
 } from './types'
 
 /**
@@ -54,6 +61,16 @@ export const financeApi = {
     return request.get<unknown, ListTransactionsResp>('/transactions', { params })
   },
 
+  /** 收支日历（GET /finance/calendar，03 §B） */
+  getCalendar(month: string) {
+    return request.get<unknown, CalendarResp>('/finance/calendar', { params: { month } })
+  },
+
+  /** 债权债务（GET /finance/debts，05 §C3；后端聚合，前端不做金额推导） */
+  getDebts() {
+    return request.get<unknown, DebtsResp>('/finance/debts')
+  },
+
   /** 创建交易（expense / income / transfer） */
   createTransaction(data: CreateTransactionReq) {
     return request.post<unknown, Transaction>('/transactions', data)
@@ -67,6 +84,16 @@ export const financeApi = {
   /** 撤销交易（生成反向交易，回滚账户余额） */
   reverseTransaction(id: string, data: ReverseTransactionReq) {
     return request.post<unknown, ReverseTransactionResp>(`/transactions/${id}/reverse`, data)
+  },
+
+  /** 单笔交易（GET /transactions/:id —— 详情抽屉独立拉取，不复用列表） */
+  getTransaction(id: string) {
+    return request.get<unknown, Transaction>(`/transactions/${id}`)
+  },
+
+  /** 更新交易（PUT /transactions/:id，edit 模式；不带 type） */
+  updateTransaction(id: string, data: UpdateTransactionReq) {
+    return request.put<unknown, Transaction>(`/transactions/${id}`, data)
   },
 
   // ============ 转账 ============
@@ -94,5 +121,28 @@ export const financeApi = {
   /** 删除预算 */
   removeBudget(id: string) {
     return request.delete(`/budgets/${id}`)
+  },
+
+  // ============ 收支分类（用户级实体） ============
+  /** 拉取分类树（含二级）；scope 可省略 = 返回全部（06 §1.1） */
+  listCategories(scope?: 'expense' | 'income') {
+    return request.get<unknown, ListCategoriesResp>('/finance/categories', {
+      params: scope ? { scope } : undefined,
+    })
+  },
+
+  /** 创建分类（权限 finance:category） */
+  createCategory(data: CreateCategoryReq) {
+    return request.post<unknown, FinanceCategory>('/finance/categories', data)
+  },
+
+  /** 更新分类（权限 finance:category） */
+  updateCategory(id: string, data: PatchCategoryReq) {
+    return request.patch<unknown, FinanceCategory>(`/finance/categories/${id}`, data)
+  },
+
+  /** 删除分类（软删除，权限 finance:category，204 无响应体） */
+  removeCategory(id: string) {
+    return request.delete(`/finance/categories/${id}`)
   },
 }

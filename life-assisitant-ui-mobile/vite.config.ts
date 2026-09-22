@@ -1,11 +1,20 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import Components from 'unplugin-vue-components/vite'
 import { VantResolver } from '@vant/auto-import-resolver'
 import { fileURLToPath, URL } from 'node:url'
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const apiTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8090'
+  // 上传静态独立目标（可选覆盖，默认同 API → 本地后端）。
+  // dev 看图的主路径是后端 storage.public_url 下发基址、前端拼绝对 URL
+  // （见 src/utils/avatar.ts 的 initUploadsBase），不经过这条代理；
+  // 这里只是不想动后端配置时的备选通道（⚠ 需 z1.conf server_name 含该 IP）。
+  const uploadsTarget = env.VITE_UPLOADS_PROXY_TARGET || apiTarget
+
+  return {
   // 部署到子路径 /z1-app/ ：base 固化进配置，避免「忘记 --base 导致白屏 404」复发。
   // 需部署到根路径时用 VITE_BASE=/ npm run build 覆盖。
   base: process.env.VITE_BASE || '/z1-app/',
@@ -27,11 +36,16 @@ export default defineConfig({
     port: 5173,
     open: false,
     // 第十三轮：/z1 服务前缀统一代理入口（API /z1/api/v1/* + 静态 /z1/uploads/*）
-    // ⚠ key 必须带尾斜杠 '/z1/'：vite proxy 是字符串前缀匹配，'/z1' 会把
+    // ⚠ key 必须带尾斜杠：vite proxy 是字符串前缀匹配，'/z1' 会把
     // public/ 下的 /z1-logo.png 也吞掉代理到后端（404）。与桌面端同修。
+    // （/z1-logo.png 不以 '/z1/api/' 或 '/z1/uploads/' 开头，仍由 vite 本地服务）
     proxy: {
-      '/z1/': {
-        target: 'http://localhost:8090',
+      '/z1/api/': {
+        target: apiTarget,
+        changeOrigin: true,
+      },
+      '/z1/uploads/': {
+        target: uploadsTarget,
         changeOrigin: true,
       },
     },
@@ -60,4 +74,5 @@ export default defineConfig({
       },
     },
   },
+  }
 })

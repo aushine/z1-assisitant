@@ -4,6 +4,7 @@ import { RouterProvider } from 'react-router-dom'
 import { router } from './router'
 import { useUserStore } from './stores/user'
 import { bindRequestHelpers } from './api/request'
+import { initUploadsBase } from './utils/avatar'
 
 // Semi Design global styles
 import '@douyinfe/semi-ui/lib/es/_base/base.css'
@@ -37,8 +38,12 @@ window.addEventListener('error', (event) => {
   console.error('[Global Error]', event.error)
 })
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <RouterProvider router={router} />
-  </StrictMode>
-)
+// 上传文件对外基址探测（后端 storage.public_url）：挂载前 await，
+// 首屏头像就直接用对地址；内部最多 ~4s 超时且失败静默回落，不会卡死启动
+void initUploadsBase().finally(() => {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <RouterProvider router={router} />
+    </StrictMode>
+  )
+})

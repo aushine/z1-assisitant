@@ -37,6 +37,22 @@ func AvatarDir(ctx context.Context) string {
 	return filepath.Join(UploadRoot(ctx), AvatarSubDir)
 }
 
+// PublicBaseURL 上传文件对外访问基址（可选配置 storage.public_url）。
+// 典型值："http://192.168.101.75"（内网直连 Pi nginx）或 "https://voz21.cn"（公网）。
+// 留空 = 前端回落「当前连接的后端」（同源 /z1/uploads 静态映射）。
+// 归一化：去尾斜杠；没写协议头默认补 http://（配置写 "192.168.101.75" 也能用）。
+func PublicBaseURL(ctx context.Context) string {
+	s := g.Cfg().MustGet(ctx, "storage.public_url", "").String()
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	if !strings.Contains(s, "://") {
+		s = "http://" + s
+	}
+	return strings.TrimRight(s, "/")
+}
+
 // InitStorage 启动时建好目录（幂等，MkdirAll）
 func InitStorage(ctx context.Context) error {
 	return os.MkdirAll(AvatarDir(ctx), 0o755)

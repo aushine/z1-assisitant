@@ -178,6 +178,14 @@ const settings = computed<SettingGroup[]>(() => {
         label: '通知设置',
         path: '/me/notifications',
       },
+      {
+        key: 'finance-categories',
+        icon: 'PieChart',
+        tint: getTint('primary'),
+        label: '收支分类',
+        sublabel: '管理记账分类',
+        path: '/me/finance-categories',
+      },
     ],
   })
 

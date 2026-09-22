@@ -22,25 +22,55 @@
  *     **长按卡片删除**（网格里左滑与页面滚动抢手势，与 Phase 0 的 B4 结论一致）
  *   - 错误态：store 静默吞错，这里额外探测一次真实接口区分「失败」与「空」（E02）
  */
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { showConfirmDialog } from 'vant'
 import { useFinanceStore } from '@/stores/finance'
 import { resolveAccountIcon } from '@/utils/category-dict'
 import Icon from '@/components/icon/Icon.vue'
+import BrandLogo from '@/components/BrandLogo.vue'
 import { formatMoney } from '@/utils/date'
 import { useLongPress } from '@/composables/useLongPress'
+import { TX_SOURCE_LABEL } from '@/constants/finance'
+import { ACCOUNT_CATEGORIES, accountCategoryOf, type AccountCategory } from '@/constants/account'
 import AccountEditSheet from '@/components/AccountEditSheet.vue'
 import TransactionEditSheet from '@/components/TransactionEditSheet.vue'
 import type {
   Account,
   CreateAccountReq,
   CreateTransactionReq,
+  DebtItem,
   TransactionType,
   TransferReq,
   UpdateTransactionReq,
 } from '@/api/types'
 
+const emit = defineEmits<{
+  /** 债权债务卡点行 → 跳流水页并按该对方筛选（Phase 4 · D50） */
+  (e: 'view-contact', contact: string): void
+}>()
+
 const financeStore = useFinanceStore()
+
+// ==================== 净资产归并（spec-20260922-v1 Phase 4 · 01 §5） ====================
+/** 服务端 ListAccounts 同循环归并的 L1 小计；debts 保留负数原值 */
+const balanceSummary = computed(() => financeStore.balanceSummary)
+const netWorth = computed(() => balanceSummary.value.netWorth)
+
+/** 账户按 L1 大类分组（资金/信用/理财；空组不渲染） */
+const groupedAccounts = computed(() => {
+  const groups: { key: AccountCategory; label: string; items: Account[] }[] = []
+  for (const c of ACCOUNT_CATEGORIES) {
+    const items = financeStore.accounts.filter((a) => accountCategoryOf(a.type) === c.key)
+    if (items.length > 0) groups.push({ key: c.key, label: c.label, items })
+  }
+  return groups
+})
+
+/**
+ * 账户图标底色：账户卡本身是用户自定义的彩色底（`a.color`），
+ * 图标盒要压在其上，故用半透明白而不是 tint（会被卡片底色吃掉）。
+ */
+const ACCOUNT_ICON_BG = 'rgba(255, 255, 255, 0.45)'
 
 // ==================== 账户 CRUD ====================
 const accountSheetShow = ref(false)
@@ -58,7 +88,10 @@ function openEditAccount(a: Account): void {
   accountSheetShow.value = true
 }
 
-async function onAccountSave(payload: CreateAccountReq): Promise<boolean> {
+/** 账户保存载荷：CreateAccountReq + 编辑态才带的 record_flow（Phase 3.4 余额调整） */
+type AccountSavePayload = CreateAccountReq & { record_flow?: boolean }
+
+async function onAccountSave(payload: AccountSavePayload): Promise<boolean> {
   if (editingAccount.value) {
     const r = await financeStore.updateAccount(editingAccount.value.id, payload)
     return r !== null
@@ -109,11 +142,30 @@ async function onTransferSave(
   return r !== null
 }
 
+// ==================== 债权债务（Phase 4 · 05 §C.3） ====================
+/** GET /finance/debts（后端聚合 D51：前端聚合会被分页截断） */
+const debts = computed(() => financeStore.debts)
+/** 两组都空 → 整卡不渲染（05 §C.3：不显示"暂无"噪音） */
+const hasDebts = computed(
+  () => !!debts.value && (debts.value.owed_to_me.length > 0 || debts.value.i_owe.length > 0)
+)
+
+/** 性质标签（kinds ⊆ reimburse / lend / borrow，中性色小标） */
+function kindLabels(item: DebtItem): string {
+  return item.kinds.map((k) => TX_SOURCE_LABEL[k] ?? k).join(' / ')
+}
+
+function onViewContact(contact: string): void {
+  emit('view-contact', contact)
+}
+
 // ==================== 生命周期 ====================
 onMounted(async () => {
   if (financeStore.accounts.length === 0) {
     await financeStore.fetchAccounts()
   }
+  // 债权债务卡（进账户区即拉；核销后由详情页 fetchDebts 刷新）
+  void financeStore.fetchDebts()
 })
 
 defineExpose({
@@ -124,16 +176,25 @@ defineExpose({
 
 <template>
   <div class="account-manager">
-    <!-- 总资产卡 -->
+    <!-- 净资产卡（spec-20260922-v1 Phase 4：总资产 → 净资产；三组小计；负债取绝对值） -->
     <section class="asset-card">
-      <div class="asset-label">总资产</div>
+      <div class="asset-label">净资产</div>
       <div
         class="asset-value"
-        :style="{ color: financeStore.totalBalance < 0 ? 'var(--color-danger)' : 'var(--color-primary)' }"
+        :style="{ color: netWorth < 0 ? 'var(--color-danger)' : 'var(--color-primary)' }"
       >
-        ¥{{ formatMoney(financeStore.totalBalance) }}
+        ¥{{ formatMoney(netWorth) }}
       </div>
       <div class="asset-sub">共 {{ financeStore.accounts.length }} 个账户</div>
+
+      <div class="asset-breakdown">
+        <span class="asset-part">资金 ¥{{ formatMoney(balanceSummary.assets) }}</span>
+        <span class="asset-part">理财 ¥{{ formatMoney(balanceSummary.investments) }}</span>
+        <span
+          v-if="balanceSummary.debts < 0"
+          class="asset-part is-debt"
+        >负债 ¥{{ formatMoney(Math.abs(balanceSummary.debts)) }}</span>
+      </div>
 
       <div class="asset-actions">
         <button type="button" class="btn-ghost" @click="transferSheetShow = true">
@@ -145,7 +206,53 @@ defineExpose({
       </div>
     </section>
 
-    <!-- 账户网格 -->
+    <!-- 债权债务卡（Phase 4）：空组不渲染；两组都空整卡不渲染；全中性色（Q14 不并入总资产） -->
+    <section v-if="hasDebts && debts" class="debts-card">
+      <div class="debts-head">
+        <h4 class="debts-title">债权债务</h4>
+        <span class="debts-net">净 ¥{{ formatMoney(debts.net) }}</span>
+      </div>
+
+      <template v-if="debts.owed_to_me.length > 0">
+        <div class="debts-group-label">
+          别人欠我
+          <span class="debts-group-sum">¥{{ formatMoney(debts.owed_to_me.reduce((s, d) => s + d.open, 0)) }}</span>
+        </div>
+        <button
+          v-for="d in debts.owed_to_me"
+          :key="`ome-${d.contact}`"
+          type="button"
+          class="debts-row"
+          @click="onViewContact(d.contact)"
+        >
+          <span class="debts-contact">{{ d.contact }}</span>
+          <span class="debts-kinds">{{ kindLabels(d) }}</span>
+          <span class="debts-open">¥{{ formatMoney(d.open) }}</span>
+          <span class="debts-arrow" aria-hidden="true">›</span>
+        </button>
+      </template>
+
+      <template v-if="debts.i_owe.length > 0">
+        <div class="debts-group-label">
+          我欠别人
+          <span class="debts-group-sum">¥{{ formatMoney(debts.i_owe.reduce((s, d) => s + d.open, 0)) }}</span>
+        </div>
+        <button
+          v-for="d in debts.i_owe"
+          :key="`iowe-${d.contact}`"
+          type="button"
+          class="debts-row"
+          @click="onViewContact(d.contact)"
+        >
+          <span class="debts-contact">{{ d.contact }}</span>
+          <span class="debts-kinds">{{ kindLabels(d) }}</span>
+          <span class="debts-open">¥{{ formatMoney(d.open) }}</span>
+          <span class="debts-arrow" aria-hidden="true">›</span>
+        </button>
+      </template>
+    </section>
+
+    <!-- 账户网格（spec-20260922-v1 Phase 4：按 L1 大类分组，空组不渲染） -->
     <div class="section-head">
       <h4 class="section-title">账户</h4>
       <span class="section-hint">点击编辑 · 长按删除</span>
@@ -161,36 +268,46 @@ defineExpose({
       <p class="empty-desc">点击「新建账户」开始</p>
     </div>
 
-    <div v-else class="acc-grid">
-      <div
-        v-for="a in financeStore.accounts"
-        :key="a.id"
-        class="acc-card"
-        :style="{ background: a.color || 'var(--color-bg-hover)' }"
-        @click="openEditAccount(a)"
-        @touchstart="(e: TouchEvent) => onAccountTouchStart(a, e)"
-        @touchmove="accountLongPress.handlers.onTouchmove"
-        @touchend="accountLongPress.handlers.onTouchend"
-        @touchcancel="accountLongPress.handlers.onTouchcancel"
-        @contextmenu="accountLongPress.handlers.onContextmenu"
-      >
-        <div class="acc-head">
-          <Icon
-            class="acc-emoji"
-            :name="resolveAccountIcon(a.icon || '🏦').icon"
-            :size="16"
-            :style="{ background: 'rgba(255,255,255,0.45)', color: resolveAccountIcon(a.icon || '🏦').vars.fg }"
-          />
-          <span class="acc-name">{{ a.name }}</span>
+    <template v-else>
+      <section v-for="g in groupedAccounts" :key="g.key" class="acc-group">
+        <div class="acc-group-label">{{ g.label }}</div>
+        <div class="acc-grid">
+          <div
+            v-for="a in g.items"
+            :key="a.id"
+            class="acc-card"
+            :style="{ background: a.color || 'var(--color-bg-hover)' }"
+            @click="openEditAccount(a)"
+            @touchstart="(e: TouchEvent) => onAccountTouchStart(a, e)"
+            @touchmove="accountLongPress.handlers.onTouchmove"
+            @touchend="accountLongPress.handlers.onTouchend"
+            @touchcancel="accountLongPress.handlers.onTouchcancel"
+            @contextmenu="accountLongPress.handlers.onContextmenu"
+          >
+            <div class="acc-head">
+              <!-- 图标通道统一走 BrandLogo（spec-20260922-v1 Phase 3）：
+                   brand: → 品牌 logo（白托底）；lucide / emoji → IconBox（bg/fg 透传，
+                   底色是卡片彩色背景上的半透明白，故用 bg/fg 而不是 tint）。 -->
+              <BrandLogo
+                :icon="a.icon || '💰'"
+                :institution="a.institution"
+                :fallback-text="a.name"
+                :bg="ACCOUNT_ICON_BG"
+                :fg="resolveAccountIcon(a.icon || '💰').vars.fg"
+                :size="32"
+              />
+              <span class="acc-name">{{ a.name }}</span>
+            </div>
+            <div
+              class="acc-balance"
+              :style="{ color: a.balance < 0 ? 'var(--color-danger)' : 'var(--color-text-primary)' }"
+            >
+              ¥{{ formatMoney(a.balance) }}
+            </div>
+          </div>
         </div>
-        <div
-          class="acc-balance"
-          :style="{ color: a.balance < 0 ? 'var(--color-danger)' : 'var(--color-text-primary)' }"
-        >
-          ¥{{ formatMoney(a.balance) }}
-        </div>
-      </div>
-    </div>
+      </section>
+    </template>
 
     <!-- 新建 / 编辑账户 -->
     <AccountEditSheet
@@ -239,6 +356,20 @@ defineExpose({
   color: var(--color-text-tertiary);
   margin-top: 4px;
 }
+/* 三组小计（净资产卡）：负债显示绝对值 + 「负债」标签（不用大红，01 §5） */
+.asset-breakdown {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 10px;
+  font-size: var(--fs-caption-sm);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.asset-part.is-debt {
+  color: var(--color-text-tertiary);
+}
 .asset-actions {
   display: flex;
   justify-content: center;
@@ -270,6 +401,92 @@ defineExpose({
   background: var(--color-primary);
 }
 
+/* ========== 债权债务卡（Phase 4 · 全中性色，Q14 不并入总资产）========== */
+.debts-card {
+  padding: 16px;
+  margin-bottom: 20px;
+  background: var(--color-bg-card);
+  border-radius: 16px;
+  box-shadow: var(--shadow-xs);
+}
+.debts-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.debts-title {
+  font-size: var(--fs-h4);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+.debts-net {
+  font-size: var(--fs-caption);
+  color: var(--color-text-secondary);
+  font-family: var(--font-num);
+}
+.debts-group-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 6px 2px;
+  font-size: var(--fs-caption-sm);
+  color: var(--color-text-tertiary);
+
+  &:not(:first-child) { border-top: 1px solid var(--color-border-light); margin-top: 6px; }
+}
+.debts-group-sum {
+  font-family: var(--font-num);
+  color: var(--color-text-secondary);
+}
+.debts-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 2px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  &:active { opacity: 0.7; }
+
+  &:not(:last-of-type) { border-bottom: 1px solid var(--color-border-light); }
+}
+.debts-contact {
+  flex-shrink: 0;
+  max-width: 40%;
+  font-size: var(--fs-body-sm);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.debts-kinds {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-caption-sm);
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.debts-open {
+  flex-shrink: 0;
+  font-size: var(--fs-body-sm);
+  font-weight: 600;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+.debts-arrow {
+  flex-shrink: 0;
+  font-size: var(--fs-h4);
+  color: var(--color-text-tertiary);
+}
+
 /* ========== 网格 ========== */
 .section-head {
   display: flex;
@@ -286,6 +503,17 @@ defineExpose({
 .section-hint {
   font-size: var(--fs-caption-sm);
   color: var(--color-text-tertiary);
+}
+
+/* ========== 分组（资金/信用/理财；空组不渲染） ========== */
+.acc-group {
+  margin-bottom: 14px;
+}
+.acc-group-label {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  padding: 0 2px 8px;
 }
 
 .acc-grid {
@@ -307,15 +535,10 @@ defineExpose({
   gap: 6px;
   margin-bottom: 10px;
 }
-.acc-emoji {
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  line-height: 1;
-}
+/* 账户图标盒已改用 components/IconBox.vue（32px 盒 + 16px 图标）。
+   ⚠️ 旧写法 `<Icon class="acc-emoji" :size="16">` + CSS `width/height: 28px`
+   是同一个反模式：class 落在 <svg> 上，CSS 覆盖 svg 的尺寸属性 → 图标被
+   放大到 28px 且描边跟着变粗。详见 components/TransactionList.vue 的注释。 */
 .acc-name {
   font-size: var(--fs-caption);
   font-weight: 500;

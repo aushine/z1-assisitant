@@ -26,18 +26,21 @@
 import { computed, onMounted, ref } from 'vue'
 import { showConfirmDialog } from 'vant'
 import Icon from '@/components/icon/Icon.vue'
+import CategoryPicker from '@/components/finance/CategoryPicker.vue'
 import { useFinanceStore } from '@/stores/finance'
-import { EXPENSE_CATEGORIES, findCategoryByEmoji } from '@/utils/category-dict'
+import { useFinanceCategoryStore } from '@/stores/finance-category'
 import { formatMoney } from '@/utils/date'
 import type {
   Budget,
   BudgetPeriod,
   BudgetScope,
   CreateBudgetReq,
+  FinanceCategory,
   UpdateBudgetReq,
 } from '@/api/types'
 
 const financeStore = useFinanceStore()
+const catStore = useFinanceCategoryStore()
 
 // ==================== 分组 ====================
 /** 总预算：scope 为 total（或历史数据里缺省） */
@@ -83,6 +86,7 @@ const PERIODS: Array<{ value: BudgetPeriod; label: string }> = [
 const form = ref<{
   scope: BudgetScope
   name: string
+  category_id: string
   category_name: string
   category_emoji: string
   amount: number
@@ -92,6 +96,7 @@ const form = ref<{
 }>({
   scope: 'total',
   name: '',
+  category_id: '',
   category_name: '',
   category_emoji: '',
   amount: 0,
@@ -100,6 +105,15 @@ const form = ref<{
 })
 
 const formError = ref('')
+
+/** 预算行上的分类图标 / 名（按 budget.category_id 查） */
+function catOf(b: Budget) {
+  return catStore.resolveCat({
+    category_id: b.category_id,
+    category_name: b.category_name,
+    category_emoji: b.category_emoji,
+  })
+}
 
 /**
  * 当前周期的起止日期。
@@ -122,12 +136,14 @@ function openCreate(scope: BudgetScope): void {
   form.value = {
     scope,
     name: '',
+    category_id: '',
     category_name: '',
     category_emoji: '',
     amount: 0,
     period: 'monthly',
     alertPct: 80,
   }
+  if (scope === 'category') void catStore.ensureFresh()
   sheetShow.value = true
 }
 
@@ -137,20 +153,23 @@ function openEdit(b: Budget): void {
   form.value = {
     scope: b.scope ?? 'total',
     name: b.name,
+    category_id: b.category_id ?? '',
     category_name: b.category_name ?? '',
     category_emoji: b.category_emoji ?? '',
     amount: b.amount,
     period: b.period,
     alertPct: Math.round((b.alert_threshold ?? 0.8) * 100),
   }
+  if ((b.scope ?? 'total') === 'category') void catStore.ensureFresh()
   sheetShow.value = true
 }
 
-function pickCategory(label: string, emoji: string): void {
-  form.value.category_name = label
-  form.value.category_emoji = emoji
-  // 分类预算的名称与分类同名（与桌面端一致）
-  form.value.name = label
+/** 分类选择器回填（只给一级）；预算名与一级分类名保持一致 */
+function selectCategory(c: FinanceCategory): void {
+  form.value.category_id = c.id
+  form.value.category_name = c.full_name || c.name
+  form.value.category_emoji = c.emoji ?? ''
+  form.value.name = c.name
   formError.value = ''
 }
 
@@ -161,7 +180,7 @@ function closeSheet(): void {
 
 function validate(): boolean {
   const f = form.value
-  if (f.scope === 'category' && !f.category_name) {
+  if (f.scope === 'category' && !f.category_id) {
     formError.value = '请选择分类'
     return false
   }
@@ -191,7 +210,7 @@ async function submitBudget(): Promise<void> {
     start_date: range.start_date,
     end_date: range.end_date,
     ...(f.scope === 'category'
-      ? { category_name: f.category_name, category_emoji: f.category_emoji }
+      ? { category_id: f.category_id, category_name: f.category_name, category_emoji: f.category_emoji }
       : {}),
   }
 
@@ -199,13 +218,13 @@ async function submitBudget(): Promise<void> {
   try {
     if (editingBudget.value) {
       const old = editingBudget.value
+      // ⚠️ 周期 / 范围不可就地改（后端 UpdateBudgetReq 无这两项）→ 仍走「删旧建新」；
+      //    分类自 260921 起 UpdateBudgetReq 已支持，可**就地改**（06 §3 第 2 条）。
       const structureChanged =
         (old.period !== f.period) ||
-        ((old.scope ?? 'total') !== f.scope) ||
-        ((old.category_name ?? '') !== f.category_name)
+        ((old.scope ?? 'total') !== f.scope)
 
       if (structureChanged) {
-        // 周期 / 范围 / 分类不可就地改 → 新建新的 + 删旧（删旧在成功后）
         const created = await financeStore.replaceBudget(old.id, payload)
         if (created) sheetShow.value = false
       } else {
@@ -215,6 +234,9 @@ async function submitBudget(): Promise<void> {
           start_date: payload.start_date,
           end_date: payload.end_date,
           alert_threshold: payload.alert_threshold,
+          ...(f.scope === 'category'
+            ? { category_id: f.category_id, category_name: f.category_name, category_emoji: f.category_emoji }
+            : {}),
         }
         const updated = await financeStore.updateBudget(old.id, patch)
         if (updated) sheetShow.value = false
@@ -245,6 +267,8 @@ async function onDelete(b: Budget): Promise<void> {
 // ==================== 生命周期 ====================
 onMounted(async () => {
   await financeStore.fetchBudgets()
+  // 分类缓存：预算行与分类选择器按 category_id 查（未加载时快照兜底）；SWR 不阻塞首屏
+  void catStore.ensureFresh()
 })
 
 defineExpose({
@@ -323,17 +347,13 @@ defineExpose({
         <div v-for="b in categoryBudgets" :key="b.id" class="budget-item">
           <div class="bi-head">
             <span class="bi-name">
-              <Icon
-                v-if="findCategoryByEmoji(b.category_emoji)"
+              <span
                 class="bi-cat"
-                :name="findCategoryByEmoji(b.category_emoji)!.icon"
-                :size="16"
-                :style="{
-                  background: findCategoryByEmoji(b.category_emoji)!.vars.bg,
-                  color: findCategoryByEmoji(b.category_emoji)!.vars.fg,
-                }"
-              />
-              {{ b.category_name || b.name }}
+                :style="{ background: catOf(b).vars.bg, color: catOf(b).vars.fg }"
+              >
+                <Icon :name="catOf(b).icon" :size="14" />
+              </span>
+              {{ catOf(b).name }}
             </span>
             <div class="bi-amounts">
               <span class="bi-used" :style="{ color: barColor(b) }">¥{{ formatMoney(b.used, true) }}</span>
@@ -358,15 +378,15 @@ defineExpose({
 
     <!-- ============ 新建 / 编辑弹层 ============ -->
     <!-- ⚠️ teleport="body" 必留：本组件挂在记录页的 main.tab-body（滚动容器）里，
-         iOS 上弹层会被布局层 chrome 压住。完整说明见 period/PeriodDaySheet.vue -->
+         iOS 上弹层会被布局层 chrome 压住。完整说明见 period/PeriodDaySheet.vue
+         ⚠️ 不要加 `closeable`：Vant 的关闭叉叉固定在弹层左上角，与 nav-bar 的「取消」
+         并排出现两个关闭入口（260921 点名去掉的「灰色叉叉」）。 -->
     <van-popup
       v-model:show="sheetShow"
       position="bottom"
       :style="{ height: '76%' }"
       round
-      closeable
       teleport="body"
-      close-icon-position="top-left"
       :close-on-click-overlay="!submitting"
     >
       <div class="budget-sheet">
@@ -385,23 +405,15 @@ defineExpose({
         </van-nav-bar>
 
         <div class="sheet-body">
-          <!-- 分类选择（仅分类预算） -->
+          <!-- 分类选择（仅分类预算）：一级宫格内联，点一级直接选中、永不弹窗 -->
           <div v-if="form.scope === 'category'" class="field-group">
             <div class="cell-label">分类</div>
-            <div class="cat-grid">
-              <button
-                v-for="c in EXPENSE_CATEGORIES"
-                :key="c.id"
-                type="button"
-                class="cat-item"
-                :class="{ 'is-active': form.category_name === c.label }"
-                :disabled="submitting"
-                @click="pickCategory(c.label, c.emoji)"
-              >
-                <Icon class="cat-emoji" :name="c.icon" :size="20" :style="{ color: c.vars.fg }" />
-                <span class="cat-name">{{ c.label }}</span>
-              </button>
-            </div>
+            <CategoryPicker
+              v-model="form.category_id"
+              scope="expense"
+              :root-only="true"
+              @select="selectCategory"
+            />
           </div>
 
           <!-- 名称（仅总预算） -->
@@ -706,34 +718,6 @@ defineExpose({
   font-weight: 400;
   color: var(--color-text-disabled);
 }
-
-.cat-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  padding: 0 16px 16px;
-}
-.cat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 4px;
-  background: var(--color-bg-card);
-  border: 1.5px solid var(--color-border-light);
-  border-radius: 10px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  &:active { transform: scale(0.95); }
-  &.is-active {
-    border-color: var(--color-primary);
-    background: var(--color-primary-light);
-  }
-  &:disabled { opacity: 0.5; }
-}
-.cat-emoji { font-size: 20px; line-height: 1; }
-.cat-name { font-size: var(--fs-micro); color: var(--color-text-primary); }
-.cat-item.is-active .cat-name { color: var(--color-primary); font-weight: 600; }
 
 .amount-row {
   display: flex;

@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/life-assistant/api/internal/model"
+	"github.com/life-assistant/api/internal/utility"
 )
 
 // AccountDao 账户 DAO 接口
@@ -23,6 +24,19 @@ type AccountDao interface {
 	List(ctx context.Context, userID string) ([]model.Account, error)
 	// GetTotalBalance 算某用户总余额
 	GetTotalBalance(ctx context.Context, userID string) (float64, error)
+	// GetBalanceSummary 按 type 分组求和 → Go 侧按 L1 大类归并（spec-20260922-v1 P2）
+	GetBalanceSummary(ctx context.Context, userID string) (*AccountBalanceSummary, error)
+}
+
+// AccountBalanceSummary 净资产分组汇总（01 §5.2）
+//
+// ⚠️ 恒等式：NetWorth ≡ Assets + Investments + Debts ≡ SUM(全部 balance)
+type AccountBalanceSummary struct {
+	Assets       float64 // 资金组小计（负值原样）
+	Investments  float64 // 理财组小计
+	Debts        float64 // 信用组小计（⚠️ 保留负数原值，不做取绝对值加工）
+	NetWorth     float64 // = SUM(全部 balance)
+	AccountCount int     // 账户数（不是类型数）
 }
 
 type accountDao struct {
@@ -98,4 +112,47 @@ func (d *accountDao) GetTotalBalance(ctx context.Context, userID string) (float6
 		return 0, err
 	}
 	return total, nil
+}
+
+// GetBalanceSummary 按 type 分组求和，Go 侧按注册表 category 归并出三组小计。
+//
+// SQL：SELECT type, COUNT(*) AS cnt, COALESCE(SUM(balance), 0) AS sum
+//
+//	FROM accounts WHERE user_id = ? AND deleted_at IS NULL GROUP BY type
+//
+// （软删由 gorm.DeletedAt 自动过滤）
+//
+// ⚠️ debts 保留负数原值（D14：信用类直接存负数）；未知类型兜底计入 assets，
+//
+//	保证 NetWorth ≡ Assets+Investments+Debts ≡ SUM(全部) 恒等式恒成立
+//	（type 白名单校验上线后实际不会出现未知类型）。
+func (d *accountDao) GetBalanceSummary(ctx context.Context, userID string) (*AccountBalanceSummary, error) {
+	var rows []struct {
+		Type string
+		Cnt  int
+		Sum  float64
+	}
+	err := d.db.WithContext(ctx).
+		Model(&model.Account{}).
+		Where("user_id = ?", userID).
+		Select("type, COUNT(*) AS cnt, COALESCE(SUM(balance), 0) AS sum").
+		Group("type").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	s := &AccountBalanceSummary{}
+	for _, r := range rows {
+		s.AccountCount += r.Cnt
+		switch utility.AccountCategoryOf(r.Type) {
+		case utility.AccountCategoryCredit:
+			s.Debts += r.Sum
+		case utility.AccountCategoryInvestment:
+			s.Investments += r.Sum
+		default: // asset + 未知类型兜底
+			s.Assets += r.Sum
+		}
+		s.NetWorth += r.Sum
+	}
+	return s, nil
 }

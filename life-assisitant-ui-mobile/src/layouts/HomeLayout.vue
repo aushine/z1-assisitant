@@ -120,6 +120,23 @@ function onTabClick(tab: TabItem) {
 const hideTab = computed(() => route.meta.hideTab === true)
 
 /**
+ * 内容区 router-view 的 key。
+ *
+ * 默认 `fullPath`：切模块、换任务详情都要重建页面（各页 onMounted 负责首次加载）。
+ *
+ * ⚠️ 例外：**覆盖层子路由**（`meta.overlay`，见 router/index.ts 的
+ *    /record/finance-categories）必须与它的宿主页面共用同一个 key ——
+ *    否则 push 覆盖层时 fullPath 一变，宿主页（记录页）就被销毁重建，
+ *    「返回后回到记一笔、且不重播动画」直接落空。
+ *    这里取 matched 里**上一层**的 path（即宿主页面 /record）。
+ */
+const viewKey = computed(() => {
+  if (!route.meta.overlay) return route.fullPath
+  const host = route.matched[route.matched.length - 2]
+  return host?.path ?? route.fullPath
+})
+
+/**
  * 状态栏占位的底色：必须与「当前页 header 的首端色」严格同色。
  *
  * 占位条是 content 之外的独立元素，默认透明 → 露出 --color-bg-app(#F9F9F9)。
@@ -186,9 +203,9 @@ onMounted(() => {
       @touchcancel="swipeHandlers.touchcancel"
       @mousedown="swipeHandlers.mousedown"
     >
-      <router-view v-slot="{ Component, route: r }">
+      <router-view v-slot="{ Component }">
         <transition name="fade-page" mode="out-in">
-          <component :is="Component" :key="r.fullPath" />
+          <component :is="Component" :key="viewKey" />
         </transition>
       </router-view>
     </main>

@@ -21,8 +21,8 @@ import {
 import { Icon } from '@/components/icon'
 import { useFinanceStore } from '@/stores/finance'
 import { financeApi } from '@/api/finance'
-import { EXPENSE_CATEGORIES } from '@/utils/category-dict'
 import { CategoryBudgetItem } from './components/CategoryBudgetItem'
+import CategoryPicker from '@/components/finance/CategoryPicker'
 import ErrorState from '@/components/ErrorState'
 import { EmptyHint } from '@/components/EmptyState'
 import type {
@@ -30,6 +30,7 @@ import type {
   CreateBudgetReq,
   BudgetScope,
   BudgetPeriod,
+  FinanceCategory,
 } from '@/api/types'
 
 /** 预算状态：over 超支 / warn 接近预算（≥ alert_threshold）/ ok 正常 */
@@ -60,6 +61,7 @@ export function BudgetTab() {
     amount: 0,
     alert_threshold: 0.8,
     scope: 'overall',
+    category_id: null,
   })
 
   function load() {
@@ -115,6 +117,7 @@ export function BudgetTab() {
       end_date: b.end_date,
       alert_threshold: b.alert_threshold ?? 0.8,
       scope: b.scope ?? 'overall',
+      category_id: b.category_id ?? null,
       category_name: b.category_name,
       category_emoji: b.category_emoji,
     })
@@ -246,21 +249,20 @@ export function BudgetTab() {
         <div className="field">
           <label className="field-label">{scope === 'category' ? '分类' : '预算名称'}</label>
           {scope === 'category' ? (
-            <Select
-              value={form.category_name}
-              onChange={(v: any) => {
-                const val = Array.isArray(v) ? v[0] : v
-                const cat = EXPENSE_CATEGORIES.find((c) => c.label === val)
+            <CategoryPicker
+              scope="expense"
+              level1Only
+              showCreate={false}
+              value={form.category_id ?? undefined}
+              onChange={(c: FinanceCategory) =>
                 setForm((n) => ({
                   ...n,
-                  category_name: val,
-                  category_emoji: cat?.emoji,
-                  name: val,
+                  category_id: c.id,
+                  category_name: c.full_name,
+                  category_emoji: c.emoji ?? undefined,
+                  name: c.full_name,
                 }))
-              }}
-              optionList={EXPENSE_CATEGORIES.map((c) => ({ value: c.label, label: c.label }))}
-              style={{ width: '100%' }}
-              placeholder="选择分类"
+              }
             />
           ) : (
             <Input value={form.name} onChange={(v) => setForm((n) => ({ ...n, name: v }))} placeholder="例如：7月总预算" maxLength={20} showClear />

@@ -59,7 +59,40 @@ const routes: RouteRecordRaw[] = [
       { path: 'task', name: 'Task', component: () => import('@/pages/task/index.vue'), meta: { title: '待办', tab: 'task' } },
       // 任务详情（Phase 2.5）：二级页面，隐藏 TabBar
       { path: 'task/:id', name: 'TaskDetail', component: () => import('@/pages/task/detail.vue'), meta: { title: '任务详情', tab: 'task', hideTab: true } },
-      { path: 'record', name: 'Record', component: () => import('@/pages/record/index.vue'), meta: { title: '记录', tab: 'record' } },
+      {
+        path: 'record',
+        name: 'Record',
+        component: () => import('@/pages/record/index.vue'),
+        meta: { title: '记录', tab: 'record' },
+        /**
+         * 记录模块的**覆盖层子路由**（2026-09-21）。
+         *
+         * 「记一笔」浮层里的「管理 ›」原先 push 顶层路由 /me/finance-categories，
+         * 于是 HomeLayout 与记录页**整体被卸载**：记一笔的草稿、浮层的开合状态
+         * 全没了，返回时页面重新挂载 —— 用户看到的是「回到财务了」＋
+         * 「选中动画又播了一遍」。
+         *
+         * 挂成 /record 的子路由后：记录页（父级）保持挂载，只在它上面叠一层
+         * 全屏页（见 pages/record/index.vue 的覆盖层）；返回（含 iOS 左滑）
+         * 只是弹掉这一层，宿主原样还在。
+         *
+         * ⚠️ 与 /me/finance-categories 是**同一个页面组件**、两个入口：
+         *    从「记录 → 记一笔」进 = 覆盖层（要在返回后回到记一笔）；
+         *    从「我的 → 偏好 → 收支分类」进 = 普通二级页（没有宿主要保留）。
+         */
+        children: [
+          {
+            path: 'finance-categories',
+            name: 'RecordFinanceCategories',
+            component: () => import('@/pages/me/finance-categories.vue'),
+            meta: {
+              title: '收支分类',
+              requiresPermission: 'finance:view',
+              overlay: true,
+            },
+          },
+        ],
+      },
       { path: 'stat', name: 'Stat', component: () => import('@/pages/stat/index.vue'), meta: { title: '统计', tab: 'stat' } },
       { path: 'me', name: 'Me', component: () => import('@/pages/me/index.vue'), meta: { title: '我的', tab: 'me' } },
     ],
@@ -111,6 +144,21 @@ const routes: RouteRecordRaw[] = [
       requiresPermission: ANNIVERSARY_VIEW,
     },
   },
+  // 收支分类管理（2026-09-21 分类体系）：查看走 finance:view，增删改由后端 finance:category 收口
+  //
+  // ⚠️ 这是「我的 → 偏好」那条入口用的**独立二级页**。
+  //    记录页「记一笔 → 管理」用的是它的覆盖层版 /record/finance-categories
+  //    （同一个组件，理由见上面 record 子路由的注释）。
+  {
+    path: '/me/finance-categories',
+    name: 'MeFinanceCategories',
+    component: () => import('@/pages/me/finance-categories.vue'),
+    meta: {
+      title: '收支分类',
+      requiresAuth: true,
+      requiresPermission: 'finance:view',
+    },
+  },
   {
     path: '/me/help',
     name: 'MeHelp',
@@ -122,6 +170,21 @@ const routes: RouteRecordRaw[] = [
     name: 'MeAbout',
     component: () => import('@/pages/me/about.vue'),
     meta: { title: '关于', requiresAuth: true },
+  },
+
+  // ============ 账目详情 · 二级页（260921 v2 批次二） ============
+  //
+  // 顶层路由，理由与 /record/period/* 一致：挂成 HomeLayout 子路由会继承
+  // 布局的滚动容器 → 双滚动条。收支列表行 / 日历明细行点击进入。
+  {
+    path: '/record/tx/:id',
+    name: 'TransactionDetail',
+    component: () => import('@/pages/record/tx-detail.vue'),
+    meta: {
+      title: '账目详情',
+      requiresAuth: true,
+      requiresPermission: 'finance:view',
+    },
   },
 
   // ============ 经期 · 二级页（顶层路由，理由同 /me/*） ============

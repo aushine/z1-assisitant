@@ -7,11 +7,14 @@ import type {
   UpdateAccountReq,
   Transaction,
   CreateTransactionReq,
+  UpdateTransactionReq,
   TransferReq,
   ListTransactionsQuery,
   Budget,
   CreateBudgetReq,
   BudgetScope,
+  DebtItem,
+  DebtsResp,
 } from '@/api/types'
 
 interface FinanceStore {
@@ -27,7 +30,11 @@ interface FinanceStore {
   txEmpty: boolean
   hasTxFilter: boolean
   budgets: Budget[]
+  // ===== v4 债权债务（GET /finance/debts）=====
+  debts: DebtsResp | null
+  debtsLoading: boolean
   fetchAccounts: () => Promise<void>
+  fetchDebts: () => Promise<void>
   createAccount: (data: CreateAccountReq) => Promise<Account | null>
   updateAccount: (id: string, data: UpdateAccountReq) => Promise<Account | null>
   removeAccount: (id: string) => Promise<boolean>
@@ -36,6 +43,7 @@ interface FinanceStore {
   setTxPage: (page: number) => Promise<void>
   loadMore: () => Promise<void>
   createTransaction: (data: CreateTransactionReq) => Promise<Transaction | null>
+  updateTransaction: (id: string, data: UpdateTransactionReq) => Promise<Transaction | null>
   removeTransaction: (id: string) => Promise<boolean>
   reverseTransaction: (id: string, note?: string) => Promise<boolean>
   transfer: (data: TransferReq) => Promise<boolean>
@@ -48,7 +56,7 @@ function deriveFinance(accounts: Account[], transactions: Transaction[], txLoadi
   return {
     accountsEmpty: accounts.length === 0,
     txEmpty: !txLoading && transactions.length === 0,
-    hasTxFilter: !!txQuery.type || !!txQuery.account_id || !!txQuery.keyword || !!txQuery.start_date || !!txQuery.end_date,
+    hasTxFilter: !!txQuery.type || !!txQuery.account_id || !!txQuery.keyword || !!txQuery.start_date || !!txQuery.end_date || !!txQuery.contact,
   }
 }
 
@@ -57,10 +65,19 @@ const DEFAULT_TX_QUERY: ListTransactionsQuery = {
   type: undefined,
   account_id: undefined,
   keyword: undefined,
+  contact: undefined,
   start_date: undefined,
   end_date: undefined,
   page: 1,
   page_size: 50,
+}
+
+/** DebtItem 排序：未结清额降序（后端聚合顺序不稳定，展示层统一排） */
+function sortDebts(res: DebtsResp): DebtsResp {
+  const byOpen = (a: DebtItem, b: DebtItem) => b.open - a.open
+  res.owed_to_me = [...res.owed_to_me].sort(byOpen)
+  res.i_owe = [...res.i_owe].sort(byOpen)
+  return res
 }
 
 export const useFinanceStore = create<FinanceStore>((set, get) => ({
@@ -72,6 +89,8 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
   txLoading: false,
   txHasMore: false,
   budgets: [],
+  debts: null,
+  debtsLoading: false,
   txQuery: { ...DEFAULT_TX_QUERY },
   ...deriveFinance([], [], false, { ...DEFAULT_TX_QUERY }),
 
@@ -89,6 +108,17 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
         totalBalance: 0,
         ...deriveFinance([], get().transactions, get().txLoading, get().txQuery),
       })
+    }
+  },
+
+  /** 债权债务（v4）。失败置 null（卡片整卡不渲染，等同「两组都空」） */
+  async fetchDebts() {
+    set({ debtsLoading: true })
+    try {
+      const res = await financeApi.getDebts()
+      set({ debts: sortDebts(res), debtsLoading: false })
+    } catch {
+      set({ debts: null, debtsLoading: false })
     }
   },
 
@@ -189,6 +219,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
         type: txQuery.type,
         account_id: txQuery.account_id,
         keyword: txQuery.keyword,
+        contact: txQuery.contact,
         start_date: txQuery.start_date,
         end_date: txQuery.end_date,
         page: txQuery.page,
@@ -245,6 +276,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       id: `tmp_${Date.now()}`,
       type: data.type,
       amount: data.amount,
+      category_id: data.category_id ?? null,
       category_emoji: data.category_emoji || (data.type === 'transfer' ? '🔄' : ''),
       category_name: data.category_name || (data.type === 'transfer' ? '转账' : ''),
       account_id: data.account_id,
@@ -303,6 +335,9 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       if (idx >= 0) currentTx[idx] = fresh
       set({ transactions: currentTx })
       get().fetchAccounts()
+      // v4：核销笔/借入借出/待报销等会改变债权债务 → 创建成功后同时刷新
+      //（只刷一个会出现「卡片还显示欠着」）
+      if (data.source || data.settle_of) void get().fetchDebts()
       Toast.success(
         data.type === 'expense' ? '已记账' : data.type === 'income' ? '已记录收入' : '转账成功'
       )
@@ -346,6 +381,8 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     try {
       await financeApi.removeTransaction(id)
       get().fetchAccounts()
+      // 被删的可能是核销笔或原笔 → 债权债务联动刷新
+      void get().fetchDebts()
       Toast.success('交易已删除')
       return true
     } catch {
@@ -365,11 +402,25 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       await financeApi.reverseTransaction(id, { note })
       await get().fetchTransactions()
       await get().fetchAccounts()
+      void get().fetchDebts()
       Toast.success('交易已撤销')
       return true
     } catch {
       Toast.error('撤销失败')
       return false
+    }
+  },
+
+  async updateTransaction(id: string, data: UpdateTransactionReq) {
+    try {
+      const updated = await financeApi.updateTransaction(id, data)
+      await get().fetchTransactions()
+      await get().fetchAccounts()
+      Toast.success('已保存')
+      return updated
+    } catch {
+      Toast.error('保存失败')
+      return null
     }
   },
 

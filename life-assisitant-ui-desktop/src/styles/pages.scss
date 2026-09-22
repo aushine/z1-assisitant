@@ -853,6 +853,31 @@
   gap: $space-4;
 }
 
+// ===== spec-20260922-v1 Phase 4（P8）：L1 大类分组 + 净资产小计 =====
+.account-group {
+  display: flex;
+  flex-direction: column;
+  gap: $space-2;
+}
+.account-group-label {
+  font-size: $fs-caption;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+}
+// 净资产卡三组小计（负债显示绝对值 + 「负债」标签，不用大红；01 §5）
+.summary-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  .summary-debt {
+    color: var(--color-text-tertiary);
+  }
+}
+
 .acc-info {
   flex: 1;
   min-width: 0;
@@ -882,6 +907,316 @@
 .acc-modal {
   display: flex;
   flex-direction: column;
+}
+
+// ==========================================================================
+// 账户表单重构（spec-20260922-v1 Phase 3 · 01 §6）
+// ==========================================================================
+
+// 3 组类型宫格（桌面 6 列，01 §6.4）
+.acc-type-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: $space-2;
+}
+
+.acc-type-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $space-1;
+  padding: $space-2 $space-1;
+  border: 1px solid var(--color-border-light);
+  border-radius: $radius-md;
+  background: var(--color-bg-card);
+  cursor: pointer;
+  transition: border-color $duration-fast $ease-default, background $duration-fast $ease-default;
+  position: relative;
+  min-width: 0;
+
+  &:hover {
+    border-color: var(--color-border-strong);
+  }
+
+  &.active {
+    border-color: var(--color-primary-500);
+    background: var(--color-primary-50);
+  }
+}
+
+.acc-type-label {
+  font-size: $fs-caption-sm;
+  color: var(--color-text-secondary);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acc-type-cell.active .acc-type-label {
+  color: var(--color-primary-500);
+  font-weight: 600;
+}
+
+.acc-type-arrow {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  color: var(--color-text-tertiary);
+}
+
+// 银行行触发器
+.acc-bank-trigger {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  width: 100%;
+  padding: $space-2 $space-3;
+  border: 1px solid var(--color-border-default);
+  border-radius: $radius-sm;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  font-size: $fs-body-sm;
+  cursor: pointer;
+  transition: border-color $duration-fast $ease-default;
+
+  &:hover {
+    border-color: var(--color-border-strong);
+  }
+
+  > .acc-type-arrow {
+    margin-left: auto;
+    position: static;
+  }
+}
+
+.acc-bank-placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.acc-field-error {
+  margin-top: $space-1;
+  font-size: $fs-caption-sm;
+  color: var(--color-danger);
+}
+
+// 图标行（D28）
+.acc-icon-row {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+}
+
+.acc-icon-note {
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+}
+
+// 信用类 − 前缀与跨类提示
+.acc-balance-minus {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.acc-cross-hint {
+  margin-top: $space-1;
+  font-size: $fs-caption-sm;
+  color: var(--color-primary-500);
+}
+
+.field-tip-text {
+  margin-top: $space-1;
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+}
+
+// 账户卡片 logo 盒（三态渲染统一容器）
+.acc-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: $radius-md;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+}
+
+// ==========================================================================
+// 银行选择器（spec-20260922-v1 Phase 3 · 01 §6.2/§6.4 桌面端）
+// ==========================================================================
+.bp-list {
+  margin-top: $space-2;
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border-light);
+  border-radius: $radius-md;
+}
+
+.bp-section-title {
+  padding: $space-2 $space-3 $space-1;
+  font-size: $fs-caption-sm;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-card);
+
+  &.sticky {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    border-bottom: 1px solid var(--color-border-light);
+  }
+}
+
+.bp-row {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  width: 100%;
+  padding: $space-2 $space-3;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background $duration-fast $ease-default;
+
+  &.focus {
+    background: var(--color-bg-hover);
+  }
+
+  &.selected {
+    background: var(--color-primary-50);
+
+    .bp-short {
+      color: var(--color-primary-500);
+      font-weight: 600;
+    }
+  }
+}
+
+.bp-short {
+  font-size: $fs-body-sm;
+  color: var(--color-text-primary);
+  flex-shrink: 0;
+}
+
+.bp-full {
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bp-check {
+  margin-left: auto;
+  color: var(--color-primary-500);
+  font-weight: 600;
+}
+
+.bp-empty {
+  padding: $space-5;
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: $fs-body-sm;
+}
+
+// ==========================================================================
+// 债权债务卡（Phase 4.2，05 §C3：总资产区下方；空组/整卡不渲染；全中性色）
+// ==========================================================================
+.debt-card {
+  border: 1px solid var(--color-border-light);
+  border-radius: $radius-lg;
+  background: var(--color-bg-card);
+  padding: $space-4;
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
+}
+
+.debt-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.debt-card-title {
+  font-size: $fs-body-sm;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+// 「净」= 别人欠我 − 我欠别人（中性色，不用红绿——与支出红/收入绿口径区隔）
+.debt-net {
+  font-size: $fs-caption;
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.debt-group {
+  display: flex;
+  flex-direction: column;
+  gap: $space-1;
+}
+
+.debt-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+  padding: $space-1 0;
+}
+
+.debt-row {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  padding: $space-2 $space-3;
+  border: 0;
+  border-radius: $radius-md;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background $duration-fast $ease-default;
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+
+  svg {
+    color: var(--color-text-tertiary);
+    flex-shrink: 0;
+  }
+}
+
+.debt-contact {
+  font-size: $fs-body-sm;
+  color: var(--color-text-primary);
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// 性质标签：中性色（借出是红？它不是支出 —— 05 §C3.2 不用红绿）
+.debt-kind {
+  font-size: $fs-caption-sm;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-hover);
+  border-radius: $radius-pill;
+  padding: 1px 8px;
+  flex-shrink: 0;
+}
+
+.debt-open {
+  margin-left: auto;
+  font-size: $fs-body-sm;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 // ==========================================================================
@@ -1716,3 +2051,256 @@
 }
 .period-setting-subblock { margin: var(--space-2) 0; display: flex; flex-direction: column; gap: 6px; }
 .hk-row-with-icon { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ==================== 记账分类管理页 ==================== */
+/* SYNC-FROM-MOBILE: life-assisitant-ui-mobile/src/pages/me/finance-categories.vue */
+
+.cat-mg-list { display: flex; flex-direction: column; }
+
+.cat-mg-row {
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-card);
+  margin-bottom: var(--space-3);
+  overflow: hidden;
+}
+
+.cat-mg-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.cat-emoji-sm {
+  width: 30px;
+  height: 30px;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.cat-mg-title {
+  font-size: var(--fs-body-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.cat-mg-sub {
+  font-size: var(--fs-caption-sm);
+  color: var(--color-text-tertiary);
+}
+
+.cat-mg-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+.cat-mg-children {
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  background: var(--color-bg-hover);
+  border-top: 1px solid var(--color-border-light);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.cat-mg-parent-hint {
+  font-size: var(--fs-caption-sm);
+  color: var(--color-text-tertiary);
+  padding: var(--space-1) 0;
+}
+
+.cat-mg-child {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+}
+
+.cat-mg-tag {
+  font-size: var(--fs-micro);
+  color: var(--color-text-tertiary);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+}
+
+/* ==================== 收支日历（CalendarView，03 §B-8 桌面端） ==================== */
+/* 布局/排版参照 .period-cal-*（经期/健康月历，见上「月历」段）；
+   ⚠️ 不复用 st-* 语义色与健康指标圆点色（03 §C-2 明确「不抽」）。
+   ⚠️ 桌面端是「左月历 + 右当日明细」两栏，不是移动端的上下堆叠。 */
+
+.finance-cal-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: var(--space-4);
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .finance-cal-layout { grid-template-columns: 1fr; }
+}
+
+/* ---- 左栏：月历 ---- */
+.finance-cal-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: var(--fs-caption);
+}
+.finance-cal-summary-month {
+  font-size: var(--fs-body-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.finance-cal-summary-item { font-variant-numeric: tabular-nums; }
+
+.finance-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+.finance-cal-title { font-size: var(--fs-h4); font-weight: 600; color: var(--color-text-primary); }
+.finance-cal-nav-group { display: flex; align-items: center; gap: var(--space-2); }
+.finance-cal-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  background: var(--color-bg-hover);
+  border: 0;
+  border-radius: 8px;
+  color: var(--color-text-secondary);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color .1s, background .1s;
+}
+.finance-cal-nav-btn:hover:not(:disabled) { color: var(--color-text-primary); }
+.finance-cal-nav-btn:disabled { cursor: default; }
+.finance-cal-nav-text { font-size: var(--fs-caption-sm); color: var(--color-primary); }
+
+.finance-cal-week { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 6px; }
+.finance-cal-week-cell { text-align: center; font-size: var(--fs-caption-sm); }
+
+.finance-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  transition: opacity .15s;
+}
+.finance-cal-grid.is-loading { opacity: .5; }
+
+.finance-cal-cell {
+  position: relative;
+  min-height: 72px;
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: transform .1s, background .1s;
+}
+.finance-cal-cell:hover { transform: scale(1.04); background: var(--color-bg-hover); }
+.finance-cal-cell.empty { background: transparent; border: none; cursor: default; }
+.finance-cal-cell.empty:hover { transform: none; }
+/* 今天：2px 主色描边；选中日：主色浅底（两者可叠加） */
+.finance-cal-cell.is-today { border: 2px solid var(--color-primary-500); }
+.finance-cal-cell.is-selected { background: var(--color-primary-50); }
+.finance-cal-cell.is-selected .finance-cal-day { color: var(--color-primary-500); }
+
+.finance-cal-day {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+.finance-cal-net {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 1.2;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+.finance-cal-hint { margin-top: var(--space-3); font-size: var(--fs-caption-sm); color: var(--color-text-tertiary); }
+
+/* ---- 右栏：当日明细 ---- */
+.finance-cal-dayhead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.finance-cal-daytitle { font-size: var(--fs-h4); font-weight: 600; color: var(--color-text-primary); }
+.finance-cal-today-tag { color: var(--color-primary); }
+.finance-cal-daycount { font-size: var(--fs-caption-sm); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+
+.finance-cal-daysum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-3) 0;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-cal-txlist { display: flex; flex-direction: column; max-height: 420px; overflow-y: auto; }
+.finance-cal-txrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--color-border-light);
+  cursor: pointer;
+  text-align: left;
+  font-size: var(--fs-body-sm);
+  color: var(--color-text-primary);
+}
+.finance-cal-txrow:last-child { border-bottom: none; }
+.finance-cal-txrow:hover { background: var(--color-bg-hover); }
+.finance-cal-txamt {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-cal-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-5) 0;
+  color: var(--color-text-tertiary);
+}
+.finance-cal-empty-text { font-size: var(--fs-caption); }
+
+.finance-cal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-light);
+}

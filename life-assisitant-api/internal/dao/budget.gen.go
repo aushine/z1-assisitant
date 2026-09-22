@@ -24,8 +24,9 @@ type BudgetDao interface {
 	// SumExpense 计算某用户在指定时间范围内的支出合计（用于预算 used 字段）
 	SumExpense(ctx context.Context, userID string, start, end time.Time) (float64, error)
 
-	// SumExpenseByCategory 计算某用户在指定时间范围内按分类的支出合计（用于分类预算 used 字段）
-	SumExpenseByCategory(ctx context.Context, userID string, categoryName string, start, end time.Time) (float64, error)
+	// SumExpenseByCategory 计算某用户在指定时间范围内某分类（**含其子分类**）的支出合计
+	// （用于分类预算 used 字段）。categoryID 为空时退化为按 categoryName 文本匹配（未迁移的历史预算）。
+	SumExpenseByCategory(ctx context.Context, userID, categoryID, categoryName string, start, end time.Time) (float64, error)
 }
 
 type budgetDao struct {
@@ -84,7 +85,7 @@ func (d *budgetDao) SumExpense(ctx context.Context, userID string, start, end ti
 	var total float64
 	err := d.db.WithContext(ctx).
 		Model(&model.Transaction{}).
-		Where("user_id = ? AND type = ? AND happened_at >= ? AND happened_at < ?", userID, model.TransactionTypeExpense, start, end).
+		Where("user_id = ? AND type = ? AND happened_at >= ? AND happened_at < ? AND exclude_budget = 0", userID, model.TransactionTypeExpense, start, end).
 		Select("COALESCE(SUM(amount), 0)").
 		Scan(&total).Error
 	if err != nil {
@@ -93,14 +94,40 @@ func (d *budgetDao) SumExpense(ctx context.Context, userID string, start, end ti
 	return total, nil
 }
 
-// SumExpenseByCategory 计算某用户在指定时间范围内按分类的支出合计
-func (d *budgetDao) SumExpenseByCategory(ctx context.Context, userID string, categoryName string, start, end time.Time) (float64, error) {
+// SumExpenseByCategory 计算某用户在指定时间范围内某分类（含子分类）的支出合计
+//
+// ⚠️ 260921 改造（02 §6.2 / §6.3）：
+//
+//	改前：`WHERE ... AND category_name = ?` —— 分类一改名，预算已用**立刻归零**；
+//	改后：**按 id 匹配，且必须包含子分类**。
+//
+// 为什么必须包含子分类（§6.3）：用户给「餐饮」设 1500，但每笔都记「餐饮-三餐」；
+// 若只匹配 `category_id = 餐饮的id`，已用额度永远是 0 —— 用户会以为预算坏了。
+//
+// 三段条件：
+//  1. `category_id = ?`            直接命中该一级分类
+//  2. `category_id IN (子查询)`    子分类向上归集（⚠️ 子查询额外带 user_id：
+//     内置 id 跨用户重复，不加会把别人的分类 id 也捞进来）
+//  3. `category_id IS NULL AND category_name = ?`  过渡期兜底（未回填的历史交易）
+//
+// categoryID 为空（历史预算只有 name）时退化为纯 name 匹配。
+// 本次**不做二级预算**（只允许一级），但 SQL 结构已支持二级（02 §6.4）。
+func (d *budgetDao) SumExpenseByCategory(ctx context.Context, userID, categoryID, categoryName string, start, end time.Time) (float64, error) {
 	var total float64
-	err := d.db.WithContext(ctx).
+	q := d.db.WithContext(ctx).
 		Model(&model.Transaction{}).
-		Where("user_id = ? AND type = ? AND category_name = ? AND happened_at >= ? AND happened_at < ?", userID, model.TransactionTypeExpense, categoryName, start, end).
-		Select("COALESCE(SUM(amount), 0)").
-		Scan(&total).Error
+		Where("user_id = ? AND type = ? AND happened_at >= ? AND happened_at < ? AND exclude_budget = 0",
+			userID, model.TransactionTypeExpense, start, end)
+	if categoryID != "" {
+		q = q.Where(
+			"(category_id = ? "+
+				"OR category_id IN (SELECT id FROM finance_categories WHERE user_id = ? AND parent_id = ? AND is_deleted = 0) "+
+				"OR (category_id IS NULL AND category_name = ?))",
+			categoryID, userID, categoryID, categoryName)
+	} else {
+		q = q.Where("category_name = ?", categoryName)
+	}
+	err := q.Select("COALESCE(SUM(amount), 0)").Scan(&total).Error
 	if err != nil {
 		return 0, err
 	}

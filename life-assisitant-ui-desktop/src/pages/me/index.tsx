@@ -45,6 +45,8 @@ export default function MePage() {
   const [healthOpen, setHealthOpen] = useState(false)
   /** 纪念日入口按 anniversary:view 显隐（无权限则整项不渲染，与后端权限点一致） */
   const canAnniversary = useHasPermission('anniversary:view')
+  /** 记账分类入口按 finance:view 显隐（与分类选择器同权限点） */
+  const canFinanceCategory = useHasPermission('finance:view')
   const role = userStore.user?.role
   const rl = role ? roleLabel[role] : roleLabel.viewer
 
@@ -134,6 +136,17 @@ const GROUP_ORDER: ReadonlyArray<{ key: string; title: string }> = [
       key: 'preference',
       title: '偏好',
       items: [
+        ...(canFinanceCategory
+          ? [
+              {
+                key: 'finance-categories',
+                icon: <Icon name="Tags" size={20} />,
+                label: '记账分类',
+                sublabel: '自定义收支分类',
+                onClick: () => navigate('/me/finance-categories'),
+              },
+            ]
+          : []),
         {
           key: 'notifications',
           icon: <Icon name="Bell" size={20} />,

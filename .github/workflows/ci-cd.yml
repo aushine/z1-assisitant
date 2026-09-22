@@ -1,0 +1,348 @@
+# =============================================================
+# Z1 生活助手 — CI/CD 流水线
+#
+# 触发：push 到 main（= 上线）、手动 workflow_dispatch
+# 目标：https://voz21.cn/z1/  (桌面端)  /z1-app/  (移动端)
+#
+# 架构（为什么是两个 runner）：
+#   Pi 在局域网内，GitHub 的托管 runner 无法主动连它。所以：
+#     · build  job 跑在 GitHub 托管的 x86 runner 上 —— 做检查 + 编译
+#       （Go 交叉编译 arm64 在 x86 上是原生操作，不需要 QEMU）
+#     · deploy job 跑在 Pi 自己的 self-hosted runner 上 —— runner 主动
+#       出网向 GitHub 领取任务，因此 Pi 不需要任何公网入站端口。
+#
+#   镜像在 Pi 上构建（`docker build` 原生 arm64，秒级），
+#   避免在 x86 runner 上用 QEMU 模拟跑 arm64 的 apk/构建（慢且易抖）。
+#
+# 部署逻辑复用 deploy/remote-deploy.sh，与 deploy.bat 手动发版走同一套代码。
+# =============================================================
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  # 允许在 Actions 页面手动点一下发版（可指定跳过检查）
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: "跳过测试与类型检查，直接构建部署（应急用）"
+        type: boolean
+        default: false
+
+# 同一时间只允许一次部署，后到的排队而不并发（避免两个部署互相覆盖静态目录）
+concurrency:
+  group: z1-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+# 默认最小权限；deploy job 也不需要写仓库，只读即可
+permissions:
+  contents: read
+
+env:
+  # 两端前端的部署子路径，与 vite.config.ts 的 base 保持一致
+  DESKTOP_BASE: /z1/
+  MOBILE_BASE: /z1-app/
+  NODE_VERSION: "20"
+  GO_VERSION: "1.22"
+
+jobs:
+  # ===========================================================
+  # Job 1 — 检查 + 编译 + 打包 artifact（GitHub 托管的 x86 runner）
+  # ===========================================================
+  build:
+    name: Build & Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---------- 后端：依赖 + 测试 ----------
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          # 后端没有 go.sum 变动频繁的问题，缓存默认开启即可
+          cache-dependency-path: life-assisitant-api/go.sum
+
+      - name: Go — download deps
+        working-directory: life-assisitant-api
+        run: go mod download
+
+      - name: Go — vet
+        working-directory: life-assisitant-api
+        run: go vet ./...
+
+      - name: Go — test
+        if: ${{ !inputs.skip_tests }}
+        working-directory: life-assisitant-api
+        run: go test ./... -count=1
+
+      # ---------- 后端：交叉编译 linux/arm64 二进制 ----------
+      # 这是「Pi 只部署不构建」的关键：编译在 x86 上原生完成，产物是 arm64。
+      - name: Go — cross-compile linux/arm64
+        working-directory: life-assisitant-api
+        env:
+          GOOS: linux
+          GOARCH: arm64
+          CGO_ENABLED: "0"
+        # 版本信息编进二进制，便于线上排查是哪次提交
+        run: |
+          mkdir -p build
+          go build -trimpath -ldflags "-s -w -X main.buildVersion=${GITHUB_SHA::8}" \
+            -o build/server ./cmd/server
+          file build/server
+          ls -lh build/server
+
+      # ---------- 前端：桌面端 ----------
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            life-assisitant-ui-desktop/package-lock.json
+            life-assisitant-ui-mobile/package-lock.json
+
+      - name: Desktop UI — install
+        working-directory: life-assisitant-ui-desktop
+        run: npm ci
+
+      - name: Desktop UI — type-check
+        if: ${{ !inputs.skip_tests }}
+        working-directory: life-assisitant-ui-desktop
+        run: npm run type-check
+
+      # base 已在 vite.config.ts 固化（/z1/），显式再传一次以防被环境覆盖
+      - name: Desktop UI — build
+        working-directory: life-assisitant-ui-desktop
+        env:
+          VITE_BASE: ${{ env.DESKTOP_BASE }}
+        run: npm run build
+
+      # ---------- 前端：移动端 ----------
+      - name: Mobile UI — install
+        working-directory: life-assisitant-ui-mobile
+        run: npm ci
+
+      - name: Mobile UI — type-check
+        if: ${{ !inputs.skip_tests }}
+        working-directory: life-assisitant-ui-mobile
+        run: npm run type-check
+
+      - name: Mobile UI — build
+        working-directory: life-assisitant-ui-mobile
+        env:
+          VITE_BASE: ${{ env.MOBILE_BASE }}
+        run: npm run build
+
+      # ---------- 产物自检：base 路径是否真的写进 HTML ----------
+      # 白屏 404 的经典原因就是 base 不对（资源指向 /assets/ 而非 /z1/assets/）。
+      # 在上传前就拦住它，比部署完再回滚便宜得多。
+      - name: Verify build output (base path guard)
+        run: |
+          set -euo pipefail
+          fail=0
+
+          check_base() {
+            local dir="$1" base="$2" name="$3"
+            if [ ! -f "$dir/index.html" ]; then
+              echo "::error::$name: $dir/index.html 不存在"; fail=1; return
+            fi
+            # 抓 index.html 里第一个 js 资源路径
+            local asset
+            asset=$(grep -oE 'src="[^"]+\.js"' "$dir/index.html" | head -1 | sed 's/src="//;s/"//') || true
+            if [ -z "$asset" ]; then
+              echo "::error::$name: index.html 里没找到 js 资源"; fail=1; return
+            fi
+            case "$asset" in
+              ${base}*|http*)
+                echo "ok  $name base 正确：$asset" ;;
+              *)
+                echo "::error::$name: 资源路径 '$asset' 不以 '$base' 开头 —— 部署后会白屏 404"
+                fail=1 ;;
+            esac
+          }
+
+          check_base "dist/z1"     "/z1/"     "桌面端"
+          check_base "dist/z1-app" "/z1-app/" "移动端"
+
+          echo "---- dist 结构 ----"
+          ls -la dist/
+          du -sh dist/z1 dist/z1-app
+
+          [ "$fail" -eq 0 ] || exit 1
+
+      # ---------- 打包给 Pi 的 artifact ----------
+      # 只带部署真正需要的东西：两端静态产物 + arm64 二进制 + 构建上下文。
+      - name: Assemble deploy bundle
+        run: |
+          set -euo pipefail
+          mkdir -p bundle/build bundle/manifest/config
+
+          # 前端静态产物
+          cp -r dist/z1     bundle/z1
+          cp -r dist/z1-app bundle/z1-app
+
+          # 后端：预先编译好的 arm64 二进制（Pi 不再编译）
+          cp life-assisitant-api/build/server bundle/build/server
+
+          # 后端：镜像构建上下文（Dockerfile + 可选配置占位）
+          cp life-assisitant-api/Dockerfile.arm64 bundle/Dockerfile.arm64
+
+          # 部署脚本本身也要带上：CI 直接执行 /opt/z1-deploy/remote-deploy.sh，
+          # 若不同步，Pi 上留的是旧版本，脚本行为会和仓库里的对不上。
+          cp deploy/remote-deploy.sh bundle/remote-deploy.sh
+          # 这些文件在 .gitignore 里（含真实密钥），CI 检出时可能不存在。
+          # 镜像只需要文件存在即可构建，线上配置由 compose 的 bind mount 覆盖。
+          for f in config.yaml config-smp.yaml; do
+            src="life-assisitant-api/manifest/config/$f"
+            if [ -f "$src" ]; then
+              cp "$src" "bundle/manifest/config/$f"
+            else
+              echo "# placeholder — production config is bind-mounted at runtime" \
+                > "bundle/manifest/config/$f"
+            fi
+          done
+
+          echo "---- bundle ----"
+          find bundle -maxdepth 2 -type f | head -30
+          du -sh bundle
+
+      - name: Upload deploy bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: z1-deploy-bundle
+          path: bundle
+          retention-days: 7
+          if-no-files-found: error
+
+  # ===========================================================
+  # Job 2 — 部署（Pi 上的 self-hosted runner）
+  # ===========================================================
+  deploy:
+    name: Deploy to Pi
+    needs: build
+    # ⚠️ 这个标签必须与 Pi 上 runner 注册时的标签一致（见 deploy/CI-CD.md）
+    runs-on: [self-hosted, linux, arm64, z1-pi]
+    timeout-minutes: 20
+
+    steps:
+      - name: Download deploy bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: z1-deploy-bundle
+          path: bundle
+
+      # 把产物铺进 /opt/z1-deploy，然后调用与手动发版完全相同的脚本。
+      # 用 cp 而不是 rsync：Pi 上不保证装了 rsync，cp 到处都有。
+      #
+      # ⚠️ 关于配置：生产配置 /opt/z1-deploy/config.prod.yaml 是带真实密钥的
+      # 本地文件，**从不入库、CI 也从不覆盖它**（docker-compose.prod.yml 把它
+      # bind mount 进容器）。这里铺的 manifest/config/*.yaml 只是 docker build
+      # 的上下文占位，若 Pi 上已有同名真实文件则保留不覆盖。
+      - name: Stage artifacts into /opt/z1-deploy
+        env:
+          NO_COLOR: "1"
+        run: |
+          set -euo pipefail
+          DIR=/opt/z1-deploy
+          cd "$GITHUB_WORKSPACE/bundle"
+
+          mkdir -p "$DIR/build" "$DIR/manifest/config" "$DIR/dist"
+
+          # 后端二进制 + 构建上下文
+          cp build/server     "$DIR/build/server"
+          cp Dockerfile.arm64 "$DIR/Dockerfile.arm64"
+
+          # 同步部署脚本本身，再 chmod。
+          # 先用临时文件再 mv：避免「覆盖正在被 shell 读取的脚本」导致写到一半出错
+          # （有些 shell 会边读边执行，直接覆盖可能读到半截内容）。
+          cp remote-deploy.sh "$DIR/remote-deploy.sh.new"
+          chmod +x "$DIR/remote-deploy.sh.new"
+          mv "$DIR/remote-deploy.sh.new" "$DIR/remote-deploy.sh"
+          echo "  synced: remote-deploy.sh"
+
+          # 配置文件只在「目标不存在」时补占位，绝不覆盖 Pi 上的真实文件
+          for f in manifest/config/*.yaml; do
+            base=$(basename "$f")
+            if [ ! -f "$DIR/manifest/config/$base" ]; then
+              cp "$f" "$DIR/manifest/config/$base"
+              echo "  staged placeholder: $base"
+            else
+              echo "  kept existing:      $base"
+            fi
+          done
+
+          # 前端静态：先清空再铺，避免残留旧 hash 文件堆积
+          rm -rf "$DIR/dist/z1" "$DIR/dist/z1-app"
+          cp -r z1     "$DIR/dist/z1"
+          cp -r z1-app "$DIR/dist/z1-app"
+
+          # ⚠️ 必须显式 chmod +x：
+          #   - 本 job 的产物是从 artifact 下载的，而 artifact 不保留权限位；
+          #   - 即使保留，源头（Windows 交叉编译产物）本身也没有可执行位。
+          # COPY 会把 0644 带进镜像 → 容器启动报 `exec "./server": permission denied`。
+          # remote-deploy.sh 和 Dockerfile.arm64 里还有两层同样的防护，这里是第三层。
+          chmod +x "$DIR/build/server"
+          [ -x "$DIR/build/server" ] || { echo "::error::build/server 不可执行（chmod 未生效）"; exit 1; }
+
+          echo "---- staged ----"
+          ls -lh "$DIR/build/server"
+          du -sh "$DIR/dist/z1" "$DIR/dist/z1-app"
+
+      # 第 1 步：在 Pi 上原生构建 arm64 镜像（无 QEMU）
+      - name: Build backend image (native arm64)
+        env:
+          NO_COLOR: "1"
+        run: /opt/z1-deploy/remote-deploy.sh build
+
+      # 第 2 步：加载镜像 + 切换静态 + reload nginx + 自检
+      # remote-deploy.sh 内部已带完整自检（health 直连/经 nginx、两端入口、
+      # 主 JS 可达性），失败会以非 0 退出，CI 据此判定部署失败。
+      - name: Deploy & self-check on Pi
+        env:
+          NO_COLOR: "1"
+        run: /opt/z1-deploy/remote-deploy.sh all
+
+      - name: Rollback hint on failure
+        if: failure()
+        run: |
+          {
+            echo "### ⚠️ 部署失败"
+            echo ""
+            echo "commit: \`${GITHUB_SHA}\`"
+            echo ""
+            echo "排查建议："
+            echo "1. 看本 run 的 **Deploy & self-check on Pi** 步骤日志定位失败项；"
+            echo "2. 后端日志：\`ssh hewl@192.168.101.75 'docker logs --tail 100 z1-api'\`；"
+            echo "3. 静态目录已自动备份为 \`/var/www/{z1,z1-app}.bak.<时间戳>\`，可手工回滚；"
+            echo "4. 或重新触发一次本 workflow 重试。"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ===========================================================
+  # Job 3 — 结果汇总（写到 Actions 页面顶部摘要）
+  # ===========================================================
+  summary:
+    name: Summary
+    needs: [build, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write summary
+        run: |
+          {
+            echo "## Z1 CD 流水线结果"
+            echo ""
+            echo "| 阶段 | 结果 |"
+            echo "| --- | --- |"
+            echo "| 构建与验证 | ${{ needs.build.result }} |"
+            echo "| 部署到 Pi | ${{ needs.deploy.result }} |"
+            echo ""
+            echo "- commit: \`${{ github.sha }}\`"
+            echo "- 触发: ${{ github.event_name }}"
+            echo "- 桌面端: https://voz21.cn/z1/"
+            echo "- 移动端: https://voz21.cn/z1-app/"
+          } >> "$GITHUB_STEP_SUMMARY"

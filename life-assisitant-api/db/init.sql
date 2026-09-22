@@ -51,6 +51,7 @@ CREATE TABLE `budgets`  (
   `scope` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'total',
   `category_emoji` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
   `category_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `category_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '分类 id（权威，指向 finance_categories.id）；scope=total 时为空',
   `start_date` date NOT NULL,
   `end_date` date NOT NULL,
   `alert_threshold` decimal(3, 2) NOT NULL DEFAULT 0.80,
@@ -60,6 +61,7 @@ CREATE TABLE `budgets`  (
   `deleted_at` datetime(3) NULL DEFAULT NULL,
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_user_period`(`user_id` ASC, `start_date` ASC, `end_date` ASC) USING BTREE,
+  INDEX `idx_budget_category`(`category_id` ASC) USING BTREE,
   INDEX `idx_budgets_deleted_at`(`deleted_at` ASC) USING BTREE,
   CONSTRAINT `fk_budget_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'é¢„ç®—è¡¨' ROW_FORMAT = Dynamic;
@@ -83,6 +85,39 @@ CREATE TABLE `feedbacks`  (
   INDEX `idx_feedbacks_deleted_at`(`deleted_at` ASC) USING BTREE,
   INDEX `idx_feedbacks_user_id`(`user_id` ASC) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for finance_categories（20260921 新增，md/spec-20260921-v1）
+-- 两级分类同表（parent_id 自关联，空串 = 一级）；分类是**用户级**的，内置种子懒创建。
+-- ⚠️ 主键为复合主键 (id, user_id)：内置项用固定 id（fc_b_food），若只写 PRIMARY KEY (id)，
+--    第 2 个用户播种会全部撞主键被 INSERT IGNORE 静默丢弃。
+-- ⚠️ 唯一索引 uk_fin_cat_user_scope_parent_name 末列是 deleted_seq（不是 is_deleted）：
+--    软删写自身 id，避免「同名分类反复删除」撞 uk 1062。索引名须与 model tag 逐字一致。
+-- 增量脚本：db/data_260921_finance_categories.sql（含幂等补偿，处理已存在旧结构）
+-- ----------------------------
+DROP TABLE IF EXISTS `finance_categories`;
+CREATE TABLE `finance_categories`  (
+  `id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '主键之一；内置项用固定 id（fc_b_food），用户新建用 uuid 去横线',
+  `user_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '归属用户（分类是用户级的）；主键之一',
+  `parent_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '' COMMENT '父分类 id；空串 = 一级分类',
+  `scope` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'expense' COMMENT 'expense 支出 / income 收入',
+  `name` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '显示名（不含父级前缀），如「三餐」',
+  `full_name` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '完整名，如「餐饮-三餐」；用于快照与搜索',
+  `emoji` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '可选 emoji（兼容旧渲染 / 导出）',
+  `icon` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT 'Lucide 图标名（PascalCase），如 Utensils',
+  `tint` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '语义色名，取自 utils/tint 的 TintName',
+  `sort` int NOT NULL DEFAULT 0 COMMENT '排序，越小越前；内置项 10/20/30…，用户新建从 900 起',
+  `is_builtin` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否内置种子（供「恢复默认」与「是否已播种」判断）',
+  `is_deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '软删除标记（audit 用；唯一索引末列已改为 deleted_seq）',
+  `deleted_seq` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '' COMMENT '软删序号：活跃行恒为空串；删除时写自身 id（全库唯一），作 uk 末列避免同名反复删撞 1062',
+  `created_at` datetime NULL DEFAULT NULL,
+  `updated_at` datetime NULL DEFAULT NULL,
+  `deleted_at` datetime NULL DEFAULT NULL COMMENT '软删除时间（审计用）',
+  PRIMARY KEY (`id`, `user_id`) USING BTREE,
+  UNIQUE INDEX `uk_fin_cat_user_scope_parent_name`(`user_id` ASC, `scope` ASC, `parent_id` ASC, `name` ASC, `deleted_seq` ASC) USING BTREE,
+  INDEX `idx_fin_cat_user_scope`(`user_id` ASC, `scope` ASC) USING BTREE,
+  INDEX `idx_fin_cat_parent`(`parent_id` ASC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '收支分类（两级，用户级）' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for habit_logs
@@ -309,7 +344,8 @@ CREATE TABLE `transactions`  (
   `type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT 'expense/income/transfer',
   `amount` decimal(18, 2) NOT NULL COMMENT '金额（始终为正）',
   `category_emoji` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '分类 emoji（文本）',
-  `category_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '分类名（文本）',
+  `category_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '分类名（快照，文本）',
+  `category_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '分类 id（权威，指向 finance_categories.id）；NULL = 历史数据未映射',
   `account_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '出/入账账户 ID',
   `account_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
   `to_account_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '转入账户 ID（仅 transfer）',
@@ -322,6 +358,7 @@ CREATE TABLE `transactions`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_user_type`(`user_id` ASC, `type` ASC) USING BTREE,
   INDEX `idx_user_happened`(`user_id` ASC, `happened_at` ASC) USING BTREE,
+  INDEX `idx_tx_category`(`category_id` ASC) USING BTREE,
   INDEX `idx_account`(`account_id` ASC) USING BTREE,
   INDEX `idx_to_account`(`to_account_id` ASC) USING BTREE,
   INDEX `idx_deleted`(`deleted_at` ASC) USING BTREE,

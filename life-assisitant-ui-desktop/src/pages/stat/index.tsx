@@ -24,6 +24,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 import { Icon, TINT_VARS } from '@/components/icon'
 import { statsApi } from '@/api/stats'
 import { useStatsStore } from '@/stores/stats'
+import { useFinanceCategoryStore, resolveCategoryView } from '@/stores/financeCategory'
 import { findCategoryByEmoji, resolveAccountIcon } from '@/utils/category-dict'
 import { heatColor } from '@/utils/heatmap'
 import { BarChartCard } from '@/components/charts/BarChartCard'
@@ -193,6 +194,8 @@ function ChangeBadge({ value, invert = false }: { value: number; invert?: boolea
 // ====== Main page ======
 export default function StatPage() {
   const statsStore = useStatsStore()
+  const fetchCategories = useFinanceCategoryStore((s) => s.fetchTree)
+  const categoryFlat = useFinanceCategoryStore((s) => s.flat)
   const [section, setSection] = useState<SectionKey>('overview')
   const [range, setRange] = useState<RangeKey>(DEFAULT_RANGE_BY_SECTION.overview)
 
@@ -263,6 +266,7 @@ export default function StatPage() {
   useEffect(() => {
     loadOverview()
     loadRange(range)
+    if (useFinanceCategoryStore.getState().tree.length === 0) void fetchCategories()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -360,14 +364,17 @@ export default function StatPage() {
       dataIndex: 'category',
       width: 200,
       render: (_v, r) => {
-        const def = findCategoryByEmoji(r.emoji)
-        const tv = TINT_VARS[def?.tint ?? 'neutral']
+        const v = resolveCategoryView(
+          { category_id: r.category_id, category_name: r.category, category_emoji: r.emoji },
+          categoryFlat,
+        )
+        const tv = TINT_VARS[v.tint]
         return (
           <div className="col-cat">
             <div className="cat-icon" style={{ background: tv.bg, color: tv.fg }}>
-              <Icon name={def?.icon ?? 'Package'} size={16} />
+              <Icon name={v.icon} size={16} />
             </div>
-            <span style={{ fontWeight: 600 }}>{r.category}</span>
+            <span style={{ fontWeight: 600 }}>{v.name}</span>
           </div>
         )
       },

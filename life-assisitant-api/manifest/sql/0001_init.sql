@@ -49,6 +49,7 @@ INSERT INTO `roles` (`id`, `code`, `name`, `description`, `is_system`) VALUES
 -- D-03：11 模块 × 按真实功能设计 = 37 点（旧「模块 × 抽象CRUD」填充式目录废弃）
 -- 260919：经期记录模块 period 上线 → 12 模块 = 40 点
 -- 260919（第二批）：健康模块 health（3）+ 纪念日 anniversary（2）→ 14 模块 = 45 点
+-- 260921：记账分类新增 finance:category（1）→ 14 模块 = 46 点
 -- 与 db/init_data.sql 逐字一致（历史迁移 db/260917_role_permission_v2.sql 的效果已并入）
 -- ---------------------------------------------------------------------
 CREATE TABLE `permissions` (
@@ -61,7 +62,7 @@ CREATE TABLE `permissions` (
   UNIQUE KEY `uk_module_action` (`module`, `action`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限点（模块×操作）';
 
--- 预置 45 条权限点（与后端 middleware.RequirePermission 路由一一对应）
+-- 预置 46 条权限点（与后端 middleware.RequirePermission 路由一一对应）
 INSERT INTO `permissions` (`id`, `module`, `action`, `description`) VALUES
 -- home 首页
   ('p_home_view',                'home',         'view',        '查看首页聚合数据'),
@@ -87,6 +88,7 @@ INSERT INTO `permissions` (`id`, `module`, `action`, `description`) VALUES
   ('p_finance_record',           'finance',      'record',      '记账（收支/转账）'),
   ('p_finance_tx_manage',        'finance',      'tx_manage',   '修改/冲正/删除交易'),
   ('p_finance_budget',           'finance',      'budget',      '管理预算'),
+  ('p_finance_category',         'finance',      'category',    '管理收支分类'),
 -- period 经期记录（260919 新增；记录模块的第 5 个维度）
   ('p_period_view',              'period',       'view',        '查看经期记录与预测'),
   ('p_period_write',             'period',       'write',       '记录经期日记与修改设置'),
@@ -139,8 +141,8 @@ CREATE TABLE `role_permissions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色-权限关联';
 
 -- 预置权限矩阵（D-03，目录推导 —— 与 db/init_data.sql 逐字一致）
--- admin = 全部 40 点（服务端代码旁路 + 矩阵锁定不可改）
--- user  = 个人域 30 点（排除 user_mgmt / role_mgmt；权限页可调）
+-- admin = 全部 46 点（服务端代码旁路 + 矩阵锁定不可改）
+-- user  = 个人域 36 点（排除 user_mgmt / role_mgmt；权限页可调）
 -- version=1：与迁移后线上数据一致（首次「保存权限」会 +1 → 2）
 
 INSERT INTO `role_permissions` (`role_code`, `permission_id`, `enabled`, `version`)
@@ -320,7 +322,8 @@ CREATE TABLE `accounts` (
   `user_id`    VARCHAR(32)    NOT NULL                      COMMENT '所属用户',
   `name`       VARCHAR(50)    NOT NULL                      COMMENT '账户名',
   `type`       VARCHAR(20)    NOT NULL                      COMMENT 'saving/credit/huabei/wechat',
-  `icon`       VARCHAR(20)    NOT NULL DEFAULT '💰'          COMMENT 'emoji 图标',
+  `icon`       VARCHAR(32)    NOT NULL DEFAULT '💰'          COMMENT '图标引用：brand:<slug> | lucide:<Name> | <emoji>',
+  `institution` VARCHAR(20)   NOT NULL DEFAULT ''            COMMENT '银行 code（CCB/ICBC），空=未指定',
   `color`      VARCHAR(20)    NOT NULL DEFAULT '#E0F2FF'     COMMENT '图标底色 hex',
   `balance`    DECIMAL(18, 2) NOT NULL DEFAULT 0            COMMENT '当前余额（shopspring/decimal 精确计算）',
   `created_at` TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -341,9 +344,11 @@ INSERT INTO `accounts` (`id`, `user_id`, `name`, `type`, `icon`, `color`, `balan
 
 -- ---------------------------------------------------------------------
 -- 10. transactions（交易表）
--- MVP 字段：type/amount/category_emoji/category_name/account_id/to_account_id/note/happened_at
+-- MVP 字段：type/amount/category_emoji/category_name/category_id/account_id/to_account_id/note/happened_at
 -- type: expense/income/transfer
--- 不做：attachments / location / version / category_id（外键 MVP 简化，用 emoji+name 文本）
+-- 260921：新增 category_id（权威，指向 finance_categories.id）；category_name 退化为**写入快照**，
+--         category_emoji 保留仅供历史数据渲染（不再写新值），本次**不删任何旧列**（两步走）。
+-- 不做：attachments / location / version
 -- ---------------------------------------------------------------------
 CREATE TABLE `transactions` (
   `id`             VARCHAR(32)    NOT NULL                       COMMENT 'tx_xxxx 格式（utility.NewID("tx")）',
@@ -351,10 +356,16 @@ CREATE TABLE `transactions` (
   `type`           VARCHAR(20)    NOT NULL                       COMMENT 'expense/income/transfer',
   `amount`         DECIMAL(18, 2) NOT NULL                       COMMENT '金额（始终为正）',
   `category_emoji` VARCHAR(20)    DEFAULT NULL                   COMMENT '分类 emoji（文本）',
-  `category_name`  VARCHAR(50)    DEFAULT NULL                   COMMENT '分类名（文本）',
+  `category_name`  VARCHAR(50)    DEFAULT NULL                   COMMENT '分类名（快照，文本）',
+  `category_id`    VARCHAR(32)    DEFAULT NULL                   COMMENT '分类 id（权威，指向 finance_categories.id）；NULL = 历史数据未映射',
   `account_id`     VARCHAR(32)    NOT NULL                       COMMENT '出/入账账户 ID',
   `to_account_id`  VARCHAR(32)    DEFAULT NULL                   COMMENT '转入账户 ID（仅 transfer）',
   `note`           VARCHAR(500)   DEFAULT NULL                   COMMENT '备注',
+  `exclude_budget` TINYINT(1)     NOT NULL DEFAULT 0              COMMENT '1=不计入预算',
+  `exclude_stats`  TINYINT(1)     NOT NULL DEFAULT 0              COMMENT '1=不计入收支统计',
+  `source`         VARCHAR(20)    NOT NULL DEFAULT ''             COMMENT '来源：空=普通记账；balance_adjust=余额调整',
+  `contact`        VARCHAR(50)    NOT NULL DEFAULT ''             COMMENT '对方（借入借出必填；待报销=报销对象；退款=商家）',
+  `settle_of`      VARCHAR(32)    NOT NULL DEFAULT ''             COMMENT '关联的原交易 id（空=原笔；非空=核销/退还笔）',
   `happened_at`    TIMESTAMP      NOT NULL                       COMMENT '发生时间',
   `created_at`     TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`     TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -362,6 +373,7 @@ CREATE TABLE `transactions` (
   PRIMARY KEY (`id`),
   KEY `idx_user_type`    (`user_id`, `type`),
   KEY `idx_user_happened`(`user_id`, `happened_at`),
+  KEY `idx_tx_category`  (`category_id`),
   KEY `idx_account`      (`account_id`),
   KEY `idx_to_account`   (`to_account_id`),
   KEY `idx_deleted`      (`deleted_at`),
@@ -386,7 +398,8 @@ CREATE TABLE `budgets` (
   `amount`          DECIMAL(18, 2) NOT NULL                       COMMENT '预算总额',
   `scope`           VARCHAR(20)    NOT NULL DEFAULT 'total'       COMMENT 'total/category',
   `category_emoji`  VARCHAR(20)    NULL                           COMMENT '分类预算-表情（scope=category 时）',
-  `category_name`   VARCHAR(50)    NULL                           COMMENT '分类预算-分类名（scope=category 时）',
+  `category_name`   VARCHAR(50)    NULL                           COMMENT '分类预算-分类名（快照，scope=category 时）',
+  `category_id`     VARCHAR(32)    NULL                           COMMENT '分类 id（权威，指向 finance_categories.id）；scope=total 时为空',
   `start_date`      DATE           NOT NULL                       COMMENT '预算起始日期',
   `end_date`        DATE           NOT NULL                       COMMENT '预算结束日期',
   `alert_threshold` DECIMAL(3, 2)  NOT NULL DEFAULT 0.80          COMMENT '预警阈值（0.80 = 80%）',
@@ -396,9 +409,42 @@ CREATE TABLE `budgets` (
   `deleted_at`      TIMESTAMP      NULL DEFAULT NULL              COMMENT '软删除标记',
   PRIMARY KEY (`id`),
   KEY `idx_user_period`  (`user_id`, `start_date`, `end_date`),
+  KEY `idx_budget_category` (`category_id`),
   KEY `idx_budgets_deleted_at` (`deleted_at`),
   CONSTRAINT `fk_budget_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='预算表';
+
+-- ---------------------------------------------------------------------
+-- 11b. finance_categories（收支分类，20260921 新增）
+--      一级 + 二级同表，parent_id 自关联；空串 = 一级（不用 NULL，见 02 §1.2）。
+--      ⚠️ 主键为**复合主键 (id, user_id)**：分类是「每人一份」，内置项用固定 id
+--         （fc_b_food），若只写 PRIMARY KEY (id)，第 2 个用户播种会全部撞主键被静默丢弃。
+--      ⚠️ 唯一索引 uk_fin_cat_user_scope_parent_name 末列是 deleted_seq（不是 is_deleted）：
+--         软删写自身 id，避免「同名分类反复删除」撞 uk 1062。索引名须与 model tag 逐字一致。
+--      ⚠️ 内置种子**不进 SQL**（每用户一份），由后端懒创建（utility.BuildSeedCategories）。
+-- ---------------------------------------------------------------------
+CREATE TABLE `finance_categories` (
+  `id`         VARCHAR(32)  NOT NULL                  COMMENT '主键之一；内置项用固定 id（fc_b_food），用户新建用 uuid 去横线',
+  `user_id`    VARCHAR(32)  NOT NULL                  COMMENT '归属用户（分类是用户级的）；主键之一',
+  `parent_id`  VARCHAR(32)  NOT NULL DEFAULT ''       COMMENT '父分类 id；⚠️ 空串 = 一级分类',
+  `scope`      VARCHAR(10)  NOT NULL DEFAULT 'expense' COMMENT 'expense 支出 / income 收入',
+  `name`       VARCHAR(30)  NOT NULL                  COMMENT '显示名（不含父级前缀），如「三餐」',
+  `full_name`  VARCHAR(80)  DEFAULT NULL              COMMENT '完整名，如「餐饮-三餐」；用于快照与搜索',
+  `emoji`      VARCHAR(20)  DEFAULT NULL              COMMENT '可选 emoji（兼容旧渲染 / 导出）',
+  `icon`       VARCHAR(40)  DEFAULT NULL              COMMENT 'Lucide 图标名（PascalCase），如 Utensils',
+  `tint`       VARCHAR(20)  DEFAULT NULL              COMMENT '语义色名，取自 utils/tint 的 TintName',
+  `sort`       INT          NOT NULL DEFAULT 0        COMMENT '排序，越小越前；内置项 10/20/30…，用户新建从 900 起',
+  `is_builtin` TINYINT(1)   NOT NULL DEFAULT 0        COMMENT '是否内置种子（供「恢复默认」与「是否已播种」判断）',
+  `is_deleted` TINYINT(1)   NOT NULL DEFAULT 0        COMMENT '软删除标记（audit 用；唯一索引末列已改为 deleted_seq）',
+  `deleted_seq` VARCHAR(32) NOT NULL DEFAULT ''       COMMENT '软删序号：活跃行恒为 ''''；删除时写自身 id（全库唯一），作 uk 末列避免同名反复删撞 1062',
+  `created_at` DATETIME     DEFAULT NULL,
+  `updated_at` DATETIME     DEFAULT NULL,
+  `deleted_at` DATETIME     DEFAULT NULL              COMMENT '软删除时间（审计用）',
+  PRIMARY KEY (`id`, `user_id`),
+  UNIQUE KEY `uk_fin_cat_user_scope_parent_name` (`user_id`, `scope`, `parent_id`, `name`, `deleted_seq`),
+  KEY `idx_fin_cat_user_scope` (`user_id`, `scope`),
+  KEY `idx_fin_cat_parent` (`parent_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='收支分类（两级，用户级）';
 
 -- ---------------------------------------------------------------------
 -- 12. mood_logs（心情/精力日志）

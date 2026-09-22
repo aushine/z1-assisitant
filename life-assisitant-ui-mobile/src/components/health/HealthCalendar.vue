@@ -2,7 +2,8 @@
 /**
  * 健康月历（移动端）
  *
- * SYNC-FROM: src/components/period/PeriodCalendar.vue（复用结构与样式，仅换标记语义）
+ * SYNC-FROM: src/styles/_calendar.scss（260921 二批起，布局/排版/图例排版以共享层为准）
+ * SYNC-FROM: src/components/period/PeriodCalendar.vue（st-* 语义色与标记语义仍是经期同源）
  * SYNC-FROM-BACKEND: life-assisitant-api/internal/model/dto/health.go（HealthCalendarDay.marks）
  *
  * 与经期日历的差异：
@@ -407,13 +408,12 @@ const summaryText = computed(() => {
 </template>
 
 <style lang="scss" scoped>
-.cal-card {
-  padding: var(--space-4) var(--space-3) var(--space-3);
-  background: var(--color-bg-card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
-  margin-bottom: var(--space-3);
-}
+/* 布局与排版（.cal-card/.cal-head/.cal-nav/.cal-week/.cal-grid/.cal-cell/.cal-day
+   /.cal-sub 与图例排版）已迁共享层 styles/_calendar.scss（260921 二批）。
+   本块只留健康专属：摘要条、st-* 状态填色、分类点（.cal-dots/.is-metric/+N）、
+   白点反白（仅 .is-spot —— 分类点不能跟着反白）。
+   ⚠️ @use 必须位于其它规则之前（SCSS 硬规则，放后面编译直接失败）。 */
+@use '@/styles/calendar';
 
 /* ==================== 摘要条 ==================== */
 .cal-summary {
@@ -426,113 +426,15 @@ const summaryText = computed(() => {
   font-variant-numeric: tabular-nums;
 }
 
-/* ==================== 头部 ==================== */
-.cal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: 0 var(--space-2);
-  margin-bottom: var(--space-2);
-}
-.cal-title {
-  font-size: var(--fs-caption);
-  color: var(--color-text-secondary);
-}
-.cal-nav-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.cal-nav {
-  min-width: 26px;
-  height: 26px;
-  padding: 0 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: var(--radius-base);
-  background: var(--color-bg-hover);
-  color: var(--color-text-secondary);
-  font-size: var(--fs-body);
-  line-height: 1;
-  -webkit-tap-highlight-color: transparent;
+/* ==================== 头部 ====================
+   .cal-head / .cal-title / .cal-nav-group / .cal-nav（含 .is-text）→ 共享层 */
 
-  &:active { transform: scale(0.94); }
-  &.is-text {
-    font-size: var(--fs-caption-sm);
-    color: var(--color-primary);
-    background: transparent;
-  }
-}
+/* ==================== 周标题 ====================
+   .cal-week / .cal-week-cell（含 .is-weekend）→ 共享层 */
 
-/* ==================== 周标题 ==================== */
-.cal-week {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  margin-bottom: 6px;
-}
-.cal-week-cell {
-  text-align: center;
-  padding: 4px 0;
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  color: var(--color-text-secondary);
-
-  &.is-weekend { color: var(--color-text-tertiary); }
-}
-
-/* ==================== 网格 ==================== */
-.cal-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-  touch-action: pan-y;
-}
-.cal-cell {
-  position: relative;
-  min-height: 52px;
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  border: 1.5px solid transparent;
-  border-radius: var(--radius-base);
-  background: transparent;
-  box-sizing: border-box;
-  text-align: left;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform var(--duration-fast) var(--ease-default);
-
-  &:active:not(:disabled) { transform: scale(0.96); }
-  &.is-out {
-    background: transparent;
-    color: var(--color-text-disabled);
-    cursor: default;
-    opacity: 0.35;
-  }
-}
-.cal-day {
-  font-size: var(--fs-caption-sm);
-  font-weight: 600;
-  line-height: 1;
-  font-family: var(--font-num);
-  font-variant-numeric: tabular-nums;
-}
-.cal-sub {
-  margin-top: 2px;
-  max-width: 100%;
-  font-size: var(--fs-tab);
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-
-  &.is-state { font-weight: 600; }
-  &.is-term { color: var(--color-success-dark); font-weight: 600; }
-  &.is-lunar { color: var(--color-text-tertiary); }
-}
+/* ==================== 网格 ====================
+   .cal-grid / .cal-cell（含 .is-out）/ .cal-day / .cal-sub（含 .is-state/
+   .is-term/.is-lunar）→ 共享层 */
 
 /* ==================== 状态 → 整格填色 ==================== */
 .st-none {
@@ -577,17 +479,8 @@ const summaryText = computed(() => {
   border: 2px solid var(--color-primary);
 }
 
-/* ==================== 右下角圆点（经期点滴） ==================== */
-.cal-dot {
-  position: absolute;
-  right: 4px;
-  bottom: 4px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-
-  &.is-spot { background: var(--color-period); }
-}
+/* ==================== 右下角圆点（经期点滴） ====================
+   基础 .cal-dot 与 .is-spot 在共享层（与 Period 逐字相同）。 */
 
 /* ==================== 分类点（日期下方一排，可重叠） ====================
  * 一格最多 CALENDAR_DOT_MAX 个，多出来的收成「+N」。
@@ -632,56 +525,8 @@ const summaryText = computed(() => {
   background: rgba(255, 255, 255, 0.92);
 }
 
-/* ==================== 图例 ==================== */
-.cal-legend {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
-  padding: 0 var(--space-2);
-}
-.cal-legend-group,
-.cal-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--fs-caption-sm);
-  color: var(--color-text-tertiary);
-}
-.cal-legend-group { gap: 3px; }
-.cal-legend-text {
-  font-size: var(--fs-caption-sm);
-  color: var(--color-text-tertiary);
-}
-.legend-box {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  box-sizing: border-box;
-  flex-shrink: 0;
-
-  &.is-soft { background: var(--color-period-soft); }
-  &.is-mid { background: var(--color-period-fill-mid); }
-  &.is-heavy { background: var(--color-period-fill-heavy); }
-  &.is-dashed {
-    background: var(--color-period-soft);
-    border: 1.5px dashed var(--color-period);
-  }
-  &.is-fertile { background: var(--color-fertile-soft); }
-}
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-
-  &.is-ovu { background: var(--color-ovulation-fill); }
-  /* 分类点图例：颜色由 JS 的 CALENDAR_DOT_COLOR 内联给，这里只管形状 */
-}
-.cal-legend-note {
-  margin-left: auto;
-  font-size: var(--fs-caption-sm);
-  color: var(--color-text-disabled);
-}
+/* ==================== 图例 ====================
+   排版（.cal-legend* / .legend-box 基础 / .legend-dot 基础与 .is-ovu /
+   .cal-legend-note）→ 共享层。这里只留健康专属的图例色：
+   分类点图例的颜色由 JS 的 CALENDAR_DOT_COLOR 内联给，这里只管形状（共享层基础已覆盖）。 */
 </style>

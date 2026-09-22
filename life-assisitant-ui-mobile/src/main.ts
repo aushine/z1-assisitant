@@ -14,6 +14,7 @@ import './styles/global.scss'
 
 import { useThemeStore } from './stores/theme'
 import { initSafeArea } from './utils/safe-area'
+import { initUploadsBase } from './utils/avatar'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -49,4 +50,8 @@ app.config.errorHandler = (err, _instance, info) => {
 // iOS 底部安全区实测：必须在挂载前完成，避免首帧用错补偿值
 initSafeArea()
 
-app.mount('#app')
+// 上传文件对外基址探测（后端 storage.public_url）：挂载前 await，
+// 首屏头像就直接用对地址；内部最多 ~4s 超时且失败静默回落，不会卡死启动
+initUploadsBase().finally(() => {
+  app.mount('#app')
+})

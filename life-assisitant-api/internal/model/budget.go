@@ -22,6 +22,9 @@ type Budget struct {
 	Scope          string         `gorm:"column:scope;type:varchar(20);not null;default:total"       json:"scope"`
 	CategoryEmoji  *string        `gorm:"column:category_emoji;type:varchar(20)"                     json:"category_emoji,omitempty"`
 	CategoryName   *string        `gorm:"column:category_name;type:varchar(50)"                      json:"category_name,omitempty"`
+	// CategoryID 分类 id（权威）；scope=total 时为空，scope=category 时必填且必须是一级分类。
+	// ⚠️ 索引名显式写全名，与手写 DDL 逐字一致（02 §1.2 铁律）。
+	CategoryID *string `gorm:"column:category_id;type:varchar(32);index:idx_budget_category" json:"category_id,omitempty"`
 	StartDate      time.Time      `gorm:"column:start_date;type:date;not null;index:idx_user_period,priority:2" json:"start_date"`
 	EndDate        time.Time      `gorm:"column:end_date;type:date;not null;index:idx_user_period,priority:3"   json:"end_date"`
 	AlertThreshold float64        `gorm:"column:alert_threshold;type:decimal(3,2);not null;default:0.80" json:"alert_threshold"`

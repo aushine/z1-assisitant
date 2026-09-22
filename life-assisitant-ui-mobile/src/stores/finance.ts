@@ -31,6 +31,7 @@ import type {
   CreateAccountReq,
   CreateBudgetReq,
   CreateTransactionReq,
+  DebtsResp,
   ListTransactionsQuery,
   ReverseTransactionResp,
   Transaction,
@@ -67,10 +68,24 @@ export const useFinanceStore = defineStore('finance', () => {
   const txKeyword = ref('')
   const txStartDate = ref('')
   const txEndDate = ref('')
+  /** 按对方等值筛选（Phase 4 债权债务卡跳转用） */
+  const txContact = ref('')
 
   // ==================== state：预算 ====================
   const budgets = ref<Budget[]>([])
   const budgetsLoading = ref(false)
+
+  // ==================== state：债权债务（Phase 4 · GET /finance/debts） ====================
+  const debts = ref<DebtsResp | null>(null)
+
+  // ==================== state：净资产归并（spec-20260922-v1 Phase 4 · 净资产卡） ====================
+  /** debts 保留负数原值；netWorth ≡ assets + investments + debts（恒等） */
+  const balanceSummary = ref<{ assets: number; investments: number; debts: number; netWorth: number }>({
+    assets: 0,
+    investments: 0,
+    debts: 0,
+    netWorth: 0,
+  })
 
   // ==================== getters ====================
   /** 本地求和（乐观更新期间立即反映；展示优先用 serverTotalBalance） */
@@ -85,7 +100,13 @@ export const useFinanceStore = defineStore('finance', () => {
   const txFinished = computed(() => txLoadedOnce.value && !txHasMore.value)
   /** 是否有任一筛选条件（区分空态文案） */
   const txHasFilter = computed(
-    () => !!txType.value || !!txAccountId.value || !!txKeyword.value || !!txStartDate.value || !!txEndDate.value
+    () =>
+      !!txType.value ||
+      !!txAccountId.value ||
+      !!txKeyword.value ||
+      !!txStartDate.value ||
+      !!txEndDate.value ||
+      !!txContact.value
   )
 
   /** 全部预算合计的已用/额度 */
@@ -108,6 +129,13 @@ export const useFinanceStore = defineStore('finance', () => {
       const res = await financeApi.listAccounts()
       accounts.value = res.items
       serverTotalBalance.value = res.total_balance ?? 0
+      // L1 大类归并（spec-20260922-v1 Phase 4 · 净资产卡）；旧响应无这些字段时回退 0
+      balanceSummary.value = {
+        assets: res.assets ?? 0,
+        investments: res.investments ?? 0,
+        debts: res.debts ?? 0,
+        netWorth: res.net_worth ?? res.total_balance ?? 0,
+      }
     } catch (e) {
       accounts.value = []
       // eslint-disable-next-line no-console
@@ -190,6 +218,7 @@ export const useFinanceStore = defineStore('finance', () => {
     if (txKeyword.value.trim()) params.keyword = txKeyword.value.trim()
     if (txStartDate.value) params.start_date = txStartDate.value
     if (txEndDate.value) params.end_date = txEndDate.value
+    if (txContact.value) params.contact = txContact.value
     return params
   }
 
@@ -248,6 +277,7 @@ export const useFinanceStore = defineStore('finance', () => {
     keyword: string
     startDate: string
     endDate: string
+    contact: string
   }>
 
   async function setTxFilter(patch: TxFilterPatch): Promise<void> {
@@ -256,6 +286,7 @@ export const useFinanceStore = defineStore('finance', () => {
     if (patch.keyword !== undefined) txKeyword.value = patch.keyword.trim()
     if (patch.startDate !== undefined) txStartDate.value = patch.startDate
     if (patch.endDate !== undefined) txEndDate.value = patch.endDate
+    if (patch.contact !== undefined) txContact.value = patch.contact
     await fetchTransactions()
   }
 
@@ -266,6 +297,7 @@ export const useFinanceStore = defineStore('finance', () => {
     txKeyword.value = ''
     txStartDate.value = ''
     txEndDate.value = ''
+    txContact.value = ''
     await fetchTransactions()
   }
 
@@ -497,10 +529,26 @@ export const useFinanceStore = defineStore('finance', () => {
     return created
   }
 
+  /**
+   * 债权债务（Phase 4 · GET /finance/debts）。
+   * ⚠️ 核销成功后必须**同时**刷新 transactions 与 debts —— 只刷一个，
+   *    债权债务卡还会显示"欠着"，用户会重复核销（07 §3 风险表）。
+   */
+  async function fetchDebts(): Promise<void> {
+    try {
+      debts.value = await financeApi.getDebts()
+    } catch (e) {
+      debts.value = null
+      // eslint-disable-next-line no-console
+      console.error('[FinanceStore] fetchDebts failed', e)
+    }
+  }
+
   /** 重置 */
   function reset(): void {
     accounts.value = []
     serverTotalBalance.value = 0
+    balanceSummary.value = { assets: 0, investments: 0, debts: 0, netWorth: 0 }
     accountsLoading.value = false
     transactions.value = []
     transactionsLoading.value = false
@@ -513,14 +561,17 @@ export const useFinanceStore = defineStore('finance', () => {
     txKeyword.value = ''
     txStartDate.value = ''
     txEndDate.value = ''
+    txContact.value = ''
     budgets.value = []
     budgetsLoading.value = false
+    debts.value = null
   }
 
   return {
     // state
     accounts,
     serverTotalBalance,
+    balanceSummary,
     accountsLoading,
     transactions,
     transactionsLoading,
@@ -533,8 +584,10 @@ export const useFinanceStore = defineStore('finance', () => {
     txKeyword,
     txStartDate,
     txEndDate,
+    txContact,
     budgets,
     budgetsLoading,
+    debts,
     // getters
     localTotalBalance,
     totalBalance,
@@ -565,6 +618,7 @@ export const useFinanceStore = defineStore('finance', () => {
     updateBudget,
     deleteBudget,
     replaceBudget,
+    fetchDebts,
     reset,
   }
 })
