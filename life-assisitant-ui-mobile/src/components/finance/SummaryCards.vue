@@ -47,10 +47,11 @@
         <div class="sum-title">
           <template v-if="store.summaryCardRight === 'budget'">
             <span>剩余预算 ·</span>
-            <span class="sum-period" @click.stop="store.cycleSummaryPeriod()">{{ periodShort }}</span>
+            <!-- R5：改下拉/弹层选择（原为点单字循环） -->
+            <span class="sum-period" @click.stop="openPeriodPicker">{{ periodShort }}<Icon name="ChevronDown" :size="12" class="sum-period-caret" /></span>
           </template>
           <template v-else>
-            <span class="sum-period" @click.stop="store.cycleSummaryPeriod()">{{ periodShort }}</span>
+            <span class="sum-period" @click.stop="openPeriodPicker">{{ periodShort }}<Icon name="ChevronDown" :size="12" class="sum-period-caret" /></span>
             <span>结余</span>
           </template>
           <!-- R6：replay → ArrowLeftRight（同左卡） -->
@@ -72,7 +73,7 @@
       <div v-else-if="phase === 'error'" class="sum-fill">
         <div class="sum-title">
           <span>数据 ·</span>
-          <span class="sum-period" @click.stop="store.cycleSummaryPeriod()">{{ periodShort }}</span>
+          <span class="sum-period" @click.stop="openPeriodPicker">{{ periodShort }}<Icon name="ChevronDown" :size="12" class="sum-period-caret" /></span>
         </div>
         <div class="sum-main">—</div>
         <div class="sum-sub">加载失败 · 点击重试</div>
@@ -82,10 +83,19 @@
       </div>
     </div>
   </div>
+
+  <!-- R5：周期选择弹层（周 / 月 / 年） -->
+  <van-action-sheet
+    v-model:show="periodPickerOpen"
+    :actions="periodActions"
+    cancel-text="取消"
+    close-on-click-action
+    @select="onPeriodSelect"
+  />
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useFinanceStore } from '@/stores/finance'
 import MoneyText from '@/components/finance/MoneyText.vue'
 import Icon from '@/components/icon/Icon.vue'
@@ -110,6 +120,21 @@ const periodShort = computed(() =>
   store.summaryPeriod === 'week' ? '周' : store.summaryPeriod === 'year' ? '年' : '月'
 )
 const periodPrefix = computed(() => `今${periodShort.value}`)
+
+/* ==================== R5：周期选择弹层（周/月/年） ==================== */
+const periodPickerOpen = ref(false)
+/** 当前选中项用副标题标记（ActionSheet 无原生选中态，用 subname 区分） */
+const periodActions = computed(() => [
+  { name: '本周', value: 'week' as const, subname: store.summaryPeriod === 'week' ? '当前' : '' },
+  { name: '本月', value: 'month' as const, subname: store.summaryPeriod === 'month' ? '当前' : '' },
+  { name: '本年', value: 'year' as const, subname: store.summaryPeriod === 'year' ? '当前' : '' },
+])
+function openPeriodPicker(): void {
+  periodPickerOpen.value = true
+}
+function onPeriodSelect(action: { value: 'week' | 'month' | 'year' }): void {
+  store.setSummaryPeriod(action.value)
+}
 
 /* ==================== 左块 ==================== */
 /** 当前面：income = 收入面 / expense = 支出面 */
@@ -240,16 +265,23 @@ function onRightBody() {
   flex-shrink: 0;
 }
 
-/* 周期字（热区②）：primary + 下划虚线 = 可点 */
+/* 周期字（热区②）：primary + 下划虚线 = 可点；R5 加下拉箭头 */
 .sum-period {
   color: var(--color-primary);
   border-bottom: 1px dashed var(--color-primary);
   line-height: 14px;
   padding: 0 1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
 
   &:active {
     opacity: 0.6;
   }
+}
+/* R5：周期下拉箭头 */
+.sum-period-caret {
+  flex-shrink: 0;
 }
 
 .sum-main {

@@ -11,10 +11,11 @@
  *
  * 边界态（01 §2.8）：加载 = 骨架无 spinner；失败 = `—` + 「加载失败 · 点击重试」；
  * 无 total 预算 = `—` + 「未设预算 · 去设置 ›」（onGotoBudget，不显示 ¥0）；结余负 = danger。
- * 桌面差异（01 §2.7）：周期字挂 Tooltip「点击切换周期」。
+ * 桌面差异（01 §2.7）：周期字改为 Semi Dropdown 下拉选择（R5 2026-09-24，原为点单字循环）。
  */
 import { useEffect } from 'react'
-import { Tooltip } from '@douyinfe/semi-ui'
+import { Dropdown } from '@douyinfe/semi-ui'
+import { Icon } from '@/components/icon'
 import { useFinanceStore } from '@/stores/finance'
 import { MoneyText } from '@/components/finance/MoneyText'
 import type { MoneyType } from '@/utils/money'
@@ -61,10 +62,12 @@ const SUB: React.CSSProperties = {
 const FLIP: React.CSSProperties = { fontSize: 12, color: 'var(--color-text-tertiary)' }
 const PERIOD: React.CSSProperties = {
   color: 'var(--color-primary)',
-  borderBottom: '1px dashed var(--color-primary)',
-  lineHeight: '14px',
-  padding: '0 1px',
   cursor: 'pointer',
+  borderBottom: '1px dashed var(--color-primary)',
+  lineHeight: '16px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 2,
 }
 const SK: React.CSSProperties = {
   display: 'block',
@@ -80,7 +83,7 @@ export function SummaryCards({ onGotoBudget }: { onGotoBudget?: () => void }) {
   const cardLeft = useFinanceStore((s) => s.summaryCardLeft)
   const cardRight = useFinanceStore((s) => s.summaryCardRight)
   const fetchSummary = useFinanceStore((s) => s.fetchSummary)
-  const cyclePeriod = useFinanceStore((s) => s.cycleSummaryPeriod)
+  const setPeriod = useFinanceStore((s) => s.setSummaryPeriod)
   const flipLeft = useFinanceStore((s) => s.flipSummaryCardLeft)
   const flipRight = useFinanceStore((s) => s.flipSummaryCardRight)
 
@@ -111,19 +114,40 @@ export function SummaryCards({ onGotoBudget }: { onGotoBudget?: () => void }) {
 
   /* 右块 */
   const budgetEmpty = !!summary && summary.budget.count === 0
+  /** R5：周期选择（下拉）——替代原「点单字循环」。桌面端用 Semi Dropdown。 */
+  const periodMenu = (
+    <Dropdown.Menu>
+      {([['week', '本周'], ['month', '本月'], ['year', '本年']] as const).map(([val, label]) => (
+        <Dropdown.Item
+          key={val}
+          type={period === val ? 'primary' : 'tertiary'}
+          onClick={() => setPeriod(val)}
+        >
+          {label}{period === val ? ' ✓' : ''}
+        </Dropdown.Item>
+      ))}
+    </Dropdown.Menu>
+  )
+  const periodTrigger = (
+    <span style={PERIOD} onClick={(e) => e.stopPropagation()}>
+      {pShort}
+      <Icon name="ChevronDown" size={12} />
+    </span>
+  )
+
   const rightTitleA = (
       <>
         <span>剩余预算 ·</span>
-        <Tooltip content="点击切换周期（月→周→年）">
-          <span style={PERIOD} onClick={(e) => { e.stopPropagation(); cyclePeriod() }}>{pShort}</span>
-        </Tooltip>
+        <Dropdown trigger="click" position="bottomLeft" render={periodMenu}>
+          {periodTrigger}
+        </Dropdown>
       </>
   )
   const rightTitleB = (
       <>
-        <Tooltip content="点击切换周期（月→周→年）">
-          <span style={PERIOD} onClick={(e) => { e.stopPropagation(); cyclePeriod() }}>{pShort}</span>
-        </Tooltip>
+        <Dropdown trigger="click" position="bottomLeft" render={periodMenu}>
+          {periodTrigger}
+        </Dropdown>
         <span>结余</span>
       </>
   )
@@ -225,7 +249,9 @@ export function SummaryCards({ onGotoBudget }: { onGotoBudget?: () => void }) {
           <>
             <div style={TITLE}>
               <span>数据 ·</span>
-              <span style={PERIOD} onClick={(e) => { e.stopPropagation(); cyclePeriod() }}>{pShort}</span>
+              <Dropdown trigger="click" position="bottomLeft" render={periodMenu}>
+                {periodTrigger}
+              </Dropdown>
             </div>
             <div style={MAIN}>—</div>
             <div style={SUB}>加载失败 · 点击重试</div>
