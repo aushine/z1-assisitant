@@ -10,6 +10,8 @@ import type {
   ListTransactionsResp,
   CalendarResp,
   DebtsResp,
+  FinanceSummaryPeriod,
+  FinanceSummaryResp,
   UpdateTransactionReq,
   TransferReq,
   ReverseTransactionReq,
@@ -69,6 +71,14 @@ export const financeApi = {
   /** 债权债务（GET /finance/debts，05 §C3；后端聚合，前端不做金额推导） */
   getDebts() {
     return request.get<unknown, DebtsResp>('/finance/debts')
+  },
+
+  /**
+   * 财务自然周期汇总（GET /finance/summary · spec-20260922-v2 06 §2）
+   * 流水页顶部数据块专用：income/expense/net/budget 四个数全服务端口径（修 S2/S3）。
+   */
+  getSummary(period: FinanceSummaryPeriod) {
+    return request.get<unknown, FinanceSummaryResp>('/finance/summary', { params: { period } })
   },
 
   /** 创建交易（expense / income / transfer） */

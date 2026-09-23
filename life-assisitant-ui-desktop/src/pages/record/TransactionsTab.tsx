@@ -15,6 +15,12 @@
  * 客户端过滤」的 useMemo。列表无「支出/收入合计」汇总行，无需另行排除转账。
  * Phase 4：类型列下加来源中性标签（待报销/借出/借入/退款/余额调整）；
  * 债权债务卡跳转带 contact 筛选 → 本组件渲染可移除的「对方」chip。
+ *
+ * spec-20260922-v2 · 01 §2.7（本文件）：底部两张汇总卡（本月收入/总资产）**下线**，
+ * 换成顶部 `<SummaryCards>`（两卡四面 + 周期切换，四数全走 /finance/summary）；
+ * 本地 `totalIncome` useMemo（只算已加载记录 = S2 失真源）随之删除。
+ * ⚠️ 与移动端的差异是**刻意**的（Q10 方案 B）：桌面账户下拉**保留**——
+ *   三个控件横排 530px 不挤，且下拉是「主动浏览」，chip 给不了。
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Table, Skeleton, Tooltip, Modal } from '@douyinfe/semi-ui'
@@ -26,11 +32,10 @@ import TransactionEditDrawer from '@/components/TransactionEditDrawer'
 import TransactionDetailDrawer from '@/components/TransactionDetailDrawer'
 import ErrorState from '@/components/ErrorState'
 import { EmptyHint } from '@/components/EmptyState'
+import SummaryCards from '@/components/finance/SummaryCards'
 import { TransactionToolbar } from './components/TransactionToolbar'
 import { CategoryIconCell } from './components/CategoryIconCell'
 import { ReverseButton } from './components/ReverseButton'
-import { IncomeSummaryCard } from './components/IncomeSummaryCard'
-import { AssetSummaryCard } from './components/AssetSummaryCard'
 import { sourceLabel } from '@/utils/money'
 import type { Transaction, TransactionType, CreateTransactionReq, UpdateTransactionReq } from '@/api/types'
 
@@ -53,7 +58,7 @@ function formatAmount(t: Transaction) {
   return `${sign} ¥${t.amount.toFixed(2)}`
 }
 
-export function TransactionsTab() {
+export function TransactionsTab({ onGotoBudget }: { onGotoBudget?: () => void } = {}) {
   const financeStore = useFinanceStore()
   const [txSaving, setTxSaving] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
@@ -91,14 +96,6 @@ export function TransactionsTab() {
     financeStore.setTxQuery({ contact: undefined })
     financeStore.fetchTransactions()
   }
-
-  const totalIncome = useMemo(() => {
-    const now = new Date()
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    return financeStore.transactions
-      .filter((t) => t.type === 'income' && new Date(t.happened_at) >= monthStart)
-      .reduce((sum, t) => sum + t.amount, 0)
-  }, [financeStore.transactions])
 
   const txColumns = useMemo<ColumnProps<Transaction>[]>(() => [
     {
@@ -242,6 +239,9 @@ export function TransactionsTab() {
 
   return (
     <div className="transactions-tab">
+      {/* 顶部数据块（01 §2.7）：两卡四面 + 周期切换，替代原底部两张汇总卡 */}
+      <SummaryCards onGotoBudget={onGotoBudget} />
+
       <TransactionToolbar
         showTypeFilter
         typeFilter={typeFilter}
@@ -300,12 +300,6 @@ export function TransactionsTab() {
       ) : (
         <EmptyHint icon="Inbox" title="还没有交易" desc="点击「记一笔」开始" />
       )}
-
-      {/* Summary Cards */}
-      <div className="finance-summary" style={{ display: 'flex', gap: 16, marginTop: 16 }}>
-        <div style={{ flex: 1 }}><IncomeSummaryCard income={totalIncome} change={0} /></div>
-        <div style={{ flex: 1 }}><AssetSummaryCard totalBalance={financeStore.totalBalance} accounts={financeStore.accounts.length} /></div>
-      </div>
 
       <TransactionDetailDrawer
         visible={detailId !== null}

@@ -20,9 +20,14 @@ export default defineConfig(({ mode }) => {
   base: process.env.VITE_BASE || '/z1-app/',
   plugins: [
     vue(),
-    // Vant 4 按需引入（样式 + 组件 + directives）
+    // Vant 4 按需引入（组件 + directives）。
+    // ⚠️ importStyle 必须为 false（260922）：main.ts 已全量引入
+    //    vant/lib/index.css，Resolver 再按需注入一份 popup 样式会排在
+    //    全量 CSS 之后，把 .van-toast 的黑底反杀成 .van-popup 的白底
+    //    ⇒ 报错 toast 变成「中间一块白色色块、文字看不见」。
+    //    详见 styles/global.scss 顶部注释。改动这里前先看那条。
     Components({
-      resolvers: [VantResolver()],
+      resolvers: [VantResolver({ importStyle: false })],
       dts: 'src/types/components.d.ts',
     }),
   ],
@@ -37,8 +42,8 @@ export default defineConfig(({ mode }) => {
     open: false,
     // 第十三轮：/z1 服务前缀统一代理入口（API /z1/api/v1/* + 静态 /z1/uploads/*）
     // ⚠ key 必须带尾斜杠：vite proxy 是字符串前缀匹配，'/z1' 会把
-    // public/ 下的 /z1-logo.png 也吞掉代理到后端（404）。与桌面端同修。
-    // （/z1-logo.png 不以 '/z1/api/' 或 '/z1/uploads/' 开头，仍由 vite 本地服务）
+    // public/ 下的静态资源（如 /brand/z1-icon.svg）也会被吞掉代理到后端（404）。与桌面端同修。
+    // （/brand/... 不以 '/z1/api/' 或 '/z1/uploads/' 开头，仍由 vite 本地服务）
     proxy: {
       '/z1/api/': {
         target: apiTarget,

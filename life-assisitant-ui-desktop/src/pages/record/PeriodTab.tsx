@@ -117,7 +117,6 @@ export default function PeriodTab() {
       const ok = await store.upsertDay(date, { ...payload, date } as any)
       if (ok) {
         refreshMonth()
-        Toast.success('已记录今天')
       }
     },
     [store, refreshMonth]

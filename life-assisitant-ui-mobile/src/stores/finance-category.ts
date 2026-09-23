@@ -29,8 +29,9 @@
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { showFailToast, showSuccessToast } from 'vant'
+import { showFailToast } from 'vant'
 import { financeApi } from '@/api/finance'
+import { feedback } from '@/utils/feedback'
 import { ICONS, type IconName } from '@/components/icon/names'
 import { resolveCategory } from '@/utils/category-dict'
 import { getTint, type TintName, type TintVars } from '@/utils/tint'
@@ -384,7 +385,6 @@ export const useFinanceCategoryStore = defineStore('financeCategory', () => {
       insertLocal(item)
       // 本地 CRUD 也是「缓存的一部分」：立刻落盘，下次冷启动就能看到新分类
       writeCache({ tree: tree.value, seeded: seeded.value })
-      showSuccessToast('分类已创建')
       return item
     } catch (e) {
       // 后端 400002 重名等已由 request 拦截器 toast，这里不再重复
@@ -404,8 +404,7 @@ export const useFinanceCategoryStore = defineStore('financeCategory', () => {
       // 缓存里没有（如树未加载）：直接打接口
       try {
         const res = await financeApi.updateCategory(id, data)
-        showSuccessToast('分类已更新')
-        await fetchTree(undefined, { silent: true })
+          await fetchTree(undefined, { silent: true })
         return res.item
       } catch (e) {
         // eslint-disable-next-line no-console
@@ -433,7 +432,6 @@ export const useFinanceCategoryStore = defineStore('financeCategory', () => {
       // 级联更新（一级改名 → 二级 full_name）以服务端为准
       // silent：管理页自己会重渲染，没必要再闪一次全局 loading
       await fetchTree(undefined, { silent: true })
-      showSuccessToast('分类已更新')
       return res.item
     } catch (e) {
       // 回滚
@@ -488,7 +486,7 @@ export const useFinanceCategoryStore = defineStore('financeCategory', () => {
     try {
       await financeApi.removeCategory(id)
       writeCache({ tree: tree.value, seeded: seeded.value })
-      showSuccessToast('分类已删除')
+      feedback.destructiveDone('分类已删除')
       return true
     } catch (e) {
       // 回滚

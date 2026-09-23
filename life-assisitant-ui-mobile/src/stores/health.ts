@@ -19,7 +19,8 @@
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { showFailToast, showSuccessToast } from 'vant'
+import { showFailToast } from 'vant'
+import { feedback } from '@/utils/feedback'
 import { healthApi } from '@/api/health'
 import { todayDate } from '@/utils/date'
 import type {
@@ -206,7 +207,6 @@ export const useHealthStore = defineStore('health', () => {
       await fetchOverview()
       if (calendarMonth.value) await fetchCalendar(calendarMonth.value, true)
 
-      showSuccessToast('已记录')
       return true
     } catch (e) {
       // 失败：清掉陈旧数据，避免展示与后端不一致的本地值
@@ -236,7 +236,7 @@ export const useHealthStore = defineStore('health', () => {
       cards.value = res.cards
       monthSummary.value = res.month_summary
       prediction.value = res.prediction ?? null
-      showSuccessToast('已删除')
+      feedback.destructiveDone('已删除')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -267,7 +267,6 @@ export const useHealthStore = defineStore('health', () => {
       settings.value = await healthApi.patchSettings(data)
       // 指标/目标变化会影响概览卡与完成度，顺手刷新
       await fetchOverview()
-      showSuccessToast('已保存')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -290,7 +289,6 @@ export const useHealthStore = defineStore('health', () => {
       setupSkipped.value = false
       invalidateCalendar()
       await fetchOverview()
-      showSuccessToast('健康模块已开启')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -333,15 +331,15 @@ export const useHealthStore = defineStore('health', () => {
   /**
    * 追加一次记录。
    * ⚠️ time 不传 = 服务端当前时刻，前端**不要**自己算（客户端时钟可能不准 / 跨时区）。
-   * @param silent 为 true 时成功不弹 toast（高频就地操作如「喝一杯」用，见 02 §16.5）
+   * ⚠️ spec-20260922-v2 · 05：成功提示已全局取消（结果就地可见，R1），
+   * 原 `silent` 参数随之删除 —— 高频操作与普通操作不再需要区分。
    */
-  async function addEvent(data: CreateHealthEventReq, silent = false): Promise<boolean> {
+  async function addEvent(data: CreateHealthEventReq): Promise<boolean> {
     saving.value = true
     try {
       const res = await healthApi.createEvent(data)
       if (res.day !== undefined) todayLog.value = res.day
       await refreshAfterEvent(data.date)
-      if (!silent) showSuccessToast('已记录')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -360,7 +358,6 @@ export const useHealthStore = defineStore('health', () => {
       const res = await healthApi.patchEvent(id, data)
       if (res.day !== undefined) todayLog.value = res.day
       await refreshAfterEvent(res.item?.date ?? selectedDate.value)
-      showSuccessToast('已更新')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -378,7 +375,7 @@ export const useHealthStore = defineStore('health', () => {
     try {
       await healthApi.deleteEvent(id)
       await refreshAfterEvent(date)
-      showSuccessToast('已删除')
+      feedback.destructiveDone('已删除')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console

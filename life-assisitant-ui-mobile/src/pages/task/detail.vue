@@ -23,7 +23,8 @@ import { storeToRefs } from 'pinia'
 import { taskApi } from '@/api/task'
 import { useTaskStore } from '@/stores/task'
 import { getTaskPriority, getTaskStatus } from '@/utils/task-dict'
-import { getTaskCategory } from '@/utils/category-dict'
+import { getTaskCategory, resolveTaskIconView } from '@/utils/category-dict'
+import { useUserCategoryStore } from '@/stores/user-category'
 import { formatDateTime } from '@/utils/date'
 import TaskEditSheet from '@/components/TaskEditSheet.vue'
 import Icon from '@/components/icon/Icon.vue'
@@ -31,6 +32,7 @@ import type { CreateTaskReq, Task } from '@/api/types'
 
 const route = useRoute()
 const router = useRouter()
+const catStore = useUserCategoryStore()
 const store = useTaskStore()
 const { tasks } = storeToRefs(store)
 
@@ -56,12 +58,21 @@ async function fetchTask(): Promise<void> {
   }
 }
 
-onMounted(fetchTask)
+onMounted(() => {
+  // 分类 store 预热：详情里的分类 chip 走 store 优先（04 #45）
+  void catStore.ensureFresh('task')
+  void fetchTask()
+})
 
 // ==================== 派生数据 ====================
 const statusDef = computed(() => getTaskStatus(task.value?.status))
 const priorityDef = computed(() => getTaskPriority(task.value?.priority))
+// store 优先、常量兜底；已删除/未知 id 由 getTaskCategory 降级渲染（04 §3.3）
 const categoryDef = computed(() => getTaskCategory(task.value?.category_id ?? undefined))
+/** 图标优先级链：tasks.icon > 分类.icon > 分类.emoji > lucide:CircleDashed */
+const iconView = computed(() =>
+  resolveTaskIconView({ icon: task.value?.icon, category_id: task.value?.category_id })
+)
 
 const RECURRENCE_LABEL: Record<string, string> = {
   'FREQ=DAILY': '每天',
@@ -197,7 +208,7 @@ function goBack(): void {
             :style="{ background: priorityDef.bg, color: priorityDef.fg }"
           >{{ priorityDef.label }}</span>
           <span v-if="categoryDef" class="meta-chip is-plain">
-            <Icon :name="categoryDef.icon" :size="14" class="chip-icon" />
+            <Icon :name="iconView.icon" :size="14" class="chip-icon" />
             {{ categoryDef.label }}
           </span>
           <span v-if="task.due_date" class="meta-chip is-plain">

@@ -26,8 +26,9 @@
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { showFailToast, showSuccessToast } from 'vant'
+import { showFailToast } from 'vant'
 import { taskApi, type ListTasksParams } from '@/api/task'
+import { feedback } from '@/utils/feedback'
 import type {
   BatchTaskReq,
   CreateTaskReq,
@@ -231,7 +232,6 @@ export const useTaskStore = defineStore('task', () => {
         tasks.value.unshift(task)
       }
       total.value += 1
-      showSuccessToast('任务已创建')
       return task
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -327,7 +327,6 @@ export const useTaskStore = defineStore('task', () => {
 
     try {
       await taskApi.toggleComplete(id, nextStatus)
-      showSuccessToast(nextStatus === 'done' ? '任务已完成' : '已恢复待办')
     } catch (e) {
       // 回滚
       task.status = originalStatus
@@ -373,7 +372,7 @@ export const useTaskStore = defineStore('task', () => {
       // 不在列表里（详情页直达）→ 直接调接口
       try {
         await taskApi.delete(id)
-        showSuccessToast('任务已删除')
+        feedback.destructiveDone('任务已删除')
         return true
       } catch (e) {
         // eslint-disable-next-line no-console
@@ -389,7 +388,7 @@ export const useTaskStore = defineStore('task', () => {
 
     try {
       await taskApi.delete(id)
-      showSuccessToast('任务已删除')
+      feedback.destructiveDone('任务已删除')
       return true
     } catch (e) {
       // 回滚
@@ -415,7 +414,7 @@ export const useTaskStore = defineStore('task', () => {
       const resp = await taskApi.batchAction(data)
       await fetchTasks()
       clearSelection()
-      showSuccessToast(`已处理 ${resp.affected} 个任务`)
+      feedback.batchDone(resp.affected, '个任务')
       return resp.affected
     } catch (e) {
       showFailToast('批量操作失败，请重试')

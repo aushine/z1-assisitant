@@ -7,11 +7,18 @@
  */
 import { AccountManager } from './components/AccountManager'
 
-export function AccountTab({ onViewContact }: { onViewContact?: (contact: string) => void }) {
+export function AccountTab({
+  onViewContact,
+  onViewAccount,
+}: {
+  onViewContact?: (contact: string) => void
+  /** spec-20260922-v2 · 07 #30b：账户卡「查看流水」→ 经 FinancialTab 跳收支并按该账户筛选 */
+  onViewAccount?: (accountId: string) => void
+}) {
   return (
     <div className="account-tab">
       {/* Phase 4.2：债权债务卡点行 → 经 FinancialTab 跳收支并按对方筛选 */}
-      <AccountManager onViewContact={onViewContact} />
+      <AccountManager onViewContact={onViewContact} onViewAccount={onViewAccount} />
     </div>
   )
 }

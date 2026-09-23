@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { Toast } from '@douyinfe/semi-ui'
+import { feedback } from '@/utils/feedback'
 import { financeApi } from '@/api/finance'
 import type {
   Account,
@@ -15,12 +16,22 @@ import type {
   BudgetScope,
   DebtItem,
   DebtsResp,
+  FinanceSummaryPeriod,
+  FinanceSummaryResp,
 } from '@/api/types'
+// 数据块偏好 key 与容错读写（spec-20260922-v2 01 §2.5/§2.7；两端同值 = 同机同源）
+import {
+  FINANCE_MASK_KEY,
+  SUMMARY_CARD_LEFT_KEY,
+  SUMMARY_CARD_RIGHT_KEY,
+  SUMMARY_PERIOD_KEY,
+  lsGet,
+  lsSet,
+} from '@/constants/finance'
 
 interface FinanceStore {
   accounts: Account[]
   totalBalance: number
-  totalIncome: number
   transactions: Transaction[]
   txTotal: number
   txLoading: boolean
@@ -33,8 +44,25 @@ interface FinanceStore {
   // ===== v4 债权债务（GET /finance/debts）=====
   debts: DebtsResp | null
   debtsLoading: boolean
+  // ===== 数据块（spec-20260922-v2 · 01 §2；周期/两态 = localStorage 设备偏好，D10/D11）=====
+  summary: FinanceSummaryResp | null
+  summaryLoading: boolean
+  summaryError: boolean
+  summaryPeriod: FinanceSummaryPeriod
+  summaryCardLeft: 'income' | 'expense'
+  summaryCardRight: 'budget' | 'net'
+  // ===== 金额隐私遮罩（spec-20260922-v2 · 03；设备偏好，D11 不入库）=====
+  /** 真 = 全站金额显示为 `¥ ••••`；展示点一律走 <MoneyText>（单一出口，D14） */
+  masked: boolean
+  /** 小眼睛开关（03 §3.1：切换**不弹 toast**） */
+  toggleMasked: () => void
   fetchAccounts: () => Promise<void>
   fetchDebts: () => Promise<void>
+  fetchSummary: () => Promise<void>
+  setSummaryPeriod: (p: FinanceSummaryPeriod) => void
+  cycleSummaryPeriod: () => void
+  flipSummaryCardLeft: () => void
+  flipSummaryCardRight: () => void
   createAccount: (data: CreateAccountReq) => Promise<Account | null>
   updateAccount: (id: string, data: UpdateAccountReq) => Promise<Account | null>
   removeAccount: (id: string) => Promise<boolean>
@@ -75,15 +103,18 @@ const DEFAULT_TX_QUERY: ListTransactionsQuery = {
 /** DebtItem 排序：未结清额降序（后端聚合顺序不稳定，展示层统一排） */
 function sortDebts(res: DebtsResp): DebtsResp {
   const byOpen = (a: DebtItem, b: DebtItem) => b.open - a.open
-  res.owed_to_me = [...res.owed_to_me].sort(byOpen)
-  res.i_owe = [...res.i_owe].sort(byOpen)
+  // ⚠️ 后端空分组序列化为 null（Go nil slice → JSON null）。不兜底的话
+  //    展开运算符 `[...null]` 直接 TypeError（曾被 fetchDebts 的 try 吞掉，
+  //    表现为「有数据也不显示债权债务卡」）。与移动端 store 同一条归一化规则。
+  res.owed_to_me = [...(res.owed_to_me ?? [])].sort(byOpen)
+  res.i_owe = [...(res.i_owe ?? [])].sort(byOpen)
+  res.net = res.net ?? 0
   return res
 }
 
 export const useFinanceStore = create<FinanceStore>((set, get) => ({
   accounts: [],
   totalBalance: 0,
-  totalIncome: 0,
   transactions: [],
   txTotal: 0,
   txLoading: false,
@@ -93,6 +124,19 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
   debtsLoading: false,
   txQuery: { ...DEFAULT_TX_QUERY },
   ...deriveFinance([], [], false, { ...DEFAULT_TX_QUERY }),
+  // 数据块：非法存量值回退默认（month / income / budget）；偏好读失败=回默认
+  summary: null,
+  summaryLoading: false,
+  summaryError: false,
+  summaryPeriod: (() => {
+    const v = lsGet(SUMMARY_PERIOD_KEY)
+    return v === 'week' || v === 'year' ? v : 'month'
+  })(),
+  summaryCardLeft: lsGet(SUMMARY_CARD_LEFT_KEY) === 'expense' ? 'expense' : 'income',
+  summaryCardRight: lsGet(SUMMARY_CARD_RIGHT_KEY) === 'net' ? 'net' : 'budget',
+  // ⚠️ 在 store 定义期读 localStorage（而非组件挂载后）：首帧即遮罩态，
+  //    否则会闪一下真值 = 隐私泄漏红线（03 §4.2）。与移动端 store 同构。
+  masked: lsGet(FINANCE_MASK_KEY) === '1',
 
   async fetchAccounts() {
     try {
@@ -122,6 +166,54 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     }
   },
 
+  // ==================== 数据块（spec-20260922-v2 · 01 §2，与移动端 store 同构） ====================
+
+  /** 拉取当前周期服务端汇总；失败只置 summaryError（块上有重试态），**不弹 toast**（01 §2.8） */
+  async fetchSummary() {
+    set({ summaryLoading: true, summaryError: false })
+    try {
+      const res = await financeApi.getSummary(get().summaryPeriod)
+      set({ summary: res, summaryLoading: false })
+    } catch {
+      set({ summary: null, summaryError: true, summaryLoading: false })
+    }
+  },
+
+  setSummaryPeriod(p) {
+    if (p === get().summaryPeriod) return
+    set({ summaryPeriod: p })
+    lsSet(SUMMARY_PERIOD_KEY, p)
+    void get().fetchSummary()
+  },
+
+  /** 周期字点击：月 → 周 → 年 循环（01 §2.2 热区②，顺序写死勿改） */
+  cycleSummaryPeriod() {
+    const cur = get().summaryPeriod
+    const next: FinanceSummaryPeriod = cur === 'month' ? 'week' : cur === 'week' ? 'year' : 'month'
+    get().setSummaryPeriod(next)
+  },
+
+  flipSummaryCardLeft() {
+    const face = get().summaryCardLeft === 'income' ? 'expense' : 'income'
+    set({ summaryCardLeft: face })
+    lsSet(SUMMARY_CARD_LEFT_KEY, face)
+  },
+
+  flipSummaryCardRight() {
+    const face = get().summaryCardRight === 'budget' ? 'net' : 'budget'
+    set({ summaryCardRight: face })
+    lsSet(SUMMARY_CARD_RIGHT_KEY, face)
+  },
+
+  // ==================== 金额遮罩（spec-20260922-v2 · 03） ====================
+
+  /** 切换遮罩并持久化（'1' 才算开；写失败仅丢偏好，不影响本次会话） */
+  toggleMasked() {
+    const next = !get().masked
+    set({ masked: next })
+    lsSet(FINANCE_MASK_KEY, next ? '1' : '0')
+  },
+
   async createAccount(data) {
     try {
       const acc = await financeApi.createAccount(data)
@@ -132,7 +224,6 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
         totalBalance: totalBalance + (acc.balance || 0),
         ...deriveFinance(newAccounts, get().transactions, get().txLoading, get().txQuery),
       })
-      Toast.success('账户已创建')
       return acc
     } catch {
       return null
@@ -169,7 +260,6 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
         totalBalance: get().totalBalance + fresh.balance - newBalance,
         ...deriveFinance(freshAccounts, get().transactions, get().txLoading, get().txQuery),
       })
-      Toast.success('账户已更新')
       return fresh
     } catch {
       const rollbackAccounts = [...get().accounts]
@@ -197,7 +287,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     })
     try {
       await financeApi.removeAccount(id)
-      Toast.success('账户已删除')
+      feedback.destructiveDone('账户已删除')
       return true
     } catch {
       const rollbackAccounts = [...get().accounts]
@@ -338,9 +428,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       // v4：核销笔/借入借出/待报销等会改变债权债务 → 创建成功后同时刷新
       //（只刷一个会出现「卡片还显示欠着」）
       if (data.source || data.settle_of) void get().fetchDebts()
-      Toast.success(
-        data.type === 'expense' ? '已记账' : data.type === 'income' ? '已记录收入' : '转账成功'
-      )
+      void get().fetchSummary() // 01 验收：记一笔后数据块立即更新
       return fresh
     } catch {
       const currentTx = [...get().transactions]
@@ -383,7 +471,8 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       get().fetchAccounts()
       // 被删的可能是核销笔或原笔 → 债权债务联动刷新
       void get().fetchDebts()
-      Toast.success('交易已删除')
+      void get().fetchSummary()
+      feedback.destructiveDone('交易已删除')
       return true
     } catch {
       const rollbackTx = [...get().transactions]
@@ -403,7 +492,8 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       await get().fetchTransactions()
       await get().fetchAccounts()
       void get().fetchDebts()
-      Toast.success('交易已撤销')
+      void get().fetchSummary()
+      feedback.destructiveDone('交易已撤销')
       return true
     } catch {
       Toast.error('撤销失败')
@@ -416,7 +506,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       const updated = await financeApi.updateTransaction(id, data)
       await get().fetchTransactions()
       await get().fetchAccounts()
-      Toast.success('已保存')
+      void get().fetchSummary()
       return updated
     } catch {
       Toast.error('保存失败')
@@ -442,7 +532,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     try {
       await financeApi.transfer(data)
       get().fetchAccounts()
-      Toast.success('转账成功')
+      void get().fetchSummary()
       return true
     } catch {
       const rollbackAccounts = [...get().accounts]
@@ -477,7 +567,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       const budget = await financeApi.createBudget(data)
       const { budgets } = get()
       set({ budgets: [budget, ...budgets] })
-      Toast.success('预算已创建')
+      void get().fetchSummary() // 预算面数字（amount/used/remaining/count）跟着变
       return budget
     } catch {
       Toast.error('预算功能暂不可用')
@@ -495,7 +585,8 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     set({ budgets: newBudgets })
     try {
       await financeApi.removeBudget(id)
-      Toast.success('预算已删除')
+      void get().fetchSummary()
+      feedback.destructiveDone('预算已删除')
       return true
     } catch {
       const rollback = [...get().budgets]

@@ -41,6 +41,7 @@ async function onSubmit(): Promise<void> {
   try {
     await authApi.forgotPassword({ email: value })
     sent.value = true
+    // spec-20260922-v2 · 05 §2.2 R2 保留：邮件在服务端异步发出，结果不在当前屏
     showSuccessToast({ message: '若该邮箱已注册，重置邮件已发送', duration: 1800 })
   } catch (e) {
     // 只在网络/服务异常时提示；业务层的「邮箱不存在」后端不会返回，也无需暴露

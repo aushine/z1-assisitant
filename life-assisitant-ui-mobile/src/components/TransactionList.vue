@@ -6,13 +6,21 @@
  *                    life-assisitant-ui-desktop/src/pages/record/components/TransactionToolbar.tsx
  *                    life-assisitant-ui-desktop/src/pages/record/components/ReverseButton.tsx
  * SYNC-FROM-BACKEND: life-assisitant-api/internal/controller/finance.go
- * 最后同步：2026-09-19（第十六轮收支合并：mode prop 退役，组件即完整收支视图）
+ * 最后同步：2026-09-22（spec-20260922-v2 · 01：筛选 3 行 → 常态 1 行 + 顶部数据块）
  *
- * 与桌面端一致的关键设计（260921 Phase 3.3 起更新）：
- *   1. **类型筛选改服务端**：切段直接写 store 的 txQuery.type（`setTxFilter({type})`
- *      重置第 1 页重拉）；「全部」= 不传 type（**含 transfer**）。
- *      旧的「客户端过滤 + 排除转账」口径已删除。
- *   2. 本月收入 = 已在本地列表里的 income 求和（转账不是 income，天然排除）。
+ * spec-20260922-v2 · 01 的改动（本文件）：
+ *   - ❌ 删 `.seg-row` 分段控件 → 类型并入原账户下拉位置的 **van-dropdown-menu**（01 §1.2）
+ *   - ❌ 删账户下拉（移动端 D2：能力降级为「账户页 → 查看流水」注入的 chip）
+ *     ⚠️ 桌面端**保留**账户下拉（Q10 方案 B —— 不是同一个问题，不照抄）
+ *   - ✅ 账户 chip 复用 `.date-chip` 样式，与日期/对方 chip 同一容器（01 §1.3）
+ *   - ✅ 顶部 `<SummaryCards>`（列表之前、视图第一块；四个数全走 /finance/summary，修 S2）
+ *   - ❌ 删底部 `.summary-row` 与 `monthIncome` computed（"按已加载记录统计"随之下线）
+ *
+ * 与桌面端一致的关键设计：
+ *   1. **类型筛选是服务端**：下拉变更写 store（`setTxFilter({type})` 重置第 1 页重拉）；
+ *      「全部」= 不传 type（**含 transfer**）。
+ *   2. 下拉选中态与 `financeStore.txType` 用 **computed 双向映射**，不用独立 ref
+ *      （01 §1.5 注 4：旧的 `accountIndex` 独立 ref 就是脱节教训）。
  *
  * 移动端差异（交互层）：
  *   - 表格 → 按日期分组的卡片列表（复用 Phase 0 的 txGroups 分组逻辑）
@@ -27,59 +35,78 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { showConfirmDialog } from 'vant'
 import { useFinanceStore } from '@/stores/finance'
 import { useFinanceCategoryStore } from '@/stores/finance-category'
-import { formatDayLabel, formatMoney, isoToDate } from '@/utils/date'
+import { formatDayLabel, isoToDate } from '@/utils/date'
 import { amountColorClass, formatSignedAmount } from '@/utils/money'
 import { txDeleteConfirm, TX_REVERSE_CONFIRM, TX_SOURCE_LABEL } from '@/constants/finance'
 import Icon from '@/components/icon/Icon.vue'
 import IconBox from '@/components/IconBox.vue'
+import SummaryCards from '@/components/finance/SummaryCards.vue'
 import type { ResolvedCategory } from '@/stores/finance-category'
 import type { Transaction, TransactionType } from '@/api/types'
 
 const emit = defineEmits<{
   (e: 'edit', tx: Transaction): void
   (e: 'view', tx: Transaction): void
+  /** 数据块「未设预算 · 去设置 ›」→ 由 FinancialSection 切到预算视图（01 §2.8 / Q3） */
+  (e: 'goto-budget'): void
 }>()
 
 /**
  * 外部带入的服务端筛选（挂载时写入 store，卸载时清理，防「看不见的过滤」残留）：
  *   - presetDate：日历「查看全部」的单日筛选（YYYY-MM-DD）
  *   - presetContact：债权债务卡「按该对方看流水」（Phase 4）
+ *   - presetAccountId：账户卡「查看流水 ›」注入的账户筛选（spec-20260922-v2 01 §1.3）
  */
 const props = withDefaults(
   defineProps<{
     presetDate?: string
     presetContact?: string
+    presetAccountId?: string
   }>(),
-  { presetDate: '', presetContact: '' }
+  { presetDate: '', presetContact: '', presetAccountId: '' }
 )
 
-/** 本次挂载是否由 presetDate / presetContact 设置过筛选（卸载时据此清理） */
+/** 本次挂载是否由 preset* 设置过筛选（卸载时据此清理） */
 let datePresetApplied = false
 let contactPresetApplied = false
+let accountPresetApplied = false
 
 const financeStore = useFinanceStore()
 const catStore = useFinanceCategoryStore()
 
 // ==================== 筛选 ====================
-/** 类型切段（服务端筛选：「全部」不传 type，含 transfer） */
+/**
+ * 类型下拉选项（服务端筛选：「全部」不传 type，含 transfer）。
+ * ⚠️ 01 §1.5 注 3：下拉 options 由 TYPE_OPTIONS 驱动，**不要再写一份**。
+ */
 const TYPE_OPTIONS: Array<{ value: TransactionType | ''; label: string }> = [
   { value: '', label: '全部' },
   { value: 'expense', label: '支出' },
   { value: 'income', label: '收入' },
   { value: 'transfer', label: '转账' },
 ]
+const typeOptions = TYPE_OPTIONS.map((o) => ({ text: o.label, value: o.value as TransactionType | '' }))
 
-function onTypeChange(value: TransactionType | ''): void {
-  void financeStore.setTxFilter({ type: value })
-}
+/**
+ * 下拉选中态 ↔ store.txType 双向映射（01 §1.5 注 4）。
+ * ⚠️ 用可写 computed 而不是独立 ref —— 独立 ref 会与 store 脱节（旧 `accountIndex` 的教训），
+ *    set 走 `setTxFilter` 顺带完成「重置第 1 页重拉」。
+ */
+const typeFilter = computed<TransactionType | ''>({
+  get: () => financeStore.txType,
+  set: (v) => {
+    void financeStore.setTxFilter({ type: v })
+  },
+})
 
-/** 账户筛选（服务端）与关键词（服务端，带防抖） */
-const accountIndex = ref(0)
-const accountOptions = computed<Array<{ text: string; value: string }>>(() => [
-  { text: '全部账户', value: '' },
-  ...financeStore.accounts.map((a) => ({ text: a.name, value: a.id })),
-])
+/** 账户 chip 展示名（chip 是唯一账户筛选入口；store 未加载时用 id 兜底） */
+const accountChipName = computed(() => {
+  const id = financeStore.txAccountId
+  if (!id) return ''
+  return financeStore.findAccount(id)?.name || id
+})
 
+/** 关键词（服务端，带防抖） */
 const keyword = ref(financeStore.txKeyword)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -94,12 +121,6 @@ function onSearchInput(): void {
 function onSearchClear(): void {
   keyword.value = ''
   financeStore.txKeyword = ''
-  void financeStore.fetchTransactions()
-}
-
-function onAccountChange(index: number | string): void {
-  const i = Number(index)
-  financeStore.txAccountId = accountOptions.value[i]?.value ?? ''
   void financeStore.fetchTransactions()
 }
 
@@ -129,15 +150,6 @@ const txGroups = computed<TxGroup[]>(() => {
     groups.push({ dateKey: k, dateLabel: formatDayLabel(k), items })
   }
   return groups.sort((a, b) => b.dateKey.localeCompare(a.dateKey))
-})
-
-/** 本月收入（仅 income 求和；转账不是 income，天然排除出该口径） */
-const monthIncome = computed(() => {
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
-  return financeStore.transactions
-    .filter((t) => t.type === 'income' && new Date(t.happened_at).getTime() >= monthStart)
-    .reduce((sum, t) => sum + t.amount, 0)
 })
 
 /** 来源标签（Phase 4：待报销/借出/借入/退款，中性色小标） */
@@ -218,7 +230,7 @@ async function refresh(): Promise<void> {
 
 // ==================== 生命周期 ====================
 onMounted(async () => {
-  // 账户下拉需要账户列表；交易列表只有在未加载时才拉（切 tab 不重复请求）
+  // 账户 chip 的展示名需要账户列表（查看流水入口从账户页来，正常已加载；兜底拉一次）
   if (financeStore.accounts.length === 0) await financeStore.fetchAccounts()
   // 外部带入的服务端筛选（setTxFilter 内部会按新参数重拉首页）
   if (props.presetDate) {
@@ -229,7 +241,16 @@ onMounted(async () => {
     contactPresetApplied = true
     await financeStore.setTxFilter({ contact: props.presetContact })
   }
-  if (!props.presetDate && !props.presetContact && financeStore.transactions.length === 0) {
+  if (props.presetAccountId) {
+    accountPresetApplied = true
+    await financeStore.setTxFilter({ accountId: props.presetAccountId })
+  }
+  if (
+    !props.presetDate &&
+    !props.presetContact &&
+    !props.presetAccountId &&
+    financeStore.transactions.length === 0
+  ) {
     await financeStore.fetchTransactions()
   }
   // 分类缓存（渲染按 category_id 查图标/色；未加载时走快照兜底）
@@ -248,6 +269,10 @@ onUnmounted(() => {
     contactPresetApplied = false
     void financeStore.setTxFilter({ contact: '' })
   }
+  if (accountPresetApplied) {
+    accountPresetApplied = false
+    void financeStore.setTxFilter({ accountId: '' })
+  }
 })
 
 defineExpose({ refresh })
@@ -255,25 +280,31 @@ defineExpose({ refresh })
 
 <template>
   <div class="tx-list-wrap">
-    <!-- ============ 筛选工具栏（3 行 → 2 行：① 类型独占整行 ② 账户+搜索同行）============ -->
+    <!-- ============ 顶部数据块（流水视图第一块，01 §2；四个数全走 /finance/summary）============ -->
+    <SummaryCards @goto-budget="emit('goto-budget')" />
+
+    <!-- ============ 筛选工具栏（3 行 → 常态 1 行：类型下拉 + 搜索；chip 仅在有筛选时出现）============ -->
     <div class="tx-toolbar">
-      <!-- 类型：服务端筛选（切段重置第 1 页重拉；「全部」不传 type，含转账）-->
-      <div class="seg-row">
-        <button
-          v-for="o in TYPE_OPTIONS"
-          :key="o.value || 'all'"
-          type="button"
-          class="seg-item"
-          :class="{ 'is-active': (financeStore.txType || '') === o.value }"
-          @click="onTypeChange(o.value)"
-        >
-          {{ o.label }}
-        </button>
+      <!-- 类型下拉（占原账户下拉的 38% 槽位）+ 搜索 同行 -->
+      <div class="filter-row">
+        <van-dropdown-menu class="type-filter" :overlay="false">
+          <van-dropdown-item v-model="typeFilter" :options="typeOptions" />
+        </van-dropdown-menu>
+        <div class="search-row">
+          <input
+            v-model="keyword"
+            type="search"
+            class="search-input"
+            placeholder="搜索备注 / 分类…"
+            @input="onSearchInput"
+          >
+          <button v-if="keyword" type="button" class="search-clear" aria-label="清空" @click="onSearchClear">×</button>
+        </div>
       </div>
 
-      <!-- 服务端筛选 chips（可移除） -->
+      <!-- 服务端筛选 chips（可移除；仅在被注入时存在 ⇒ 常态不占行，01 §1.3） -->
       <div
-        v-if="(financeStore.txStartDate && financeStore.txEndDate) || financeStore.txContact"
+        v-if="(financeStore.txStartDate && financeStore.txEndDate) || financeStore.txContact || financeStore.txAccountId"
         class="date-chip-row"
       >
         <span
@@ -301,27 +332,18 @@ defineExpose({ refresh })
             ×
           </button>
         </span>
-      </div>
-
-      <!-- 账户下拉 + 搜索同行 -->
-      <div class="filter-row">
-        <van-dropdown-menu class="acct-filter" :overlay="false">
-          <van-dropdown-item
-            v-model="accountIndex"
-            :options="accountOptions"
-            @change="onAccountChange"
-          />
-        </van-dropdown-menu>
-        <div class="search-row">
-          <input
-            v-model="keyword"
-            type="search"
-            class="search-input"
-            placeholder="搜索备注 / 分类…"
-            @input="onSearchInput"
+        <!-- 账户 chip：移动端删掉账户下拉后的**唯一**账户筛选入口（从账户页「查看流水」注入） -->
+        <span v-if="financeStore.txAccountId" class="date-chip">
+          账户：{{ accountChipName }}
+          <button
+            type="button"
+            class="date-chip-x"
+            aria-label="移除账户筛选"
+            @click="financeStore.setTxFilter({ accountId: '' })"
           >
-          <button v-if="keyword" type="button" class="search-clear" aria-label="清空" @click="onSearchClear">×</button>
-        </div>
+            ×
+          </button>
+        </span>
       </div>
     </div>
 
@@ -426,25 +448,6 @@ defineExpose({ refresh })
       </button>
       <span v-if="financeStore.txTotal > 0" class="foot-count">共 {{ financeStore.txTotal }} 条</span>
     </div>
-
-    <!-- ============ 汇总卡（本月收入 + 总资产，与桌面端一致）============ -->
-    <div class="summary-row">
-      <div class="summary-card">
-        <div class="sc-label"><Icon name="Banknote" :size="16" /> 本月收入</div>
-        <div class="sc-value is-income">+¥{{ formatMoney(monthIncome, true) }}</div>
-        <div class="sc-sub">按已加载记录统计</div>
-      </div>
-      <div class="summary-card">
-        <div class="sc-label"><Icon name="Landmark" :size="16" /> 总资产</div>
-        <div
-          class="sc-value"
-          :style="{ color: financeStore.totalBalance < 0 ? 'var(--color-danger)' : 'var(--color-primary)' }"
-        >
-          ¥{{ formatMoney(financeStore.totalBalance, true) }}
-        </div>
-        <div class="sc-sub">共 {{ financeStore.accounts.length }} 个账户</div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -460,35 +463,15 @@ defineExpose({ refresh })
   gap: 8px;
   margin-bottom: 14px;
 }
-.seg-row {
-  display: flex;
-  gap: 6px;
-}
-.seg-item {
-  flex: 1;
-  height: 32px;
-  font-size: var(--fs-caption-sm);
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  background: var(--color-bg-hover);
-  border: 1.5px solid transparent;
-  border-radius: 999px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  &:active { transform: scale(0.97); }
-  &.is-active {
-    color: var(--color-primary);
-    background: var(--color-primary-light);
-    border-color: var(--color-primary);
-    font-weight: 600;
-  }
-}
 .filter-row {
   display: flex;
   gap: 8px;
 }
+/* chip 行（日期/对方/账户三种并行；01 验收：互不挤占） */
 .date-chip-row {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .date-chip {
   display: inline-flex;
@@ -518,8 +501,8 @@ defineExpose({ refresh })
   -webkit-tap-highlight-color: transparent;
   &:active { opacity: 0.6; }
 }
-.acct-filter {
-  /* 账户下拉占固定比例，与搜索框同行（Phase 3.3 两行布局） */
+.type-filter {
+  /* 类型下拉占固定比例（原账户下拉的槽位，视觉重量不变，01 §1.2），与搜索框同行 */
   flex: 0 0 38%;
   min-width: 0;
   border-radius: 10px;
@@ -739,38 +722,6 @@ defineExpose({ refresh })
   }
 }
 .foot-count {
-  font-size: var(--fs-micro);
-  color: var(--color-text-tertiary);
-}
-
-/* ========== 汇总卡 ========== */
-.summary-row {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin-top: 16px;
-}
-.summary-card {
-  padding: 14px;
-  background: var(--color-bg-card);
-  border-radius: 14px;
-  box-shadow: var(--shadow-xs);
-}
-.sc-label {
-  font-size: var(--fs-caption-sm);
-  color: var(--color-text-tertiary);
-  margin-bottom: 6px;
-}
-.sc-value {
-  /* 数值阶令牌：与各模块 KPI / 汇总数值统一 */
-  font-size: var(--fs-metric);
-  font-weight: 700;
-  font-family: var(--font-num);
-  line-height: 1.2;
-  &.is-income { color: var(--color-success); }
-}
-.sc-sub {
-  margin-top: 4px;
   font-size: var(--fs-micro);
   color: var(--color-text-tertiary);
 }

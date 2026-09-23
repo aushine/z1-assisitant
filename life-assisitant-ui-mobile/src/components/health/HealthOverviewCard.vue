@@ -131,7 +131,6 @@ async function onDrink(): Promise<void> {
   drinking.value = true
   const ok = await store.addEvent(
     { date: today.value, metric_key: 'water' as HealthEventMetricKey, value_num: waterStep.value },
-    true, // 静默成功 toast（高频就地操作）
   )
   drinking.value = false
   if (ok) {

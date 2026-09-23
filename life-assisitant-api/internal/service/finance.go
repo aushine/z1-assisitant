@@ -44,4 +44,8 @@ type IFinanceService interface {
 	GetCalendar(ctx context.Context, req *dto.CalendarReq) (*dto.CalendarResp, error)
 	// GetDebts 债权债务聚合
 	GetDebts(ctx context.Context) (*dto.DebtsResp, error)
+
+	// ====== 流水页顶部数据块（20260922，06 §2） ======
+	// GetFinanceSummary 自然周期收支汇总 + 总预算聚合（period ∈ week|month|year，缺省 month）
+	GetFinanceSummary(ctx context.Context, req *dto.FinanceSummaryReq) (*dto.FinanceSummaryResp, error)
 }

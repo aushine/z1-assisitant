@@ -10,7 +10,7 @@
  */
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { showFailToast, showSuccessToast } from 'vant'
+import { showFailToast } from 'vant'
 import { useUserStore } from '@/stores/user'
 import { userApi } from '@/api/user'
 import { displayNameOf } from '@/utils/avatar'
@@ -55,7 +55,6 @@ async function onSave(): Promise<void> {
       email: email || undefined,
     })
     userStore.patchUser(updated)
-    showSuccessToast('资料已更新')
   } catch (e) {
     // 响应拦截器已 toast 具体原因（校验 / 邮箱冲突 / 版本冲突），这里只做兜底
     if (!(e instanceof Error && e.message)) showFailToast('保存失败，请稍后重试')

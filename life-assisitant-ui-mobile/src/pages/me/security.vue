@@ -60,6 +60,7 @@ async function onSubmit(): Promise<void> {
   saving.value = true
   try {
     await authApi.changePassword({ old_password: form.old, new_password: form.new })
+    // spec-20260922-v2 · 05 §2.2 R2 保留：改密后强制下线跳登录页，"请重新登录"是离屏信息
     showSuccessToast({ message: '密码已修改，请重新登录', duration: 1500 })
     // 后端已撤销 refresh_token，本地必须清干净
     userStore.clearAuth()

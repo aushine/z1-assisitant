@@ -15,11 +15,21 @@
  * （`in:,sport,diet,life,study` 与 `track_duration`），桌面端抽屉也有，
  * 但移动端弹层此前缺失：因此移动端新建的习惯永远是 life 分类、
  * 且永远不记录打卡时长，与桌面端编辑同一习惯时会互相覆盖。
+ *
+ * 260922（spec-20260922-v2/04 §4.1）：
+ *   - 8 格 emoji 网格 → 单行「已选图标 + 更换 ›」，点开 **IconPicker**（lucide）；
+ *   - 4 个固定分类 chip → `CategoryTiles` 平铺（store 优先，用户可新增）+「管理 ›」；
+ *   - 新建默认 icon = ''（**继承分类图标**，04 §4.2 优先级链）；
+ *   - 存量 emoji 照常渲染，本次编辑保存时顺手换成 `lucide:<Name>`（与账户 Q10 同一套）。
  */
 import { computed, reactive, ref, watch } from 'vue'
-import { HABIT_CATEGORIES } from '@/utils/category-dict'
+import { resolveHabitIconView } from '@/utils/category-dict'
 import { getIconMapping } from '@/utils/icon-map'
+import { ICONS } from '@/components/icon/names'
+import type { IconName } from '@/components/icon/names'
 import Icon from '@/components/icon/Icon.vue'
+import IconPicker from '@/components/finance/IconPicker.vue'
+import CategoryTiles from '@/components/finance/CategoryTiles.vue'
 import type { CreateHabitReq, Habit, HabitCategory, HabitFrequency } from '@/api/types'
 
 interface Props {
@@ -35,8 +45,41 @@ const emit = defineEmits<{
   (e: 'update:show', v: boolean): void
 }>()
 
-// ==================== 预设 emoji ====================
-const EMOJIS: string[] = ['💧', '🏃', '📚', '🧘', '🍎', '✍️', '😴', '🎯']
+// ==================== 图标选择（IconPicker，04 §4.3） ====================
+const iconPickerShow = ref(false)
+
+/** 摘要行展示的图标：habit.icon > 分类.icon > 分类.emoji > Pin（store 优先、常量兜底） */
+const iconView = computed(() => resolveHabitIconView({ icon: form.icon, category: form.category }))
+
+/** IconPicker 的 modelValue 要的是**裸名**（无 lucide: 前缀）；存量 emoji 视为未选 */
+const pickerIcon = computed<string | null>(() => {
+  const raw = form.icon
+  if (!raw) return null
+  const bare = raw.startsWith('lucide:') ? raw.slice(7) : raw
+  return bare in ICONS ? (bare as IconName) : null
+})
+
+function openIconPicker() {
+  if (submitting.value) return
+  iconPickerShow.value = true
+}
+
+function onPickIcon(name: string) {
+  // 落库口径 `lucide:<Name>`（04 §4.3）
+  form.icon = `lucide:${name}`
+}
+
+/**
+ * Q10：新建/编辑保存时统一图标引用 ——
+ * 空 = 继承分类图标；lucide 引用原样；存量 emoji 顺手换成 `lucide:<映射名>`。
+ */
+function iconForPayload(raw: string): string {
+  if (!raw) return ''
+  if (raw.startsWith('lucide:')) return raw
+  if (raw in ICONS) return `lucide:${raw}`
+  return `lucide:${getIconMapping(raw).icon}`
+}
+
 // ==================== 预设颜色 ====================
 const COLORS: Array<{ value: string; bg: string; label: string }> = [
   { value: '#014DB2', bg: '#E0F2FF', label: '蓝' },
@@ -67,7 +110,7 @@ const form = reactive<{
 }>({
   title: '',
   description: '',
-  icon: '💧',
+  icon: '', // 空 = 继承分类图标（04 §4.2 优先级链）
   color: '#014DB2',
   category: 'life',
   frequency: 'daily',
@@ -103,7 +146,7 @@ function resetForm() {
   } else {
     form.title = ''
     form.description = ''
-    form.icon = '💧'
+    form.icon = '' // 新建默认「跟随分类」
     form.color = '#014DB2'
     form.category = 'life'
     form.frequency = 'daily'
@@ -150,7 +193,7 @@ async function handleSave() {
     const payload: CreateHabitReq = {
       title: form.title.trim(),
       description: form.description.trim() || undefined,
-      icon: form.icon,
+      icon: iconForPayload(form.icon),
       color: form.color,
       category: form.category,
       frequency: form.frequency,
@@ -238,20 +281,21 @@ async function handleSave() {
             />
           </div>
 
-          <!-- 3. emoji -->
+          <!-- 3. 图标：单行摘要 +「更换 ›」→ IconPicker（04 §4.1，替代 8 格 emoji） -->
           <div class="field-group">
             <div class="cell-label">图标</div>
-            <div class="emoji-grid">
-              <button
-                v-for="e in EMOJIS"
-                :key="e"
-                type="button"
-                class="emoji-item"
-                :class="{ 'is-active': form.icon === e }"
-                :disabled="submitting"
-                @click="form.icon = e"
-              ><Icon :name="getIconMapping(e).icon" :size="20" /></button>
+            <div class="icon-row" role="button" tabindex="0" :aria-disabled="submitting" @click="openIconPicker">
+              <span class="icon-preview" :style="{ background: (form.color || '#014DB2') + '22', color: iconView.vars.fg }">
+                <Icon :name="iconView.icon" :size="20" />
+              </span>
+              <span class="icon-summary">{{ form.icon ? '已自选图标' : '跟随分类图标' }}</span>
+              <span class="icon-change">更换 ›</span>
             </div>
+            <IconPicker
+              v-model:show="iconPickerShow"
+              :model-value="pickerIcon"
+              @select="onPickIcon"
+            />
           </div>
 
           <!-- 4. 颜色 -->
@@ -274,21 +318,14 @@ async function handleSave() {
             </div>
           </div>
 
-          <!-- 5. 分类（sport / diet / life / study） -->
+          <!-- 5. 分类（store 优先平铺 +「管理 ›」，04 §4.1；一级 ⇒ 点即选中无弹窗） -->
           <div class="field-group">
             <div class="cell-label">分类</div>
-            <div class="freq-row">
-              <button
-                v-for="c in HABIT_CATEGORIES"
-                :key="c.id"
-                type="button"
-                class="freq-chip"
-                :class="{ 'is-active': form.category === c.id }"
-                :style="form.category === c.id ? { background: c.vars.bg, borderColor: c.vars.fg, color: c.vars.fg } : {}"
-                :disabled="submitting"
-                @click="form.category = c.id as HabitCategory"
-              ><Icon :name="c.icon" :size="14" /> {{ c.label }}</button>
-            </div>
+            <CategoryTiles
+              v-model="form.category"
+              domain="habit"
+              :disabled="submitting"
+            />
           </div>
 
           <!-- 6. 频率 -->
@@ -422,30 +459,37 @@ async function handleSave() {
   color: var(--color-text-tertiary);
 }
 
-/* emoji 8 选 1 */
-.emoji-grid {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 8px;
-  padding: 0 16px 16px;
-}
-.emoji-item {
-  aspect-ratio: 1;
-  background: var(--color-bg-hover);
-  border: 1.5px solid transparent;
-  border-radius: 10px;
+/* 图标单行摘要（04 §4.1：替代 emoji 8 格，形态与财务的图标行统一） */
+.icon-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 16px 16px;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  &:active { opacity: 0.7; }
+  &[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+}
+.icon-preview {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   line-height: 1;
-  -webkit-tap-highlight-color: transparent;
-  &:active { transform: scale(0.93); }
-  &.is-active {
-    border-color: var(--color-primary);
-    background: var(--color-primary-light);
-  }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+.icon-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-body);
+  color: var(--color-text-primary);
+}
+.icon-change {
+  font-size: var(--fs-body-sm);
+  color: var(--color-primary);
+  flex-shrink: 0;
 }
 
 /* 颜色 4 选 1 */

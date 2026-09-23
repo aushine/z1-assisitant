@@ -19,7 +19,7 @@
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { showFailToast, showSuccessToast } from 'vant'
+import { showFailToast } from 'vant'
 import { moodApi } from '@/api/mood'
 import type {
   EnergyValue,
@@ -212,11 +212,6 @@ export const useMoodStore = defineStore('mood', () => {
     timelineSaving.value = false
   }
 
-  /** 供页面调用的成功提示（保持与其它 store 一致的交互手感） */
-  function notifySaved(): void {
-    showSuccessToast('已记录')
-  }
-
   return {
     // state
     selectedDate,
@@ -244,6 +239,5 @@ export const useMoodStore = defineStore('mood', () => {
     setEnergy,
     setNote,
     reset,
-    notifySaved,
   }
 })

@@ -34,9 +34,10 @@ export default function MeAboutPage() {
       <div className="settings-page">
         <Card bordered={false} className="card">
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <img src={`${import.meta.env.BASE_URL}z1-logo.png`} alt="Z1" style={{ width: 96, height: 96, objectFit: 'contain', margin: '0 auto 16px', display: 'block' }} />
-            <h3 style={{ marginBottom: 4, fontWeight: 700 }}>Z1 v1.0.0</h3>
-            <p style={{ color: 'var(--color-text-tertiary)', fontSize: 14, margin: 0 }}>Zero to One</p>
+            {/* 08 §3.4：竖版 lockup（图形上 / slogan 下）替换手写 name + slogan；
+                lockup-v 为竖构图（384×428）⇒ 定高 96、宽度按比率自动；版本号 v1.0.0 保留 */}
+            <img src={`${import.meta.env.BASE_URL}brand/z1-lockup-v.svg`} alt="Z1 · Zero to One" style={{ width: 'auto', height: 96, objectFit: 'contain', margin: '0 auto 16px', display: 'block' }} />
+            <h3 style={{ marginBottom: 4, fontWeight: 700 }}>v1.0.0</h3>
           </div>
 
           <div style={{ textAlign: 'center', marginTop: 16 }}>

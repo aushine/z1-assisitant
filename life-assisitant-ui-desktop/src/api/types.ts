@@ -87,7 +87,7 @@ export interface Role {
  */
 export interface Permission {
   id: string                 // e.g. "p_task_complete"
-  module: string             // home / task / habit / mood / finance / stat / timeline / notification / me / user_mgmt / role_mgmt
+  module: string             // 后端权限目录决定（勿在此枚举，会烂）：UI 中文名见权限页 MODULE_NAMES
   action: string             // view / create / update / complete / checkin / write / grant ...（按模块实际功能）
   description: string        // 中文标签，UI 直接显示
 }
@@ -289,6 +289,8 @@ export interface Task {
   status: TaskStatus
   category_id?: string
   category_emoji?: string
+  /** 图标引用：lucide:<Name> | <Name> | emoji；空 = 继承分类图标（spec 04 §4.2） */
+  icon?: string
   due_date?: string
   due_time?: string
   reminder_at?: string
@@ -307,6 +309,8 @@ export interface CreateTaskReq {
   description?: string
   priority?: TaskPriority
   category_id?: string
+  /** 图标引用（`lucide:<Name>`，空 = 继承分类图标；UpdateTaskReq 里空串 = 清除自选） */
+  icon?: string
   due_date?: string
   due_time?: string
   reminder_at?: string
@@ -359,15 +363,21 @@ export type HabitFrequency = 'daily' | 'weekly' | 'monthly'
 /** 习惯状态 */
 export type HabitStatus = 'active' | 'archived'
 
-/** 习惯分类 */
-export type HabitCategory = 'sport' | 'diet' | 'life' | 'study'
+/**
+ * 习惯分类 id。
+ *
+ * ⚠️ 260922 分类实体化（spec-20260922-v2/04）：分类改由 `user_categories`
+ * 表（domain=habit）承载，用户可自由增删 ⇒ id 不再是封闭枚举。
+ * 旧内置 id（sport/diet/life/study）保留为**兜底常量表**的值，类型放宽为 string。
+ */
+export type HabitCategory = string
 
 /** 习惯实体 */
 export interface Habit {
   id: string
   title: string
   description?: string
-  icon: string            // emoji
+  icon: string            // 图标引用：lucide:<Name> | <Name>；存量数据可能是 emoji（渲染层自动换算）
   color: string           // 图标底色 hex
   category: HabitCategory // 分类
   frequency: HabitFrequency
@@ -766,6 +776,37 @@ export interface DebtsResp {
 }
 
 // ============================================================================
+// 财务自然周期汇总（GET /finance/summary · spec-20260922-v2 · 06 §2）
+// 流水页顶部数据块专用：四个数全部服务端口径（修 S2/S3），period 非法后端 400001
+// SYNC-FROM-MOBILE: life-assisitant-ui-mobile/src/api/types.ts（同名类型逐字段一致）
+// ============================================================================
+
+/** 数据块周期（自然周=周一–周日 / 自然月 / 自然年；与 BudgetPeriod 是两套枚举） */
+export type FinanceSummaryPeriod = 'week' | 'month' | 'year'
+
+/** 预算面（⚠️ 只统计 scope=total 且 period 匹配选定周期的预算，D8 防重复计算） */
+export interface FinanceSummaryBudget {
+  count: number
+  amount: number
+  used: number
+  remaining: number
+}
+
+/** GET /finance/summary 响应 */
+export interface FinanceSummaryResp {
+  period: FinanceSummaryPeriod
+  /** 选定周期区间（服务端算好，含两端，YYYY-MM-DD） */
+  start_date: string
+  end_date: string
+  /** income/expense 不含 transfer；exclude_stats=0（与统计页一致，D7） */
+  income: number
+  expense: number
+  /** = income − expense（后端算，避免前端两处减法口径不一） */
+  net: number
+  budget: FinanceSummaryBudget
+}
+
+// ============================================================================
 // 预算（Budgets）
 // 规范：md/spec/12-记录.md · 4.4
 // ============================================================================
@@ -888,6 +929,64 @@ export interface PatchCategoryReq {
   icon?: string | null
   tint?: CategoryTint
   emoji?: string | null
+}
+
+// ============================================================================
+// 用户分类（UserCategory）—— 习惯 / 待办（spec-20260922-v2/06 §3）
+//
+// 与收支的 FinanceCategory 是**两套实体**：这里只有一级平铺（无父子），
+// 按 domain 分域；id 口径与后端一致（内置沿用旧值 sport/c_work…，
+// 新建由后端生成 `uc_<domain>_<random>`，前端不造 id）。
+// ============================================================================
+
+/** 分类域：habit = 习惯，task = 待办（后端白名单校验） */
+export type UserCategoryDomain = 'habit' | 'task'
+
+/** user_categories 单条分类（一级平铺，无 children） */
+export interface UserCategory {
+  id: string
+  domain: UserCategoryDomain
+  name: string
+  emoji?: string | null
+  /** `lucide:<Name>` | `<Name>`；null/空 = 用域名默认图标（habit=Pin / task=CircleDashed） */
+  icon?: string | null
+  /** 语义色名；null = 由图标映射 / neutral 推导 */
+  tint?: string | null
+  sort: number
+  is_builtin: boolean
+}
+
+/** 列表查询参数（06 §3.1） */
+export interface ListUserCategoriesQuery {
+  domain: UserCategoryDomain
+}
+
+/** 列表响应。seeded = 本次请求后端是否触发了懒播种（含软删行的内置存在性判定） */
+export interface ListUserCategoriesResp {
+  items: UserCategory[]
+  seeded: boolean
+}
+
+/** 创建 / 更新单条响应（`{item}` 包裹，与财务分类控制器同口径） */
+export interface UserCategoryItemResp {
+  item: UserCategory
+}
+
+/** 创建请求体（06 §3.2）。id 由后端生成 */
+export interface CreateUserCategoryReq {
+  domain: UserCategoryDomain
+  name: string
+  icon?: string | null
+  emoji?: string | null
+  tint?: string | null
+}
+
+/** 更新请求体（06 §3.3）。domain 不可改 */
+export interface UpdateUserCategoryReq {
+  name?: string
+  icon?: string | null
+  emoji?: string | null
+  tint?: string | null
 }
 
 // ============================================================================
@@ -1051,14 +1150,42 @@ export interface HomeMonthFinance {
   category_pie: Array<{ name: string; value: number; color: string }>
 }
 
+/**
+ * 首页待办简表（后端 dto.HomeTaskItem）
+ * ⚠️ 不是完整的 Task：首页聚合接口只回这几个字段（20260922 校正，此前错标 Task[]）
+ */
+export interface HomeTaskItem {
+  id: string
+  title: string
+  priority: string
+  status: string
+  category_emoji?: string
+  due_time?: string
+}
+
+/**
+ * 首页习惯简表（后端 dto.HomeHabitItem）
+ * ⚠️ 无 category / unit：分类图标与单位需回 habit store 按 id 兜底查（04 §4.2）
+ */
+export interface HomeHabitItem {
+  id: string
+  title: string
+  icon: string
+  color: string
+  target_count: number
+  today_count: number
+  /** today_count >= target_count */
+  completed: boolean
+}
+
 /** 首页聚合响应 */
 export interface HomeResp {
   greeting: string
   today_date: string
   weekday: string
   kpi: HomeKPI
-  today_tasks: Task[]
-  today_habits: Habit[]
+  today_tasks: HomeTaskItem[]
+  today_habits: HomeHabitItem[]
   month_finance: HomeMonthFinance
   unread_notifications: number
 }

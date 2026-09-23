@@ -10,6 +10,9 @@
  * Phase 3 新增：
  *   - **金额计算键盘**（02 §1）：金额框 readonly + inputmode=none，接入 AmountPad
  *     （新增时自动弹、编辑时不弹，D5）；求值语义 utils/calc.ts（左到右、分上整数运算）。
+ *   - **260922 Phase 2（02 §3–§5）**：金额框物理移出 .sheet-body 进 .calc-dock 覆盖层，
+ *     键盘升起时贴到键盘顶沿组成一整块「金额计算器」；几何值（--sheet-top / --amount-pad-h /
+ *     --calc-dock-h）由 ResizeObserver 运行时实测覆写。⚠️ 13 条功能红线（02 §6）逐条未动。
  *   - **日期时间**（02 §B）：4 列滚轮（年/月/日/HH:mm，日列联动含闰年）；
  *     ⚠️ 三处「时间被吃掉」修复：编辑回填完整时分、三个提交点用 wallClockISOFrom
  *     （用户选的时分，不再吃掉成"此刻"）。
@@ -27,7 +30,8 @@
  *   - ⚠️ 编辑模式不显示「性质/对方」（PATCH /transactions/:id 不接受 source/settle_of，
  *     只放开 exclude_* 指针与 contact —— 编辑已有 source 笔不改性质）。
  */
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import type { ComponentPublicInstance } from 'vue'
 import { resolveAccountIcon } from '@/utils/category-dict'
 import Icon from '@/components/icon/Icon.vue'
 import IconBox from '@/components/IconBox.vue'
@@ -243,6 +247,60 @@ function onBodyClick(): void {
 function onNoteFocus(): void {
   if (padShow.value) adoptPad(true)
 }
+
+// ==================== 计算器停靠层几何（02 §5）====================
+/**
+ * ⚠️ 金额框**物理移出** .sheet-body（滚动容器的 overflow 会裁剪 absolute 后代，
+ * 留在原地做吸底会被整个裁掉 —— 02 §5.1），放进新增覆盖层 .calc-dock；
+ * 它在滚动流里的原位由 .amount-spacer 占住（高 = JS 同步的卡高，否则「类别」会
+ * 钻到金额框底下），键盘打开时归 0（字段区上移，02 §3.2）。
+ *
+ * 三个几何值运行时写到 documentElement（与 tokens.scss --env-safe-bottom 同套路，
+ * token 值只是兜底初值）：
+ *   - --sheet-top     键盘关闭态卡顶偏移（实测占位条原位 offsetTop ⇒ 与改造前逐像素一致）
+ *   - --amount-pad-h  键盘实测高（打开态卡 bottom 钉在它上面 ⇒ 零缝隙，§3 条件 1）
+ *   - --calc-dock-h   卡 + 键盘总高（.sheet-body 底部留白，§5.3 防日期被永久压住）
+ */
+const sheetEl = ref<HTMLElement | null>(null)
+const spacerEl = ref<HTMLElement | null>(null)
+const cardEl = ref<HTMLElement | null>(null)
+const padRef = ref<ComponentPublicInstance | null>(null)
+let dockRO: ResizeObserver | null = null
+
+/** 金额卡实测高 —— .amount-spacer 占位用它（键盘关闭时卡浮在占位上，观感同前） */
+const cardH = ref(0)
+
+function syncDockGeometry(): void {
+  const spacer = spacerEl.value
+  const card = cardEl.value
+  if (!spacer || !card) return // 无账户态两个元素都不存在 → 跳过
+  const pad = padRef.value?.$el as HTMLElement | null
+  const css = document.documentElement.style
+  css.setProperty('--sheet-top', `${spacer.offsetTop}px`)
+  if (pad) css.setProperty('--amount-pad-h', `${pad.offsetHeight}px`)
+  css.setProperty('--calc-dock-h', `${card.offsetHeight + (pad?.offsetHeight ?? 0)}px`)
+  cardH.value = card.offsetHeight
+}
+
+/** 重新观察「卡 +（在场时）键盘」并立即复算（浮层打开 / 键盘开关 / 账户就绪时调用） */
+function bindDockRO(): void {
+  const card = cardEl.value
+  const pad = padRef.value?.$el as HTMLElement | null
+  if (!dockRO) dockRO = new ResizeObserver(() => syncDockGeometry())
+  else dockRO.disconnect() // ⚠️ 重绑先断开旧观察（02 §5.3：浮层反复开关不得累积观察器）
+  if (card) dockRO.observe(card)
+  if (pad) dockRO.observe(pad)
+  syncDockGeometry()
+}
+
+watch([() => props.show, padShow, hasAccounts], () => {
+  void nextTick(bindDockRO)
+})
+
+onBeforeUnmount(() => {
+  dockRO?.disconnect()
+  dockRO = null
+})
 
 // ==================== 日期时间（02 §B）====================
 const datePickerShow = ref(false)
@@ -576,7 +634,7 @@ const sheetTitle = computed(() => {
     :close-on-click-overlay="!submitting"
     @update:show="(v: boolean) => emit('update:show', v)"
   >
-    <div class="tx-sheet">
+    <div ref="sheetEl" class="tx-sheet" :class="{ 'is-pad-open': padShow }">
       <van-nav-bar
         :title="sheetTitle"
         :left-text="submitting ? '' : '取消'"
@@ -595,10 +653,12 @@ const sheetTitle = computed(() => {
         </template>
       </van-nav-bar>
 
-      <!-- 键盘展开时给内容容器预留底部空白（02 §1.7；不 scrollIntoView） -->
+      <!-- 键盘展开时给内容容器预留底部空白 = **卡 + 键盘**总高 --calc-dock-h（02 §5.3；不 scrollIntoView）。
+           ⚠️ 不再用 --amount-pad-h：底部固定区实际是「键盘 + 贴在上沿的金额卡」两块之和，
+           留白漏算卡片高度 ⇒ 最后一个字段（日期）被卡永久压住、滚不到底**且不报错**（02 §10）。 -->
       <div
         class="sheet-body"
-        :style="padShow ? { paddingBottom: 'calc(var(--amount-pad-h) + env(safe-area-inset-bottom, 0px))' } : undefined"
+        :style="padShow ? { paddingBottom: 'calc(var(--calc-dock-h) + env(safe-area-inset-bottom, 0px))' } : undefined"
         @click="onBodyClick"
       >
         <!-- 无账户时提示 -->
@@ -632,27 +692,15 @@ const sheetTitle = computed(() => {
             </van-tabs>
           </div>
 
-          <!-- 2. 金额：readonly + inputmode=none（02 §1.2 防系统键盘；disabled 会丢点击）
-               ⚠️ @click 必须 .stop：否则同一次点击冒泡到 .sheet-body 的 onBodyClick
-               （求值 + 收键盘），刚置起的 padShow 会被立刻按回去 —— 键盘关了再也打不开 -->
-          <div class="field-group amount-card">
-            <div class="amount-wrap">
-              <span class="currency">¥</span>
-              <input
-                :value="amountExpr"
-                type="text"
-                inputmode="none"
-                readonly
-                autocomplete="off"
-                class="amount-input"
-                :class="{ 'has-error': !!amountError }"
-                placeholder="0.00"
-                :disabled="submitting"
-                @click.stop="padShow = true"
-              >
-            </div>
-            <div v-if="amountError" class="error-text">{{ amountError }}</div>
-          </div>
+          <!-- 2. 金额卡原位占位（02 §5.2）：卡本体已移入 .calc-dock 覆盖层（滚动容器会裁掉
+               absolute 的后代，02 §5.1），这里只占住它原来的高度 —— JS 实测同步（cardH），
+               否则下方字段会整体钻到悬浮的金额卡底下；键盘打开时卡贴到底部、占位归 0（字段区上移） -->
+          <div
+            ref="spacerEl"
+            class="amount-spacer"
+            :style="{ height: padShow ? '0px' : `${cardH}px` }"
+            aria-hidden="true"
+          />
 
           <!-- 3. 类别（仅 expense / income）：一级宫格内联常驻；点「有二级」的一级弹一层二级弹窗 -->
           <div v-if="!isTransfer" class="field-group">
@@ -847,14 +895,43 @@ const sheetTitle = computed(() => {
         <div class="bottom-hint" aria-hidden="true" />
       </div>
 
-      <!-- 自绘计算键盘：absolute 贴浮层底部（不用 fixed，02 §1.7）；
-           顶部箭头点击 / 下拉拖拽收起 → 与「完成」同采纳路径（02 §1.6 #12） -->
-      <AmountPad
-        v-if="padShow && hasAccounts"
-        v-model:expr="amountExpr"
-        @complete="onPadComplete"
-        @close="onPadComplete"
-      />
+      <!-- 计算器停靠层（02 §5.2）：金额卡（**唯一实例**，DevTools 不得出现第二个 .amount-card）
+           + 自绘键盘，两者上下相接组成一整块计算器（02 §3）。
+           ⚠️ .calc-dock pointer-events:none 把点击透给滚动区字段，只有直接子元素接收
+           —— 漏了会吃掉整个浮层的点击（02 §10）。键盘外点击采纳路径不变（onBodyClick → adoptPad）。 -->
+      <div class="calc-dock">
+        <!-- 金额：readonly + inputmode=none（02 §1.2 防系统键盘；disabled 会丢点击）
+             ⚠️ @click 必须 .stop：否则同一次点击会穿透覆盖层触发 .sheet-body 的 onBodyClick
+             （求值 + 收键盘），刚置起的 padShow 会被立刻按回去 —— 键盘关了再也打不开 -->
+        <div v-if="hasAccounts" ref="cardEl" class="field-group amount-card">
+          <div class="amount-wrap">
+            <span class="currency">¥</span>
+            <input
+              :value="amountExpr"
+              type="text"
+              inputmode="none"
+              readonly
+              autocomplete="off"
+              class="amount-input"
+              :class="{ 'has-error': !!amountError }"
+              placeholder="0.00"
+              :disabled="submitting"
+              @click.stop="padShow = true"
+            >
+          </div>
+          <div v-if="amountError" class="error-text">{{ amountError }}</div>
+        </div>
+
+        <!-- 自绘计算键盘：absolute 贴浮层底部（不用 fixed，02 §1.7）；
+             顶部抓手点击 / 下拉拖拽收起 → 与「完成」同采纳路径（02 §1.6 #12） -->
+        <AmountPad
+          v-if="padShow && hasAccounts"
+          ref="padRef"
+          v-model:expr="amountExpr"
+          @complete="onPadComplete"
+          @close="onPadComplete"
+        />
+      </div>
 
       <!-- 日期时间滚轮（teleport=body 在组件内部；打开时已先收起键盘） -->
       <DateTimePicker v-model:show="datePickerShow" :value="form.happened_at" title="日期与时间" @confirm="onDateConfirm" />
@@ -930,10 +1007,41 @@ const sheetTitle = computed(() => {
 }
 .empty-emoji { margin-bottom: 16px; opacity: 0.6; }
 
-/* 金额大输入（readonly：光标不显示，符合「这不是个文本框」的观感） */
+/* 计算器停靠层（02 §5.2）：盖满整个 .tx-sheet，pointer-events:none 不吃字段点击，
+   直接子元素（金额卡 / 键盘）恢复 auto。⚠️ 漏掉这两条 ⇒ 整个浮层点不动（02 §10）。 */
+.calc-dock {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+.calc-dock > * {
+  pointer-events: auto;
+}
+
+/* 金额大输入（readonly：光标不显示，符合「这不是个文本框」的观感）。
+   ⚠️ 02 §5：不再位于滚动区内（会被 overflow 裁掉），absolute 于 .calc-dock。
+   键盘关闭态 top = 运行时实测的 --sheet-top（占位条原位偏移）⇒ 与改造前逐像素一致
+   （左右 0 贴边也是改造前的实际形态；spec §5.2 的 var(--space-4) 假设卡有边距，
+   本仓金额卡通栏无边距，按「实际为准」取 0）。46px 兜底 = vant nav-bar 默认高。 */
 .amount-card {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--sheet-top, 46px);
   padding: 24px 16px;
   text-align: center;
+}
+
+/* 键盘打开态：卡下移贴到键盘顶沿（bottom = 实测键盘高 ⇒ 零缝隙），
+   与键盘共用同一底色、外圆角 20px 只留顶部、投影只加在卡上（02 §3 四条件）。
+   ⚠️ 不做 top↔bottom 过渡动画、不上 FLIP —— 由键盘 200ms 升起动画掩盖（02 §5.2）。 */
+.is-pad-open .amount-card {
+  top: auto;
+  bottom: var(--amount-pad-h);
+  margin-bottom: 0;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.06);
 }
 .amount-wrap {
   display: flex;

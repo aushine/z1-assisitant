@@ -38,6 +38,8 @@ import type {
   CreateTransactionReq,
   DebtsResp,
   FinanceCategoryResp,
+  FinanceSummaryPeriod,
+  FinanceSummaryResp,
   ListAccountsResp,
   ListBudgetsQuery,
   ListBudgetsResp,
@@ -148,6 +150,16 @@ export const financeApi = {
    */
   getDebts(): Promise<DebtsResp> {
     return http.get<DebtsResp>('/finance/debts')
+  },
+
+  /**
+   * 财务自然周期汇总（GET /finance/summary · spec-20260922-v2 06 §2）
+   * 流水页顶部数据块专用：一次给 income/expense/net/budget 四个数，
+   * **全部服务端口径**（修 S2「按已加载记录统计」；budget 只算 scope=total 修 S3）。
+   * period 非法后端返 400001。
+   */
+  getSummary(period: FinanceSummaryPeriod): Promise<FinanceSummaryResp> {
+    return http.get<FinanceSummaryResp>('/finance/summary', { params: { period } })
   },
 
   // ==================== 预算（finance:view / finance:budget） ====================

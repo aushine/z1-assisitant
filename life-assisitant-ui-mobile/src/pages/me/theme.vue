@@ -12,7 +12,6 @@
  */
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { showSuccessToast } from 'vant'
 import { useThemeStore, type ThemeMode } from '@/stores/theme'
 import { getTint } from '@/utils/tint'
 import Icon from '@/components/icon/Icon.vue'
@@ -32,9 +31,8 @@ const resolved = computed(() => themeStore.resolved())
 
 function pick(mode: ThemeMode): void {
   if (mode === current.value) return
+  // spec-20260922-v2 · 05：成功提示已删（主题即时生效 = 结果可见，R1）
   themeStore.setTheme(mode)
-  const label = OPTIONS.find((o) => o.key === mode)?.label ?? mode
-  showSuccessToast(`${label}已启用`)
 }
 
 function goBack(): void {

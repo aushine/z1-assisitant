@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Toast } from '@douyinfe/semi-ui'
+import { feedback } from '@/utils/feedback'
 import { taskApi } from '@/api/task'
 import type {
   Task,
@@ -114,7 +114,6 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       const newItems = [task, ...items]
       const derived = computeDerived({ items: newItems, loading: false, query: get().query })
       set({ items: newItems, total: total + 1, ...derived })
-      Toast.success('任务已创建')
       return task
     } catch {
       return null
@@ -141,7 +140,6 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       const freshItems = [...get().items]
       freshItems[idx] = fresh
       set({ items: freshItems })
-      Toast.success('任务已更新')
       return fresh
     } catch {
       const rollbackItems = [...get().items]
@@ -165,7 +163,6 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       const freshItems = [...get().items]
       freshItems[idx] = fresh
       set({ items: freshItems })
-      Toast.success(next === 'done' ? '任务已完成' : '已恢复为待办')
     } catch {
       const rollbackItems = [...get().items]
       rollbackItems[idx] = snapshot
@@ -184,7 +181,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     set({ items: newItems, total: Math.max(0, total - 1), ...derived })
     try {
       await taskApi.remove(id)
-      Toast.success('任务已删除')
+      feedback.destructiveDone('任务已删除')
       return true
     } catch {
       const rollbackItems = [...get().items]
@@ -200,7 +197,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       // 批量操作后刷新列表
       await get().fetchList()
       set({ selectedIds: [] })
-      Toast.success(`已处理 ${resp.affected} 个任务`)
+      feedback.batchDone(resp.affected, '个任务')
       return resp.affected
     } catch {
       return 0

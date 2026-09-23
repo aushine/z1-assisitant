@@ -845,7 +845,27 @@ func (s *FinanceService) DeleteTransaction(ctx context.Context, id string) error
 
 // ====== 预算 ======
 
+// budgetCurrentRange 预算「当前期」区间（口径修复 S1，06 §1.2）。
+//
+// ⚠️ 对 period-based 预算（weekly/monthly/yearly），读取时按**当前时间**推算区间、
+// 忽略创建时冻结的 start_date/end_date —— 否则 9 月建的月预算进 10 月后 used 永远停在 9 月。
+// 周口径**只此一处推算**（复用 parseBudgetDates，周一为周首 weekday==0→7），
+// 与 GET /finance/summary 共用同一函数，禁止各写一份。
+// 非标准 period / 异常值 → 兜底返回存储的冻结区间。零数据迁移（只在读时算）。
+func budgetCurrentRange(b *model.Budget) (time.Time, time.Time) {
+	switch b.Period {
+	case model.BudgetPeriodWeekly, model.BudgetPeriodMonthly, model.BudgetPeriodYearly:
+		if s, e, err := parseBudgetDates("", "", b.Period); err == nil {
+			return s, e
+		}
+	}
+	return b.StartDate, b.EndDate
+}
+
 // budgetToResp 将 Budget 实体转为 DTO，并实时计算 used 字段
+//
+// ⚠️ used 用 budgetCurrentRange（按当前期滚动，S1 修复）；
+// start_date / end_date 响应字段**保留返回存储值**（语义降级为「创建时的参考值」，06 §1.2）。
 func budgetToResp(ctx context.Context, b *model.Budget) *dto.BudgetResp {
 	var used float64
 	catID, catName := "", ""
@@ -855,11 +875,12 @@ func budgetToResp(ctx context.Context, b *model.Budget) *dto.BudgetResp {
 	if b.CategoryName != nil {
 		catName = *b.CategoryName
 	}
+	curStart, curEnd := budgetCurrentRange(b)
 	if b.Scope == model.BudgetScopeCategory && (catID != "" || catName != "") {
 		// ⚠️ 按 id 匹配且含子分类（02 §6.2 / §6.3）；catID 为空时退化为 name 匹配（历史预算）
-		used, _ = dao.Budget.SumExpenseByCategory(ctx, b.UserID, catID, catName, b.StartDate, b.EndDate)
+		used, _ = dao.Budget.SumExpenseByCategory(ctx, b.UserID, catID, catName, curStart, curEnd)
 	} else {
-		used, _ = dao.Budget.SumExpense(ctx, b.UserID, b.StartDate, b.EndDate)
+		used, _ = dao.Budget.SumExpense(ctx, b.UserID, curStart, curEnd)
 	}
 	resp := &dto.BudgetResp{
 		ID:             b.ID,
@@ -1467,4 +1488,83 @@ func debtKindExists(kinds []string, k string) bool {
 		}
 	}
 	return false
+}
+
+// ====== 流水页顶部数据块（20260922，06 §2） ======
+
+// GetFinanceSummary 自然周期收支汇总 + 总预算聚合（一次请求喂 4 个数，避免前端多处算口径）。
+//
+//   - period ∈ week|month|year（缺省 month；非法 → ValidationFailed 400001，不新增错误码）；
+//   - 周期区间推算与预算 used 滚动**共用同一函数** parseBudgetDates（周一为周首，
+//     weekday==0→7），三处口径全仓唯一（01 §2.3 / 06 §1.2 一致性要求）；
+//   - income / expense 走 dao.Transaction.SumByType —— 其天然过滤 exclude_stats=0，
+//     type 只取 income/expense（**不含 transfer**）；DAO 边界为 happened_at < end（右开），
+//     而推算终点是当日 23:59:59，故查询上界 +1 秒，避免最后 1 秒的记录丢失；
+//   - budget.* 只统计 scope=total 且 period 与请求匹配（week↔weekly…）的预算
+//     （D8：混入分类预算会重复计算）；used 经 budgetToResp 按当前期滚动，
+//     与 GET /budgets **同源同值**；无匹配 → count=0、三个数值均 0（前端显示「未设预算」）。
+func (s *FinanceService) GetFinanceSummary(ctx context.Context, req *dto.FinanceSummaryReq) (*dto.FinanceSummaryResp, error) {
+	uid := ctxUserID(ctx)
+	if uid == "" {
+		return nil, gerror.NewCode(ecode.AuthTokenMissing)
+	}
+	period := "month"
+	if req != nil {
+		if p := strings.TrimSpace(req.Period); p != "" {
+			period = p
+		}
+	}
+	// 请求周期（week|month|year）→ 预算 period 常量（weekly|monthly|yearly）
+	var budgetPeriod string
+	switch period {
+	case "week":
+		budgetPeriod = model.BudgetPeriodWeekly
+	case "month":
+		budgetPeriod = model.BudgetPeriodMonthly
+	case "year":
+		budgetPeriod = model.BudgetPeriodYearly
+	default:
+		return nil, gerror.NewCode(ecode.ValidationFailed)
+	}
+
+	start, end, err := parseBudgetDates("", "", budgetPeriod)
+	if err != nil {
+		return nil, gerror.NewCode(ecode.ValidationFailed)
+	}
+	queryEnd := end.Add(time.Second) // SumByType 右开区间，含进终点秒
+
+	income, err := dao.Transaction.SumByType(ctx, uid, model.TransactionTypeIncome, start, queryEnd)
+	if err != nil {
+		return nil, gerror.WrapCode(ecode.DatabaseError, err, "统计收入合计失败")
+	}
+	expense, err := dao.Transaction.SumByType(ctx, uid, model.TransactionTypeExpense, start, queryEnd)
+	if err != nil {
+		return nil, gerror.WrapCode(ecode.DatabaseError, err, "统计支出合计失败")
+	}
+
+	resp := &dto.FinanceSummaryResp{
+		Period:    period,
+		StartDate: start.Format("2006-01-02"),
+		EndDate:   end.Format("2006-01-02"),
+		Income:    income,
+		Expense:   expense,
+		Net:       income - expense, // 后端算净结余，避免前端两处减法
+	}
+
+	budgets, err := dao.Budget.List(ctx, uid, model.BudgetScopeTotal)
+	if err != nil {
+		return nil, gerror.WrapCode(ecode.DatabaseError, err, "查询预算列表失败")
+	}
+	for i := range budgets {
+		b := &budgets[i]
+		if b.Period != budgetPeriod {
+			continue // 只聚合与请求周期一致的总预算（D8）
+		}
+		br := budgetToResp(ctx, b) // 与 GET /budgets 同源（含 used 按当前期滚动）
+		resp.Budget.Count++
+		resp.Budget.Amount += br.Amount
+		resp.Budget.Used += br.Used
+	}
+	resp.Budget.Remaining = resp.Budget.Amount - resp.Budget.Used
+	return resp, nil
 }

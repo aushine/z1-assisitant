@@ -46,7 +46,7 @@ import type {
   Transaction,
 } from '@/api/types'
 import { useFinanceCategoryStore } from '@/stores/financeCategory'
-import { evalAmountExpr, centsToAmount } from '@/utils/calc'
+import { evalAmountExpr, centsToAmount, centsToFixed2 } from '@/utils/calc'
 import CategoryPicker from '@/components/finance/CategoryPicker'
 import { Icon } from '@/components/icon'
 
@@ -269,6 +269,19 @@ export default function TransactionEditDrawer({
     }
   }, [])
 
+  // ===== 失焦采纳（02 §7.3：与移动端 adoptPad 同一语义 —— 离开输入框即得结果）=====
+  // ① 空框不动（不写 0.00）② 无效表达式保留原文（半成品不写坏，错误由 field-error 承担）
+  // ③ 有效 → 统一 2 位小数写回（15/3 → 5.00、5. → 5.00、199/3 → 66.33）+ 同步 form.amount。
+  // 幂等：写回后再聚焦再失焦内容不变；Enter **不处理**（handleSubmit 已有求值兜底，02 §7.3 #7）。
+  const onAmountBlur = useCallback(() => {
+    const raw = amountText.trim()
+    if (!raw) return
+    const r = evalAmountExpr(raw)
+    if (!r.valid) return
+    setAmountText(centsToFixed2(r.cents))
+    setForm((f) => ({ ...f, amount: r.cents / 100 }))
+  }, [amountText])
+
   // ===== 类型切换：把被隐藏的开关/性质重置（05 §2 ⚠️ + 05 §B3.1 ⚠️）=====
   const onTypeChange = useCallback((next: TransactionType) => {
     setForm((f) => {
@@ -490,9 +503,11 @@ export default function TransactionEditDrawer({
               type="text"
               value={amountText}
               onChange={onAmountText}
+              onBlur={onAmountBlur}
               placeholder="0.00"
               style={{ flex: 1 }}
               // 全角＋－×÷ 也可输入，求值前半角化；不带 InputNumber 的原生校验
+              // 失焦采纳：有效 → 框内直接变结果（02 §7.3）；无效/空 → 原样保留
             />
             {amountPreview && (
               <span className={`amount-preview${amountEval.rounded ? ' is-rounded' : ''}`}>

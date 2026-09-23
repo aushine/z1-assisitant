@@ -1,5 +1,11 @@
 /**
  * Task create/edit Drawer
+ *
+ * 260922 分类实体化（spec-20260922-v2/04 #48/49）：
+ *   - 分类 6 宫格（写死常量）→ `<CategoryTiles>` 平铺 chips + 「管理 ›」，
+ *     store 优先、常量兜底（04 §4.2）；
+ *   - 新增图标行（已选 + 更换 › → IconPicker），`tasks.icon` 落库
+ *     `lucide:<Name>`（Q10：存量 emoji 顺手换算；空 = 继承分类图标）。
  */
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
@@ -13,9 +19,13 @@ import {
   Select,
   Checkbox,
 } from '@douyinfe/semi-ui'
-import { Icon, TINT_VARS } from '@/components/icon'
-import { TASK_CATEGORIES, getTaskCategory } from '@/utils/category-dict'
-import type { CategoryDef } from '@/utils/category-dict'
+import { Icon, ICONS, TINT_VARS } from '@/components/icon'
+import type { IconName } from '@/components/icon'
+import { resolveTaskIconView } from '@/utils/category-dict'
+import { useUserCategoryStore, lucideIconName } from '@/stores/user-category'
+import { getIconMapping } from '@/utils/icon-map'
+import IconPicker from '@/components/finance/IconPicker'
+import CategoryTiles from '@/components/finance/CategoryTiles'
 import { TASK_PRIORITIES } from '@/utils/task-dict'
 import type { Task, CreateTaskReq } from '@/api/types'
 
@@ -49,6 +59,7 @@ export default function TaskEditDrawer({ visible, task, saving = false, onClose,
     description: '',
     priority: 'normal',
     category_id: '',
+    icon: '', // '' = 跟随分类图标（04 §4.2）
     due_date: '',
     due_time: '',
     reminder_at: '',
@@ -57,6 +68,7 @@ export default function TaskEditDrawer({ visible, task, saving = false, onClose,
   })
   const [subtasks, setSubtasks] = useState<SubtaskForm[]>([])
   const [titleError, setTitleError] = useState('')
+  const [iconOpen, setIconOpen] = useState(false)
 
   // Reset form when visible changes or task changes
   useEffect(() => {
@@ -67,6 +79,8 @@ export default function TaskEditDrawer({ visible, task, saving = false, onClose,
         description: task.description ?? '',
         priority: task.priority ?? 'normal',
         category_id: task.category_id ?? '',
+        // 存量 icon 可为 emoji：表单原样携带，保存时 iconForPayload 统一换算（Q10）
+        icon: task.icon ?? '',
         due_date: task.due_date ?? '',
         due_time: task.due_time ?? '',
         reminder_at: task.reminder_at ?? '',
@@ -87,6 +101,7 @@ export default function TaskEditDrawer({ visible, task, saving = false, onClose,
         description: '',
         priority: 'normal',
         category_id: '',
+        icon: '',
         due_date: '',
         due_time: '',
         reminder_at: '',
@@ -96,23 +111,49 @@ export default function TaskEditDrawer({ visible, task, saving = false, onClose,
       setSubtasks([])
     }
     setTitleError('')
+    setIconOpen(false)
   }, [visible, task?.id])
 
   const isEdit = !!task
   const titleText = isEdit ? '编辑任务' : '新建任务'
 
-  const selectedCategory = useMemo(
-    () => getTaskCategory(form.category_id) ?? null,
-    [form.category_id]
+  // 订阅 task 域分类：store 数据到达后 iconView 重算（zustand 非响应式补丁）
+  const catItems = useUserCategoryStore((s) => s.items.task)
+
+  /** 图标优先级链：tasks.icon > 分类.icon > 分类.emoji > lucide:CircleDashed */
+  const iconView = useMemo(
+    () => resolveTaskIconView({ icon: form.icon, category_id: form.category_id }),
+    [form.icon, form.category_id, catItems]
   )
+
+  /** IconPicker 要**裸名**（无 lucide: 前缀）；存量 emoji 引用视为未选 */
+  const pickerIcon: IconName | null = useMemo(() => {
+    const raw = form.icon ?? ''
+    if (!raw) return null
+    const bare = raw.startsWith('lucide:') ? raw.slice(7) : raw
+    return (ICONS as Record<string, unknown>)[bare] ? (bare as IconName) : null
+  }, [form.icon])
+
+  /**
+   * Q10：保存时统一图标引用 ——
+   * 空 = 继承分类图标；lucide 引用原样；存量 emoji 顺手换成 `lucide:<映射名>`。
+   */
+  const iconForPayload = useCallback((raw: string | undefined): string => {
+    if (!raw) return ''
+    if (raw.startsWith('lucide:')) return raw
+    if ((ICONS as Record<string, unknown>)[raw]) return `lucide:${raw}`
+    // 桌面端 icon-map 返回组件 ⇒ 经注册表反查名字（未注册降级 HelpCircle）
+    return `lucide:${lucideIconName(getIconMapping(raw).icon) ?? 'HelpCircle'}`
+  }, [])
 
   const onTitleChange = useCallback((v: string) => {
     setForm((f) => ({ ...f, title: v }))
     if (v.trim()) setTitleError('')
   }, [])
 
-  const onPickCategory = useCallback((c: CategoryDef) => {
-    setForm((f) => ({ ...f, category_id: f.category_id === c.id ? '' : c.id }))
+  const onPickCategory = useCallback((id: string) => {
+    // 再点一次取消选择 ⇒ ''（未分类）。取消策略在父级，CategoryTiles 不判重
+    setForm((f) => ({ ...f, category_id: f.category_id === id ? '' : id }))
   }, [])
 
   const addSubtask = useCallback(() => {
@@ -153,6 +194,7 @@ export default function TaskEditDrawer({ visible, task, saving = false, onClose,
       description: form.description?.trim() || undefined,
       priority: form.priority,
       category_id: form.category_id || undefined,
+      icon: iconForPayload(form.icon),
       due_date: form.due_date || undefined,
       due_time: form.due_time || undefined,
       reminder_at: form.reminder_at || undefined,
@@ -281,31 +323,34 @@ export default function TaskEditDrawer({ visible, task, saving = false, onClose,
           </div>
         </div>
 
-        {/* Category */}
+        {/* 图标：已选 + 更换 › → IconPicker（04 §4.1，替代原 6 格 chip 里的图标猜测） */}
+        <div className="field">
+          <label className="field-label">图标</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              className="cat-icon-pick"
+              onClick={() => setIconOpen(true)}
+              style={{ background: TINT_VARS[iconView.tint].bg }}
+            >
+              <Icon name={iconView.icon} size={18} style={{ color: TINT_VARS[iconView.tint].fg }} />
+              <span className="cat-icon-pick-text">更换</span>
+            </button>
+            <span className="field-tip" style={{ margin: 0 }}>
+              {form.icon ? '已自选图标' : '跟随分类图标'}
+            </span>
+          </div>
+        </div>
+
+        {/* Category：一级平铺 chips + 管理入口（04 §4.1；与 HabitEditDrawer 同构，
+            用户新增的分类能立刻选到；取消策略 = 再点一次清空，见 onPickCategory） */}
         <div className="field">
           <label className="field-label">分类</label>
-          <div className="category-grid">
-            {TASK_CATEGORIES.map((c) => (
-              <div
-                key={c.id}
-                className={`category-item${form.category_id === c.id ? ' active' : ''}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => onPickCategory(c)}
-                onKeyDown={(e) => { if (e.key === 'Enter') onPickCategory(c) }}
-              >
-                <div className="category-emoji" style={{ background: TINT_VARS[c.tint].bg, color: TINT_VARS[c.tint].fg }}>
-                  <Icon name={c.icon} size={18} style={{ color: TINT_VARS[c.tint].fg }} />
-                </div>
-                <div className="category-name">{c.label}</div>
-              </div>
-            ))}
-          </div>
-          {selectedCategory && (
-            <div className="category-preview">
-              已选：<strong><Icon name={selectedCategory.icon} size={14} style={{ color: TINT_VARS[selectedCategory.tint].fg, marginRight: 4 }} />{selectedCategory.label}</strong>
-            </div>
-          )}
+          <CategoryTiles
+            domain="task"
+            value={form.category_id ?? ''}
+            onChange={onPickCategory}
+          />
         </div>
 
         {/* Recurrence */}
@@ -361,6 +406,18 @@ export default function TaskEditDrawer({ visible, task, saving = false, onClose,
         <Button theme="light" type="secondary" disabled={saving} onClick={onClose}>取消</Button>
         <Button theme="solid" type="primary" loading={saving} onClick={handleSubmit}>保存</Button>
       </div>
+
+      {/* 分组图标候选（与 HabitEditDrawer / 移动端共用同一份 icon-groups 注册表） */}
+      <IconPicker
+        visible={iconOpen}
+        value={pickerIcon}
+        onClose={() => setIconOpen(false)}
+        onSelect={(n) => {
+          // 落库口径 `lucide:<Name>`（04 §4.3）
+          setForm((f) => ({ ...f, icon: `lucide:${n}` }))
+          setIconOpen(false)
+        }}
+      />
     </SideSheet>
   )
 }

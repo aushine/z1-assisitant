@@ -1,7 +1,7 @@
 /**
  * ReverseButton — 撤销交易按钮（仅非 transfer 类型可见）
  */
-import { Button, Modal, Toast } from '@douyinfe/semi-ui'
+import { Button, Modal } from '@douyinfe/semi-ui'
 import type { Transaction } from '@/api/types'
 import { useFinanceStore } from '@/stores/finance'
 
@@ -25,7 +25,6 @@ export function ReverseButton({ tx, onReversed }: Props) {
       onOk: async () => {
         const ok = await financeStore.reverseTransaction(tx.id, undefined)
         if (ok) {
-          Toast.success('已撤销')
           onReversed?.()
         }
       },

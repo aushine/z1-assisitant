@@ -19,10 +19,25 @@
  *
  * `emoji` 字段仅用于兼容后端存储（如交易的 category_emoji、习惯的 icon），
  * 渲染层一律用 `icon` + `tint`，不再直出 emoji。
+ *
+ * ⚠️ 260922 分类实体化（spec-20260922-v2/04）后，本文件的习惯 / 任务两张表
+ *    **降级为兜底显示表**：`getHabitCategory` / `getTaskCategory` 先查
+ *    `stores/user-category`（store 优先），分类未拉回来时才查这里的常量
+ *    —— 所以旧常量**不许删**。收支（EXPENSE/INCOME）与账户两张表不受影响。
+ *
+ * ⚠️ zustand 的 getState() 不建立订阅 ⇒ 这些助手是**非响应式**的：
+ *    需要「数据到达后自动替换」的组件要用 selector 订阅 store
+ *    （`useUserCategoryStore((s) => s.items)` 等），列表首帧先按常量兜底渲染。
  */
 import { ICONS } from '@/components/icon'
 import type { IconName, TintName, LucideIcon } from '@/components/icon'
 import { getIconMapping } from '@/utils/icon-map'
+import {
+  useUserCategoryStore,
+  normalizeIconRef,
+  DOMAIN_FALLBACK_ICON,
+} from '@/stores/user-category'
+import type { UserCategoryDomain } from '@/api/types'
 
 export interface CategoryDef {
   /** 唯一 key：任务用 category_id（c_work…），习惯用 HabitCategory（sport…），收支用自定义 id */
@@ -35,6 +50,10 @@ export interface CategoryDef {
   icon: IconName
   /** 语义色（配合 TINT_VARS[tint].bg / .fg） */
   tint: TintName
+  /** true = 用户分类已被软删（label 固定「已删除分类」+ 中性色，04 §3.3） */
+  deleted?: boolean
+  /** true = id 不在用户分类表里（异常数据）：label 为原 id + 中性色（04 §3.3） */
+  unknown?: boolean
 }
 
 // ==========================================================================
@@ -143,14 +162,79 @@ export function resolveAccountIcon(emoji: string): { icon: LucideIcon; tint: Tin
 // 查询辅助
 // ==========================================================================
 
-/** 按 id 查任务分类 */
+/**
+ * 按 id 查任务分类 —— **store 优先、常量兜底**（spec-20260922-v2 #53）。
+ * store 该域未加载时查本文件的常量兜底表（不删 —— 列表要先有得渲染）。
+ */
 export function getTaskCategory(id: string | undefined): CategoryDef | undefined {
-  return TASK_CATEGORIES.find((c) => c.id === id)
+  return categoryView('task', id) ?? (id ? TASK_CATEGORIES.find((c) => c.id === id) : undefined)
 }
 
-/** 按 id 查习惯分类 */
+/** 按 id 查习惯分类 —— 规则同上（store 优先、常量兜底） */
 export function getHabitCategory(id: string | undefined): CategoryDef | undefined {
-  return HABIT_CATEGORIES.find((c) => c.id === id)
+  return categoryView('habit', id) ?? (id ? HABIT_CATEGORIES.find((c) => c.id === id) : undefined)
+}
+
+/** store 优先解析（zustand getState 非响应式；未加载域返回 undefined 走常量） */
+function categoryView(domain: UserCategoryDomain, id: string | undefined): CategoryDef | undefined {
+  if (!id) return undefined
+  const store = useUserCategoryStore.getState()
+  if (!store.loadedOnce[domain]) return undefined
+  const r = store.resolveCategory(domain, id)
+  if (!r) return undefined
+  return {
+    id: r.id,
+    label: r.name,
+    emoji: r.emoji ?? '',
+    icon: r.icon,
+    tint: r.tint,
+    deleted: r.deleted,
+    unknown: r.unknown,
+  }
+}
+
+/** 图标解析结果（04 §4.2 优先级链的产物；渲染用 TINT_VARS[tint]） */
+export interface ResolvedIconView {
+  icon: IconName
+  tint: TintName
+}
+
+/**
+ * 习惯图标视图：`habits.icon`（存量可为 emoji，自动换算）> 分类.icon >
+ * 分类.emoji > lucide:Pin。store 未加载时走常量兜底表，渲染先不空。
+ */
+export function resolveHabitIconView(habit: { icon?: string; category?: string }): ResolvedIconView {
+  const ref = normalizeIconRef(habit.icon)
+  if (ref) {
+    const tint =
+      ref.tint ?? categoryView('habit', habit.category)?.tint ?? getHabitCategory(habit.category)?.tint ?? 'neutral'
+    return { icon: ref.icon, tint }
+  }
+  const cat = categoryView('habit', habit.category) ?? getHabitCategory(habit.category)
+  if (cat) return { icon: cat.icon, tint: cat.tint }
+  return { icon: DOMAIN_FALLBACK_ICON.habit, tint: 'neutral' }
+}
+
+/**
+ * 任务图标视图：`tasks.icon`（新列，可空）> 分类.icon > 分类.emoji > lucide:CircleDashed。
+ */
+export function resolveTaskIconView(task: {
+  icon?: string
+  category_id?: string | null
+}): ResolvedIconView {
+  const ref = normalizeIconRef(task.icon)
+  if (ref) {
+    const tint =
+      ref.tint ??
+      categoryView('task', task.category_id ?? undefined)?.tint ??
+      getTaskCategory(task.category_id ?? undefined)?.tint ??
+      'neutral'
+    return { icon: ref.icon, tint }
+  }
+  const cat =
+    categoryView('task', task.category_id ?? undefined) ?? getTaskCategory(task.category_id ?? undefined)
+  if (cat) return { icon: cat.icon, tint: cat.tint }
+  return { icon: DOMAIN_FALLBACK_ICON.task, tint: 'neutral' }
 }
 
 /** 按 id 查支出分类 */

@@ -146,10 +146,8 @@ export default function HealthOverviewCard({ onOpenMetric, onOpenSettings }: Pro
 
   function drinkCup(e: MouseEvent) {
     e.stopPropagation()
-    void store.addEvent(
-      { date: today, metric_key: 'water' as HealthEventMetricKey, value_num: waterStep },
-      { silent: true },
-    )
+    // 05：silent 参数随成功 toast 一并退休（高频「＋一杯」本就无提示）
+    void store.addEvent({ date: today, metric_key: 'water' as HealthEventMetricKey, value_num: waterStep })
   }
 
   return (

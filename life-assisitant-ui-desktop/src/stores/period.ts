@@ -16,7 +16,7 @@
  * ⚠️ 前端不做任何预测计算：阶段、日期、区间一律渲染后端返回的 prediction。
  */
 import { create } from 'zustand'
-import { Toast } from '@douyinfe/semi-ui'
+import { feedback } from '@/utils/feedback'
 import { periodApi } from '@/api/period'
 import { storage } from '@/utils/storage'
 import { PERIOD_MASK_STORAGE_KEY, periodCanShowDates } from '@/constants/period'
@@ -182,7 +182,6 @@ export const usePeriodStore = create<PeriodStore>((set, get) => ({
       if (res.prediction) set({ prediction: res.prediction })
       if (res.cycles_changed) get().invalidateCalendar()
       if (date === get().today && res.day) set({ todayLog: res.day })
-      Toast.success('已记录')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -206,7 +205,7 @@ export const usePeriodStore = create<PeriodStore>((set, get) => ({
         hasEnoughData: res.has_enough_data,
         todayLog: res.today_log,
       })
-      Toast.success('已删除')
+      feedback.destructiveDone('已删除')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -245,7 +244,6 @@ export const usePeriodStore = create<PeriodStore>((set, get) => ({
       const s = await periodApi.patchSettings(data)
       set({ settings: s })
       if (data.accept_disclaimer) set({ disclaimerAccepted: true })
-      Toast.success('已保存')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -264,7 +262,6 @@ export const usePeriodStore = create<PeriodStore>((set, get) => ({
       set({ initialized: true, disclaimerAccepted: true })
       get().invalidateCalendar()
       await get().fetchSettings()
-      Toast.success('已开启周期预测')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -282,7 +279,7 @@ export const usePeriodStore = create<PeriodStore>((set, get) => ({
       get().invalidateCalendar()
       set({ cycles: [] })
       await get().fetchOverview()
-      Toast.success('已清空经期数据')
+      feedback.destructiveDone('已清空经期数据')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console

@@ -16,7 +16,6 @@
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { showSuccessToast } from 'vant'
 import { useNotificationStore } from '@/stores/notification'
 import { storage } from '@/utils/storage'
 import { formatDateTime } from '@/utils/date'
@@ -54,7 +53,6 @@ const prefs = reactive<Record<NotifKey, boolean>>(loadPrefs())
 function onToggle(key: NotifKey, val: boolean): void {
   prefs[key] = val
   storage.setJSON(STORAGE_KEY, { ...prefs })
-  showSuccessToast(`${NOTIF_LABELS[key].title}已${val ? '开启' : '关闭'}`)
 }
 
 // ==================== 通知列表 ====================
@@ -84,7 +82,6 @@ async function onLoad(): Promise<void> {
 
 async function onMarkAll(): Promise<void> {
   await notificationStore.markAllRead()
-  showSuccessToast('已全部标记为已读')
 }
 
 function onTapItem(id: string, isRead: boolean): void {

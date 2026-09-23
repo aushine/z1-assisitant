@@ -116,7 +116,7 @@ export type RoleInfo = Role
  */
 export interface Permission {
   id: string
-  /** home / task / habit / mood / finance / stat / timeline / notification / me / user_mgmt / role_mgmt */
+  /** 后端权限目录决定（勿在此枚举，会烂）：UI 中文名见权限页 MODULE_NAMES */
   module: string
   /** view / create / update / complete / checkin / write / grant ... */
   action: string
@@ -384,6 +384,8 @@ export interface Task {
   status: TaskStatus
   category_id?: string
   category_emoji?: string
+  /** 图标引用：lucide:<Name> | <Name> | emoji；空 = 继承分类图标（spec 04 §4.2） */
+  icon?: string
   /** YYYY-MM-DD */
   due_date?: string
   /** HH:MM */
@@ -407,6 +409,8 @@ export interface CreateTaskReq {
   description?: string
   priority?: TaskPriority
   category_id?: string
+  /** 图标引用：lucide:<Name>；空/省略 = 继承分类图标（spec 04 §4.2） */
+  icon?: string
   due_date?: string
   due_time?: string
   reminder_at?: string
@@ -421,6 +425,8 @@ export interface UpdateTaskReq {
   priority?: TaskPriority
   status?: TaskStatus
   category_id?: string
+  /** 图标引用：lucide:<Name>；空串 = 清除自选、继承分类图标（spec 04 §4.2） */
+  icon?: string
   due_date?: string
   due_time?: string
   reminder_at?: string
@@ -458,7 +464,11 @@ export interface BatchTaskResp {
 
 export type HabitFrequency = 'daily' | 'weekly' | 'monthly'
 export type HabitStatus = 'active' | 'archived'
-export type HabitCategory = 'sport' | 'diet' | 'life' | 'study'
+/**
+ * 习惯分类 id —— spec 04 §2.3：分类实体化后不再是硬枚举。
+ * 内置值仍为 sport/diet/life/study（存量零迁移），用户新建的为 uc_habit_xxx。
+ */
+export type HabitCategory = string
 
 /** 习惯实体（后端 dto.HabitResp） */
 export interface Habit {
@@ -897,6 +907,40 @@ export interface CalendarResp {
 }
 
 /* ============================================================================
+ * 财务自然周期汇总（spec-20260922-v2 · 06 §2 · GET /finance/summary）
+ *
+ * 给流水页顶部数据块用：一次请求喂 4 个数，**全部服务端口径**（修 S2：
+ * 不再「按已加载记录统计」；修 S3：budget 只算 scope=total 且周期匹配）。
+ * ⚠️ 与 /stats/finance 的 range=7d/30d/90d（滑动窗口）是两套口径，勿混用。
+ * ========================================================================== */
+
+/** 数据块周期（自然周期：周一–周日 / 自然月 / 自然年；与 resolveBudgetRange 同源） */
+export type FinanceSummaryPeriod = 'week' | 'month' | 'year'
+
+/** 命中的总预算聚合（⚠️ 只统计 scope=total 且 period=请求周期，D8） */
+export interface FinanceSummaryBudget {
+  /** 命中的预算条数；0 = 未设总预算（前端显示「未设预算 · 去设置」，不显示 ¥0） */
+  count: number
+  amount: number
+  used: number
+  /** = amount − used */
+  remaining: number
+}
+
+export interface FinanceSummaryResp {
+  period: FinanceSummaryPeriod
+  /** 本期实际起止（服务端按当前时间推算，供前端展示「本期是哪几天」） */
+  start_date: string
+  end_date: string
+  /** 本期收入（不含 transfer，exclude_stats=0 口径，与统计页一致） */
+  income: number
+  expense: number
+  /** = income − expense（后端算好，避免前端两处减法口径不一） */
+  net: number
+  budget: FinanceSummaryBudget
+}
+
+/* ============================================================================
  * 预算（Budgets）
  * ========================================================================== */
 
@@ -1044,6 +1088,72 @@ export interface UpdateFinanceCategoryReq {
 /** 单个分类响应（POST / PATCH 共用） */
 export interface FinanceCategoryResp {
   item: FinanceCategory
+}
+
+/* ============================================================================
+ * 用户分类（UserCategory · 习惯/待办共用）—— spec-20260922-v2/04 & 06 §3
+ *
+ * SYNC-FROM-BACKEND: life-assisitant-api/internal/model/dto/user_category.go
+ *
+ * 三条约定（与收支分类同构，但只有**一级**）：
+ *   1. `domain` 区分两域：habit（内置 id = sport/diet/life/study）
+ *      task（内置 id = c_work/c_study/c_life/c_health/c_social/c_other）；
+ *      新建的 id = uc_<domain>_<10 位随机>（后端生成，前端不造 id）；
+ *   2. `icon` 为 `lucide:<Name>` 引用（04 §4.3 落库口径）；空 = 用 emoji 兜底；
+ *   3. 无 parent_id / full_name —— 一级平铺，不做两级（D21）。
+ * ========================================================================== */
+
+/** 分类所属域（习惯 / 待办） */
+export type UserCategoryDomain = 'habit' | 'task'
+
+/** 用户分类实体（后端 dto.UserCategoryResp） */
+export interface UserCategory {
+  id: string
+  domain: UserCategoryDomain
+  /** 显示名（≤10 字） */
+  name: string
+  /** 兼容 emoji（渲染优先 icon；icon 空时用 emoji 反查） */
+  emoji?: string | null
+  /** 图标引用：lucide:<Name>；空 = 走 emoji 兜底 */
+  icon?: string | null
+  /** 语义色名（primary/success/...）；空 = neutral */
+  tint?: string | null
+  sort: number
+  is_builtin: boolean
+}
+
+/** 拉取分类列表（GET /user-categories?domain=habit|task） */
+export interface ListUserCategoriesQuery {
+  domain: UserCategoryDomain
+}
+
+/** 分类列表响应（`seeded` = 本次请求触发了后端懒创建播种） */
+export interface ListUserCategoriesResp {
+  items: UserCategory[]
+  seeded: boolean
+}
+
+/** 单个分类响应（POST / PATCH 共用，同收支分类的 {item} 包装） */
+export interface UserCategoryItemResp {
+  item: UserCategory
+}
+
+/** 新建分类请求体（POST /user-categories） */
+export interface CreateUserCategoryReq {
+  domain: UserCategoryDomain
+  /** 去空白后 1–10 字；同 user+domain 下不可重名（后端行内错误） */
+  name: string
+  icon?: string | null
+  emoji?: string | null
+  tint?: string | null
+}
+
+/** 更新分类请求体（PATCH /user-categories/:id；⚠️ domain 不可改） */
+export interface UpdateUserCategoryReq {
+  name?: string
+  icon?: string | null
+  emoji?: string | null
+  tint?: string | null
 }
 
 /* ============================================================================

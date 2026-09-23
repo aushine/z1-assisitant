@@ -21,15 +21,16 @@ import { homeApi } from '@/api/home'
 import { timelineApi } from '@/api/timeline'
 import { useMoodStore } from '@/stores/mood'
 import { useHabitStore } from '@/stores/habit'
-import { getHabitCategory } from '@/utils/category-dict'
+import { resolveHabitIconView } from '@/utils/category-dict'
 import { moodOptions, energyOptions, MOOD_VALUES_ASC } from '@/utils/mood-dict'
 import ErrorState from '@/components/ErrorState'
+import { MoneyText } from '@/components/finance/MoneyText'
 import { EmptyHint } from '@/components/EmptyState'
 import AnniversaryCard from '@/components/AnniversaryCard'
 import { SmartBanner, computeRecs } from '@/components/SmartBanner'
 import Timeline from './Timeline'
 import MoodSection from '@/pages/record/components/MoodSection'
-import type { HomeResp, TimelineEvent, Habit, MoodValue, EnergyValue } from '@/api/types'
+import type { HomeResp, TimelineEvent, MoodValue, EnergyValue } from '@/api/types'
 
 /** 本地时区当天日期 YYYY-MM-DD（避免 toISOString 的 UTC 偏移跨天） */
 function todayStr(d: Date = new Date()): string {
@@ -141,8 +142,6 @@ export default function HomePage() {
 
   const habitArc = useMemo(() => progressArc(habitProgress, 100, 10), [habitProgress])
 
-  const formatMoney = useCallback((n: number) => `¥${n.toFixed(2)}`, [])
-
   // 最长连续天数（首页习惯卡环形图下方一行，04 §2.4）
   const longestStreak = useMemo(
     () => Math.max(0, ...habitStore.items.map((h) => h.longest_streak ?? 0)),
@@ -168,7 +167,8 @@ export default function HomePage() {
   }
 
   // —— 习惯打卡（完成后刷新首页 + 时间线，使卡片与叙事同步）——
-  async function onCheckIn(h: Habit) {
+  /** 只需要 id：首页简表 HomeHabitItem 也能直接打卡 */
+  async function onCheckIn(h: { id: string }) {
     await habitStore.checkIn(h.id)
     refresh()
   }
@@ -295,7 +295,7 @@ export default function HomePage() {
         )}
         {renderKpi(
           KPI_ITEMS[2].icon, KPI_ITEMS[2].tint, KPI_ITEMS[2].label, KPI_ITEMS[2].route,
-          <span style={{ color: 'var(--color-danger-dark)' }}>{formatMoney(kpi?.month_expense ?? 0)}</span>,
+          <span style={{ color: 'var(--color-danger-dark)' }}><MoneyText value={kpi?.month_expense ?? 0} /></span>,
           <>
             <KpiChange value={kpi?.month_expense_change ?? 0} />
             <span className="kpi-foot-text muted">同比</span>
@@ -303,7 +303,7 @@ export default function HomePage() {
         )}
         {renderKpi(
           KPI_ITEMS[3].icon, KPI_ITEMS[3].tint, KPI_ITEMS[3].label, KPI_ITEMS[3].route,
-          <span style={{ color: 'var(--color-success-dark)' }}>{formatMoney(kpi?.month_income ?? 0)}</span>,
+          <span style={{ color: 'var(--color-success-dark)' }}><MoneyText value={kpi?.month_income ?? 0} /></span>,
           <>
             <KpiChange value={kpi?.month_income_change ?? 0} />
             <span className="kpi-foot-text muted">同比</span>
@@ -378,14 +378,17 @@ export default function HomePage() {
 
                 <div className="habit-check-list">
                   {todayHabits.map((h) => {
-                    const cat = getHabitCategory(h.category)
-                    const done = !!h.today_done
+                    // HomeHabitItem 无 category/icon 之外的分类信息 ⇒ 回 habit store 按 id 兜底，
+                    // 再走 04 §4.2 优先级链：habits.icon > 分类.icon > 分类.emoji > lucide:Pin
+                    const sh = habitStore.items.find((x) => x.id === h.id)
+                    const iv = resolveHabitIconView({ icon: sh?.icon || h.icon, category: sh?.category })
+                    const done = h.completed
                     const pct = h.target_count > 0 ? Math.min(100, Math.round(((h.today_count ?? 0) / h.target_count) * 100)) : 0
-                    const tv = cat ? TINT_VARS[cat.tint] : TINT_VARS.neutral
+                    const tv = TINT_VARS[iv.tint]
                     return (
                       <div key={h.id} className={`habit-check-item${done ? ' done' : ''}`}>
                         <div className="hci-icon" style={{ background: tv.bg, color: tv.fg }}>
-                          <Icon name={cat?.icon ?? 'CircleDot'} size={16} />
+                          <Icon name={iv.icon} size={16} />
                         </div>
                         <div className="hci-body">
                           <div className="hci-title">{h.title}</div>
@@ -393,7 +396,7 @@ export default function HomePage() {
                             <div className="hci-bar">
                               <div className="hci-bar-fill" style={{ width: pct + '%', background: done ? 'var(--color-success)' : h.color || 'var(--color-primary-500)' }} />
                             </div>
-                            <span className="hci-pct">{h.today_count ?? 0}/{h.target_count} {h.unit}</span>
+                            <span className="hci-pct">{h.today_count ?? 0}/{h.target_count} {sh?.unit ?? ''}</span>
                           </div>
                         </div>
                         <Tooltip content={done ? '已打卡' : '打卡'}>
@@ -428,12 +431,12 @@ export default function HomePage() {
                 <div className="finance-summary">
                   <div className="finance-summary-item is-expense">
                     <div className="finance-summary-label">支出</div>
-                    <div className="finance-summary-value">{formatMoney(monthFinance.expense)}</div>
+                    <div className="finance-summary-value"><MoneyText value={monthFinance.expense} /></div>
                     <KpiChange value={monthFinance.expense_change} />
                   </div>
                   <div className="finance-summary-item is-income">
                     <div className="finance-summary-label">收入</div>
-                    <div className="finance-summary-value">{formatMoney(monthFinance.income)}</div>
+                    <div className="finance-summary-value"><MoneyText value={monthFinance.income} /></div>
                     <KpiChange value={monthFinance.income_change} />
                   </div>
                 </div>
@@ -447,7 +450,7 @@ export default function HomePage() {
                         <div key={cat.name} className="finance-cat-row">
                           <span className="finance-cat-dot" style={{ background: cat.color }} />
                           <span className="finance-cat-name">{cat.name}</span>
-                          <span className="finance-cat-value">{formatMoney(cat.value)}</span>
+                          <span className="finance-cat-value"><MoneyText value={cat.value} /></span>
                           <span className="finance-cat-pct">{pct}%</span>
                         </div>
                       )

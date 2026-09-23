@@ -22,7 +22,8 @@
  *    理论上都晚于原笔）。若后续后端补 settle_of 查询参数应替换此实现。
  */
 import { useState, useEffect, useCallback } from 'react'
-import { SideSheet, Button, Modal, Toast, Typography, Skeleton } from '@douyinfe/semi-ui'
+import { SideSheet, Button, Modal, Typography, Skeleton } from '@douyinfe/semi-ui'
+import { feedback } from '@/utils/feedback'
 import { Icon } from '@/components/icon'
 import { financeApi } from '@/api/finance'
 import { useFinanceStore } from '@/stores/finance'
@@ -218,7 +219,7 @@ export default function TransactionDetailDrawer({
       onOk: async () => {
         const ok = await financeStore.removeTransaction(tx.id)
         if (ok) {
-          Toast.success('交易已删除')
+          feedback.destructiveDone('交易已删除')
           onClose()
           onDeleted?.()
         }

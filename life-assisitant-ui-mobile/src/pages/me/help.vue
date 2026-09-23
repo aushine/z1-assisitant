@@ -102,6 +102,7 @@ async function onSubmit(): Promise<void> {
       content,
       contact: contact || undefined,
     })
+    // spec-20260922-v2 · 05 §2.2 R2 保留：反馈提交后转入后台处理，结果不可见
     showSuccessToast('反馈已提交，感谢您的支持！')
     form.content = ''
     form.contact = ''

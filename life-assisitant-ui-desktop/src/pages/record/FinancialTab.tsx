@@ -71,6 +71,15 @@ export function FinancialTab({
     change('transactions')
   }
 
+  // spec-20260922-v2 · 07 #30b：账户卡「查看流水」→ 切收支并按该账户筛选。
+  // 方案 B（Q10 拍板）：工具栏账户 Select 受控于 txQuery.account_id，写入即自动选中；
+  // 与移动端不同，桌面端**不注入 chip**（chip 是移动端删下拉后的补偿形态）。
+  function handleViewAccount(accountId: string) {
+    useFinanceStore.getState().setTxQuery({ account_id: accountId, contact: undefined, start_date: undefined, end_date: undefined })
+    useFinanceStore.getState().fetchTransactions()
+    change('transactions')
+  }
+
   return (
     <div className="financial-tab">
       <div className="fin-sub">
@@ -87,10 +96,10 @@ export function FinancialTab({
         </RadioGroup>
       </div>
 
-      {sub === 'transactions' && <TransactionsTab />}
+      {sub === 'transactions' && <TransactionsTab onGotoBudget={() => change('budget')} />}
       {sub === 'calendar' && <CalendarView onViewAll={handleViewAll} />}
       {sub === 'budget' && <BudgetTab />}
-      {sub === 'account' && <AccountTab onViewContact={handleViewContact} />}
+      {sub === 'account' && <AccountTab onViewContact={handleViewContact} onViewAccount={handleViewAccount} />}
     </div>
   )
 }

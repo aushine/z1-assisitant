@@ -10,8 +10,8 @@
 --
 -- 内容：
 --   1. roles            2 条内置角色（admin 管理员 / user 用户）
---   2. permissions      46 条权限点（14 模块，按真实功能设计，非抽象 CRUD 填充）
---   3. role_permissions admin 40（全量锁定）/ user 30（个人域，权限页可调）
+--   2. permissions      48 条权限点（15 模块，按真实功能设计，非抽象 CRUD 填充）
+--   3. role_permissions admin 48（全量锁定）/ user 38（个人域，权限页可调）
 --   4. users            admin 管理员账号（admin / Admin@123）
 --   5. accounts         4 个内置默认账户（绑定 admin）
 --   6. 同步 roles.user_count 冗余计数
@@ -24,6 +24,9 @@
 -- 260921 新增：记账分类 finance:category（1）——
 --   权限目录 45 → 46 条、模块数仍 14；user 角色 35 → 36 条。
 --   增量脚本见 db/data_260921_finance_categories.sql；模块名不变（仍是「财务」），两端 MODULE_NAMES 无需改。
+-- 260922 新增：习惯/待办分类 category 模块（view / manage，2）——
+--   权限目录 46 → 48 条、模块 14 → 15；user 角色 36 → 38 条（category 不在排除清单，自动派生授予）。
+--   增量脚本见 db/data_260922_user_categories.sql；两端权限矩阵页 MODULE_NAMES 要加 category（「分类」）。
 --
 -- 注：自定义角色无种子（运行时由 role_mgmt:create 创建）。
 --     tasks / habits / habit_logs / transactions / budgets / subtasks
@@ -64,7 +67,7 @@ UPDATE `users` SET `role_code` = 'user' WHERE `role_code` IN ('editor', 'viewer'
 UPDATE `roles` SET `is_system` = 0 WHERE `code` NOT IN ('admin', 'user');
 
 -- ---------------------------------------------------------------------
--- 2. permissions（权限点：14 模块 × 实际功能 = 46 条）
+-- 2. permissions（权限点：15 模块 × 实际功能 = 48 条）
 --    与后端 RequirePermission("module:action") 路由逐一对应，
 --    修改本目录必须同步 internal/controller/router.go。
 --    重建式收敛：先清空再插入（旧 7×5 抽象点无法映射，一律作废）。
@@ -91,6 +94,9 @@ INSERT INTO `permissions` (`id`, `module`, `action`, `description`) VALUES
   ('p_habit_create',             'habit',        'create',      '创建习惯'),
   ('p_habit_update',             'habit',        'update',      '编辑习惯'),
   ('p_habit_delete',             'habit',        'delete',      '删除习惯'),
+-- category 习惯/待办分类（20260922 新增；user_categories 两域共用实体，不挂 habit/task 名下）
+  ('p_category_view',            'category',     'view',        '查看习惯/待办分类'),
+  ('p_category_manage',          'category',     'manage',      '管理习惯/待办分类（增删改）'),
 -- mood 心情/精力
   ('p_mood_view',                'mood',         'view',        '查看心情记录'),
   ('p_mood_write',               'mood',         'write',       '记录今日心情/精力'),
@@ -139,8 +145,9 @@ INSERT INTO `permissions` (`id`, `module`, `action`, `description`) VALUES
 
 -- ---------------------------------------------------------------------
 -- 3. role_permissions（角色权限矩阵）
---    admin：全部 46 点（服务端代码旁路 + 矩阵锁定，改不动也删不得）
---    user ：个人域 36 点（目录推导：排除 user_mgmt / role_mgmt；权限页可调）
+--    admin：全部 48 点（服务端代码旁路 + 矩阵锁定，改不动也删不得）
+--    user ：个人域 38 点（目录推导：排除 user_mgmt / role_mgmt；权限页可调。
+--           260922 的 category 模块 2 点不在排除清单 → 自动派生授予，用户进分类页不 403）
 -- ---------------------------------------------------------------------
 INSERT INTO `role_permissions` (`role_code`, `permission_id`, `enabled`, `version`)
 SELECT 'admin', `id`, 1, 1 FROM `permissions`;
@@ -211,10 +218,10 @@ SET `user_count` = (
 -- =====================================================================
 -- 校验（可选，执行后确认结果）
 --   SELECT code, name, is_system, user_count FROM roles;   -- 期望 admin / user 两行
---   SELECT COUNT(*) FROM permissions;                       -- 期望 46
---   SELECT COUNT(DISTINCT module) FROM permissions;          -- 期望 14
+--   SELECT COUNT(*) FROM permissions;                       -- 期望 48
+--   SELECT COUNT(DISTINCT module) FROM permissions;          -- 期望 15
 --   SELECT role_code, COUNT(*) FROM role_permissions GROUP BY role_code;
---                                                           -- 期望 admin 46 / user 36
+--                                                           -- 期望 admin 48 / user 38
 --   SELECT id, username, role_code, status FROM users;
 --   SELECT id, name, type, balance FROM accounts;           -- 期望 4 行
 -- =====================================================================

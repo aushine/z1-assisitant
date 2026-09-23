@@ -169,24 +169,26 @@ if curl -fsS --max-time 8 "http://127.0.0.1:8090/z1/api/v1/health" >/dev/null 2>
 else
   err "api health (direct :8090) FAILED"; FAIL=1
 fi
-if curl -fsS --max-time 8 "http://127.0.0.1/z1/api/v1/health" >/dev/null 2>&1; then
+if curl -fsS --max-time 8 "http://127.0.0.1/z1/api/v1/health" 2>/dev/null | grep -q '"status":"up"'; then
   ok "api health (via nginx :80) OK"
 else
-  err "api health (via nginx :80) FAILED"; FAIL=1
+  err "api health (via nginx :80) FAILED (no up-status in body)"; FAIL=1
 fi
 
 # frontend entries
 check_web() {
-  local url="$1" name="$2"
-  if curl -fsS --max-time 8 "$url" >/dev/null 2>&1; then
+  local url="$1" name="$2" base="$3"
+  if curl -fsS --max-time 8 "$url" 2>/dev/null | grep -q "$base/assets/"; then
     ok "${name} entry OK"
   else
     err "${name} entry FAILED (${url})"; FAIL=1
     return
   fi
   # referenced js asset reachable? (catch base-path 404 white screen)
+  # ⚠️ 必须以 $base/ 开头才算自家产物 —— 127.0.0.1 可能被同端口其他服务的
+  # default server 接走（newapi 的 SPA 对任意路径回 200，曾造成假阳性）
   local asset full
-  asset=$(curl -fsS --max-time 8 "$url" 2>/dev/null | grep -oE 'src="[^"]+\.js"' | head -1 | sed 's/src="//;s/"//') || true
+  asset=$(curl -fsS --max-time 8 "$url" 2>/dev/null | grep -oE "src=\"${base}/assets/[^\"]+\.js\"" | head -1 | sed 's/src="//;s/"//') || true
   if [ -n "$asset" ]; then
     case "$asset" in
       http*) full="$asset" ;;
@@ -201,8 +203,8 @@ check_web() {
   fi
 }
 
-check_web "http://127.0.0.1/z1/"     "desktop"
-check_web "http://127.0.0.1/z1-app/" "mobile"
+check_web "http://127.0.0.1/z1/"     "desktop" "/z1"
+check_web "http://127.0.0.1/z1-app/" "mobile"  "/z1-app"
 
 echo
 if [ "$FAIL" -eq 0 ]; then

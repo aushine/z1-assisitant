@@ -23,7 +23,8 @@ import IconBox from '@/components/IconBox'
 import { Icon, ICONS, TINT_VARS } from '@/components/icon'
 import ErrorState from '@/components/ErrorState'
 import { EmptyHint } from '@/components/EmptyState'
-import { getTaskCategory, findCategoryByEmoji } from '@/utils/category-dict'
+import { getTaskCategory, findCategoryByEmoji, resolveTaskIconView } from '@/utils/category-dict'
+import { DOMAIN_FALLBACK_ICON } from '@/stores/user-category'
 import type { CategoryDef } from '@/utils/category-dict'
 import { TASK_PRIORITIES, getTaskPriority, getTaskStatus } from '@/utils/task-dict'
 import TaskEditDrawer from '@/components/TaskEditDrawer'
@@ -185,8 +186,12 @@ export default function TaskPage() {
       dataIndex: 'category_id',
       width: 120,
       render: (_v: unknown, record: Task) => {
-        const c = categoryOf(record)
-        return <IconBox icon={ICONS[c.icon]} tint={c.tint} size={32} iconSize={16} />
+        // 图标优先级链（04 §4.2）：tasks.icon > 分类.icon > 分类.emoji > lucide:CircleDashed
+        const iv = resolveTaskIconView({ icon: record.icon, category_id: record.category_id })
+        // 存量「只有 category_emoji、没有 category_id」的记录会落到兜底图标，
+        // 此时用 emoji 反查表（categoryOf 内部已含该逻辑）补一档
+        const view = iv.icon === DOMAIN_FALLBACK_ICON.task ? categoryOf(record) : iv
+        return <IconBox icon={ICONS[view.icon]} tint={view.tint} size={32} iconSize={16} />
       },
     },
     {

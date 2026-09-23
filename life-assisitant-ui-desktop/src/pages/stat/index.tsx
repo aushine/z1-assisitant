@@ -31,6 +31,7 @@ import { BarChartCard } from '@/components/charts/BarChartCard'
 import { LineChartCard } from '@/components/charts/LineChartCard'
 import { DoughnutCard } from '@/components/charts/DoughnutCard'
 import ErrorState from '@/components/ErrorState'
+import { MoneyText } from '@/components/finance/MoneyText'
 import { EmptyHint } from '@/components/EmptyState'
 import HealthStats from './HealthStats'
 import type {
@@ -82,9 +83,8 @@ const DEFAULT_RANGE_BY_SECTION: Record<SectionKey, RangeKey> = {
 }
 
 // ====== Helper: money formatting ======
-function formatMoney(n: number) {
-  return `¥${n.toFixed(2)}`
-}
+// spec-20260922-v2 · 03 §4：本地 formatMoney 已删除 —— 金额展示统一走 <MoneyText>
+// （单一出口；页面自带的格式化函数正是遮罩漏点的主要来源）
 
 // ====== Helper: SVG ring progress ======
 function progressArc(pct: number, size = 80, stroke = 8) {
@@ -386,7 +386,7 @@ export default function StatPage() {
       align: 'right',
       render: (v: number) => (
         <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-          ¥ {v.toFixed(2)}
+          <MoneyText value={v} />
         </span>
       ),
     },
@@ -443,7 +443,7 @@ export default function StatPage() {
       align: 'right',
       render: (v: number) => (
         <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-          ¥ {v.toFixed(2)}
+          <MoneyText value={v} />
         </span>
       ),
     },
@@ -572,13 +572,13 @@ export default function StatPage() {
               <div className="kpi-large-head-main">
                 <div className="kpi-large-label">{rangeLabels[range]}支出</div>
                 <div className="kpi-large-value" style={{ color: 'var(--color-danger-dark)' }}>
-                  {formatMoney(financeStats?.expense ?? 0)}
+                  <MoneyText value={financeStats?.expense ?? 0} />
                 </div>
               </div>
               <span className="kpi-large-dim kpi-large-dim--range">随筛选</span>
             </div>
             <div className="kpi-large-foot">
-              <div className="kpi-large-sub">收入 {formatMoney(financeStats?.income ?? 0)}</div>
+              <div className="kpi-large-sub">收入 <MoneyText value={financeStats?.income ?? 0} /></div>
             </div>
             {financeStats && (
               <div className="kpi-large-hint">
@@ -597,13 +597,13 @@ export default function StatPage() {
               <div className="kpi-large-head-main">
                 <div className="kpi-large-label">总净资产</div>
                 <div className="kpi-large-value" style={{ color: totalBalance < 0 ? 'var(--color-danger-dark)' : 'var(--color-success-dark)' }}>
-                  {formatMoney(totalBalance)}
+                  <MoneyText value={totalBalance} />
                 </div>
               </div>
               <span className="kpi-large-dim">当前 · 固定</span>
             </div>
             <div className="kpi-large-foot">
-              <div className="kpi-large-sub">净值 {formatMoney(financeStats?.net ?? 0)}</div>
+              <div className="kpi-large-sub">净值 <MoneyText value={financeStats?.net ?? 0} /></div>
             </div>
             {financeStats && (
               <div className="kpi-large-hint">

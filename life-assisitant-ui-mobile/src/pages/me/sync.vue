@@ -63,6 +63,7 @@ function statusLabel(s: string): string {
 async function onSync(): Promise<void> {
   showToast({ message: '开始同步…', duration: 1500 })
   const ok = await syncStore.syncNow()
+  // spec-20260922-v2 · 05 §2.2 R2 保留：同步为异步长任务，完成时结果不在当前屏
   if (ok) showSuccessToast('同步完成')
   else showFailToast('同步失败，请重试')
 }

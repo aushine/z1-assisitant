@@ -298,3 +298,19 @@ func (c *FinanceController) GetDebts(r *ghttp.Request) {
 	}
 	response.Success(r, out)
 }
+
+// GetFinanceSummary GET /api/v1/finance/summary?period=week|month|year（20260922，06 §2）
+// 流水页顶部数据块：自然周期收支 + 总预算聚合；period 缺省 month，非法 → 400001
+func (c *FinanceController) GetFinanceSummary(r *ghttp.Request) {
+	var req dto.FinanceSummaryReq
+	if err := r.Parse(&req); err != nil {
+		response.Error(r, ecode.ValidationFailed, err)
+		return
+	}
+	out, err := service.Finance().GetFinanceSummary(r.Context(), &req)
+	if err != nil {
+		writeError(r, err)
+		return
+	}
+	response.Success(r, out)
+}

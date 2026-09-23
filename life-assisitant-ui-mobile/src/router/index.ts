@@ -159,6 +159,20 @@ const routes: RouteRecordRaw[] = [
       requiresPermission: 'finance:view',
     },
   },
+  // ============ 习惯 / 待办分类管理 · 二级页（260922 v2 批次四） ============
+  //
+  // spec-20260922-v2/04 §4.4：一页两分段（习惯 / 待办），入口有两处 ——
+  // 「我的 → 偏好 → 分类管理」与 CategoryTiles 的「管理 ›」（带 ?domain= 预选）。
+  {
+    path: '/me/categories',
+    name: 'MeCategories',
+    component: () => import('@/pages/me/categories.vue'),
+    meta: {
+      title: '分类管理',
+      requiresAuth: true,
+      requiresPermission: 'category:view',
+    },
+  },
   {
     path: '/me/help',
     name: 'MeHelp',

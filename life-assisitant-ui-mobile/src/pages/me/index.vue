@@ -20,7 +20,7 @@
  */
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { showConfirmDialog, showFailToast, showSuccessToast, showToast } from 'vant'
+import { showConfirmDialog, showFailToast, showToast } from 'vant'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
 import { userApi } from '@/api/user'
@@ -89,7 +89,6 @@ async function onAvatarChange(e: Event): Promise<void> {
     const res = await userApi.uploadAvatar(compressed)
     // 后端只返回 { avatar }，要合并进当前 user 并落库
     userStore.patchUser({ avatar: res.avatar })
-    showSuccessToast('头像已更新')
   } catch (err) {
     if (err instanceof TypeError) showFailToast('图片处理失败，请换一张试试')
     // ApiError 已在 request.ts 里 toast 过，这里不重复
@@ -159,35 +158,43 @@ const settings = computed<SettingGroup[]>(() => {
   groups.push({ key: 'space', title: '我的空间', items: space })
 
   // ── 偏好 ──
-  groups.push({
-    key: 'preference',
-    title: '偏好',
-    items: [
-      {
-        key: 'theme',
-        icon: 'Palette',
-        tint: getTint('accent'),
-        label: '主题设置',
-        sublabel: themeLabel.value,
-        path: '/me/theme',
-      },
-      {
-        key: 'notifications',
-        icon: 'Bell',
-        tint: getTint('warning'),
-        label: '通知设置',
-        path: '/me/notifications',
-      },
-      {
-        key: 'finance-categories',
-        icon: 'PieChart',
-        tint: getTint('primary'),
-        label: '收支分类',
-        sublabel: '管理记账分类',
-        path: '/me/finance-categories',
-      },
-    ],
-  })
+  const preference: SettingItem[] = [
+    {
+      key: 'theme',
+      icon: 'Palette',
+      tint: getTint('accent'),
+      label: '主题设置',
+      sublabel: themeLabel.value,
+      path: '/me/theme',
+    },
+    {
+      key: 'notifications',
+      icon: 'Bell',
+      tint: getTint('warning'),
+      label: '通知设置',
+      path: '/me/notifications',
+    },
+    {
+      key: 'finance-categories',
+      icon: 'PieChart',
+      tint: getTint('primary'),
+      label: '收支分类',
+      sublabel: '管理记账分类',
+      path: '/me/finance-categories',
+    },
+  ]
+  // 习惯 / 待办分类管理（spec-20260922-v2/04 §4.4，与「收支分类」同款形态）
+  if (userStore.hasPermission('category:view')) {
+    preference.push({
+      key: 'categories',
+      icon: 'FolderOpen',
+      tint: getTint('success'),
+      label: '分类管理',
+      sublabel: '习惯 / 待办分类',
+      path: '/me/categories',
+    })
+  }
+  groups.push({ key: 'preference', title: '偏好', items: preference })
 
   // ── 数据 ──
   groups.push({
@@ -265,7 +272,6 @@ async function onLogout(): Promise<void> {
     return
   }
   await userStore.logout()
-  showSuccessToast('已退出登录')
   router.replace({ name: 'Login' })
 }
 

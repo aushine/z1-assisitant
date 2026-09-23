@@ -78,18 +78,7 @@
   }
 }
 
-.brand-name {
-  font-size: $fs-h2;
-  font-weight: 700;
-  color: var(--color-text-primary);
-  letter-spacing: -0.5px;
-}
-
-.brand-tagline {
-  font-size: $fs-caption;
-  color: var(--color-text-tertiary);
-  margin-top: $space-1;
-}
+// 08 §3.2：原手写 .brand-name / .brand-tagline 已删 —— z1-lockup-h.svg 一体版自带 slogan
 
 .brand-title {
   font-size: $fs-display;

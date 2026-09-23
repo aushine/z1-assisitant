@@ -3,6 +3,21 @@
  * 命名风格：u-{category}-{name}
  */
 
+/* ========== Vant 函数式浮层兜底（260922）==========
+ * 症状：报错 toast 是「屏幕中间一块白色圆角块，看不到任何文字」。
+ * 根因：main.ts 已全量引入 vant/lib/index.css（.van-toast 黑底规则在
+ *   .van-popup 白底规则之后、本应获胜），但 VantResolver 按需样式会在
+ *   组件模块加载时**再注入一份** vant/es/popup/style —— 它排在全量 CSS
+ *   之后，同特异性（0,1,0）的 `.van-popup{background:白}` 反杀
+ *   `.van-toast{background:黑}` ⇒ 白底 + .van-toast 的白字 = 白块隐形。
+ * 修复：vite.config 的 VantResolver 已改 `importStyle: false`（去重复注入）；
+ *   这里再用 (0,2,0) 特异性兜底一次，防止将来有人把按需样式改回来复发。
+ * ⚠️ 放在 global（非 scoped）——toast teleport 到 body，scoped 管不到。 */
+.van-popup.van-toast {
+  background: var(--van-toast-background);
+  color: var(--van-toast-text-color);
+}
+
 .u-flex { display: flex; }
 .u-flex-col { display: flex; flex-direction: column; }
 .u-flex-center { display: flex; align-items: center; justify-content: center; }

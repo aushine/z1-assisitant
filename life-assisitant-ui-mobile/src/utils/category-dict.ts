@@ -21,10 +21,17 @@
  * ⚠️ `emoji` 是**存储契约**字段：后端交易的 category_emoji、习惯的 icon、
  *    账户的 icon 直接存取这个 emoji。它不再用于渲染（渲染走 `icon`），
  *    但**改 emoji 等于改数据**，务必两端同步。
+ *
+ * ⚠️ 260922 分类实体化（spec-20260922-v2/04）后，本文件的习惯 / 任务两张表
+ *    **降级为兜底显示表**（#52/53）：`getHabitCategory` / `getTaskCategory`
+ *    先查 `stores/user-category`（store 优先），分类尚未拉回来时才查这里的
+ *    常量 —— 所以旧常量**不许删**。收支（EXPENSE/INCOME）与账户两张表不受影响。
  */
 import { getTint, type TintName, type TintVars } from '@/utils/tint'
 import { getIconMapping } from '@/utils/icon-map'
 import type { IconName } from '@/components/icon/names'
+import { useUserCategoryStore, normalizeIconRef, DOMAIN_FALLBACK_ICON } from '@/stores/user-category'
+import type { UserCategoryDomain } from '@/api/types'
 
 export interface CategoryDef {
   /** 唯一 key：任务用 category_id（c_work…），习惯用 HabitCategory（sport…），收支用自定义 id */
@@ -39,6 +46,10 @@ export interface CategoryDef {
   tint: TintName
   /** 语义色解析结果（bg/fg），模板里可直接用 */
   vars: TintVars
+  /** true = 用户分类已被软删（label 固定「已删除分类」+ 中性色，04 §3.3） */
+  deleted?: boolean
+  /** true = id 不在用户分类表里（异常数据）：label 为原 id + 中性色（04 §3.3） */
+  unknown?: boolean
 }
 
 /** 内部构造：把 tint 名展开成可用的 bg/fg */
@@ -176,16 +187,88 @@ export function resolveAccountIcon(emoji: string): ResolvedAccountIcon {
 // 查询辅助
 // ==========================================================================
 
-/** 按 id 查任务分类 */
+/**
+ * 按 id 查任务分类 —— **store 优先、常量兜底**（spec-20260922-v2 #53）。
+ *
+ * - user-category store 该域已加载 → 返回 store 解析结果（含「已删除分类 /
+ *   原 id + 中性」两种降级，04 §3.3）；
+ * - store 未加载 → 查本文件的常量兜底表（旧内置，**不删** —— 分类未拉回来
+ *   时列表要先有得渲染，数据到了由 Pinia 响应式替换）；
+ * - 在组件 setup/render 里调用会建立响应式依赖（store 加载完成后自动重渲染）。
+ */
 export function getTaskCategory(id: string | undefined | null): CategoryDef | undefined {
-  if (!id) return undefined
-  return TASK_CATEGORIES.find((c) => c.id === id)
+  return categoryView('task', id) ?? (id ? TASK_CATEGORIES.find((c) => c.id === id) : undefined)
 }
 
-/** 按 id 查习惯分类 */
+/** 按 id 查习惯分类 —— 规则同上（store 优先、常量兜底） */
 export function getHabitCategory(id: string | undefined | null): CategoryDef | undefined {
+  return categoryView('habit', id) ?? (id ? HABIT_CATEGORIES.find((c) => c.id === id) : undefined)
+}
+
+/** store 优先解析（在组件上下文之外调用时静默走兜底表） */
+function categoryView(domain: UserCategoryDomain, id: string | undefined | null): CategoryDef | undefined {
   if (!id) return undefined
-  return HABIT_CATEGORIES.find((c) => c.id === id)
+  try {
+    const store = useUserCategoryStore()
+    if (!store.loadedOnce[domain]) return undefined
+    const r = store.resolveCategory(domain, id)
+    if (!r) return undefined
+    return {
+      id: r.id,
+      label: r.name,
+      emoji: r.emoji ?? '',
+      icon: r.icon,
+      tint: r.tint,
+      vars: r.vars,
+      deleted: r.deleted,
+      unknown: r.unknown,
+    }
+  } catch {
+    // 组件上下文之外（如模块顶层求值）拿不到 Pinia：按未加载处理
+    return undefined
+  }
+}
+
+/** 图标解析结果（04 §4.2 优先级链的产物，列表 / 卡片直接拿去渲染） */
+export interface ResolvedIconView {
+  icon: IconName
+  tint: TintName
+  vars: TintVars
+}
+
+/**
+ * 习惯图标视图：`habits.icon`（存量可为 emoji）> 分类.icon > 分类.emoji > lucide:Pin。
+ * 分类 store 未加载时走常量兜底表，渲染先不空，数据到了 Pinia 触发替换。
+ */
+export function resolveHabitIconView(
+  habit: { icon?: string; category?: string },
+): ResolvedIconView {
+  const ref = normalizeIconRef(habit.icon)
+  if (ref) {
+    const tint = ref.tint ?? categoryView('habit', habit.category)?.tint
+      ?? getHabitCategory(habit.category)?.tint ?? 'neutral'
+    return { icon: ref.icon, tint, vars: getTint(tint) }
+  }
+  const cat = categoryView('habit', habit.category) ?? getHabitCategory(habit.category)
+  if (cat) return { icon: cat.icon, tint: cat.tint, vars: cat.vars }
+  return { icon: DOMAIN_FALLBACK_ICON.habit, tint: 'neutral', vars: getTint('neutral') }
+}
+
+/**
+ * 任务图标视图：`tasks.icon`（新列，可空）> 分类.icon > 分类.emoji > lucide:CircleDashed。
+ */
+export function resolveTaskIconView(
+  task: { icon?: string; category_id?: string | null },
+): ResolvedIconView {
+  const ref = normalizeIconRef(task.icon)
+  if (ref) {
+    const tint = ref.tint ?? categoryView('task', task.category_id)?.tint
+      ?? getTaskCategory(task.category_id)?.tint ?? 'neutral'
+    return { icon: ref.icon, tint, vars: getTint(tint) }
+  }
+  const cat = categoryView('task', task.category_id) ?? getTaskCategory(task.category_id)
+  if (cat) return { icon: cat.icon, tint: cat.tint, vars: cat.vars }
+  return { icon: DOMAIN_FALLBACK_ICON.task, tint: 'neutral', vars: getTint('neutral') }
 }
 
 /** 按 id 查支出分类 */

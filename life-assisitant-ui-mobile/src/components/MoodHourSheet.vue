@@ -23,7 +23,7 @@
  *    完整说明见 `components/period/PeriodDaySheet.vue` 头部注释。
  */
 import { computed, ref, watch } from 'vue'
-import { showConfirmDialog, showFailToast, showSuccessToast } from 'vant'
+import { showConfirmDialog, showFailToast } from 'vant'
 import Icon from '@/components/icon/Icon.vue'
 import { MOOD_NOTE_MAX, useMoodStore } from '@/stores/mood'
 import { ENERGY_META, MOOD_META, energyOptions, moodOptions, type MoodMeta } from '@/utils/mood-dict'
@@ -121,13 +121,6 @@ async function onSave(): Promise<void> {
   }
   emit('saved')
   emit('update:show', false)
-  if (resp.item === null) {
-    showSuccessToast('已清除这一条')
-  } else if (payload.mood === 0 || payload.energy === 0) {
-    showSuccessToast('已恢复沿用上一条')
-  } else {
-    showSuccessToast('已保存')
-  }
 }
 
 /** 清除这一条：显式清空三个字段 → 后端删掉该行 */
@@ -155,7 +148,6 @@ async function onRemove(): Promise<void> {
   }
   emit('saved')
   emit('update:show', false)
-  showSuccessToast('已清除这一条')
 }
 
 function onClose(): void {

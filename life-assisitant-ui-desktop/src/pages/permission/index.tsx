@@ -22,6 +22,7 @@ import {
   Banner,
   Skeleton,
 } from '@douyinfe/semi-ui'
+import { feedback } from '@/utils/feedback'
 import { useUserStore, useUserRole, useHasPermission } from '@/stores/user'
 import { permissionApi } from '@/api/permission'
 import { roleApi } from '@/api/role'
@@ -35,6 +36,8 @@ const MODULE_NAMES: Record<string, string> = {
   home: '首页',
   task: '任务',
   habit: '习惯',
+  // 20260922-v2 · 04：习惯/待办分类实体化新增（后端 catalog 里排在 habit 之后）
+  category: '分类',
   mood: '心情/精力',
   finance: '财务',
   period: '经期',
@@ -222,7 +225,6 @@ export default function PermissionPage() {
         version,
         matrix: setToMatrix(perms, draft),
       })
-      Toast.success('权限已保存，立即生效')
       // 改的是自己所属角色 → 刷新本地权限（菜单/按钮即时收敛）
       if (current === ownRole) await useUserStore.getState().fetchPermissions()
       await loadMatrix(current)
@@ -264,7 +266,6 @@ export default function PermissionPage() {
         name,
         description: createForm.description.trim() || undefined,
       })
-      Toast.success(`角色「${created.name}」已创建，请为其勾选权限后保存`)
       setCreateVisible(false)
       setCreateForm({ code: '', name: '', description: '' })
       await loadRoles()
@@ -294,7 +295,6 @@ export default function PermissionPage() {
         name,
         description: editForm.description.trim(),
       })
-      Toast.success('角色信息已更新')
       setEditTarget(null)
       await loadRoles()
     } catch {
@@ -314,7 +314,7 @@ export default function PermissionPage() {
       onOk: async () => {
         try {
           await roleApi.remove(r.code)
-          Toast.success('角色已删除')
+          feedback.destructiveDone('角色已删除')
           const list = await loadRoles()
           if (current === r.code) {
             const next = list[0]?.code ?? null

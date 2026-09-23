@@ -1,10 +1,10 @@
 // Package impl 习惯服务实现
 // 业务规则：
-//   1. 只能操作自己的习惯（user_id 从 ctx 取）
-//   2. Create 时 status 默认 active，frequency 默认 daily，target_count 默认 1
-//   3. Log 打卡：upsert（habit_id + log_date 唯一），count 累加
-//   4. GetToday 默认取 server 当天日期，返回所有 active 习惯 + 今日完成状态
-//   5. 不做：子任务、提醒、重复 RRULE
+//  1. 只能操作自己的习惯（user_id 从 ctx 取）
+//  2. Create 时 status 默认 active，frequency 默认 daily，target_count 默认 1
+//  3. Log 打卡：upsert（habit_id + log_date 唯一），count 累加
+//  4. GetToday 默认取 server 当天日期，返回所有 active 习惯 + 今日完成状态
+//  5. 不做：子任务、提醒、重复 RRULE
 package impl
 
 import (
@@ -84,30 +84,37 @@ func (s *HabitService) Create(ctx context.Context, req *dto.CreateHabitReq) (*dt
 	if target <= 0 {
 		target = 1
 	}
-	icon := req.Icon
-	if icon == "" {
-		icon = "📌"
-	}
+	// 20260922：空 icon 不再兜底 '📌' —— 空值语义 = 继承分类图标（新优先级链，06 §4）
+	icon := strings.TrimSpace(req.Icon)
 	color := req.Color
 	if color == "" {
 		color = "#014DB2"
 	}
-	category := req.Category
+	category := strings.TrimSpace(req.Category)
 	if category == "" {
 		category = model.HabitCategoryLife
 	}
+	// ⚠️ 归属校验替代旧的 v:"in:,sport,diet,life,study" 硬枚举（06 §3.4）：
+	// category 必须是当前用户 domain=habit 未删分类。为保证老前端（从未调过
+	// GET /user-categories）建习惯不被误伤，先按懒创建口径补齐该域种子再校验。
+	if _, err := seedUserCategoriesIfAbsent(ctx, uid, model.UserCategoryDomainHabit); err != nil {
+		return nil, err
+	}
+	if err := validateCategoryOwnership(ctx, uid, model.UserCategoryDomainHabit, category); err != nil {
+		return nil, err
+	}
 
 	h := &model.Habit{
-		ID:          utility.NewID("h"),
-		UserID:      uid,
-		Title:       title,
-		Frequency:   freq,
-		TargetCount: target,
-		Icon:        icon,
-		Color:       color,
-		Category:    category,
+		ID:            utility.NewID("h"),
+		UserID:        uid,
+		Title:         title,
+		Frequency:     freq,
+		TargetCount:   target,
+		Icon:          icon,
+		Color:         color,
+		Category:      category,
 		TrackDuration: req.TrackDuration,
-		Status:      model.HabitStatusActive,
+		Status:        model.HabitStatusActive,
 	}
 	if desc := strings.TrimSpace(req.Description); desc != "" {
 		h.Description = &desc
@@ -222,13 +229,27 @@ func (s *HabitService) Update(ctx context.Context, id string, req *dto.UpdateHab
 		}
 	}
 	if req.Icon != nil {
-		updates["icon"] = *req.Icon
+		// 空串 = 清空（渲染时继承分类图标）
+		updates["icon"] = strings.TrimSpace(*req.Icon)
 	}
 	if req.Color != nil {
 		updates["color"] = *req.Color
 	}
 	if req.Category != nil {
-		updates["category"] = *req.Category
+		// ⚠️ 硬枚举已删（06 §3.4）：改为归属校验。habits.category 是 NOT NULL 列，
+		// 不允许清空为「未分类」（与 tasks.category_id 不同）；空串 → 400001。
+		// 管理员代改他人习惯时按**记录属主** exist.UserID 校验（04 §3）。
+		newCat := strings.TrimSpace(*req.Category)
+		if newCat == "" {
+			return nil, gerror.NewCode(ecode.ValidationFailed)
+		}
+		if _, err := seedUserCategoriesIfAbsent(ctx, exist.UserID, model.UserCategoryDomainHabit); err != nil {
+			return nil, err
+		}
+		if err := validateCategoryOwnership(ctx, exist.UserID, model.UserCategoryDomainHabit, newCat); err != nil {
+			return nil, err
+		}
+		updates["category"] = newCat
 	}
 	if req.Frequency != nil {
 		updates["frequency"] = *req.Frequency

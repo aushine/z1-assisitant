@@ -20,10 +20,17 @@
  *   - `DELETE /transactions|accounts|budgets/:id` 返回 204（无响应体）
  *   - `Budget.scope` 的「总预算」值是 `total`（不是 `overall`）
  *   - `Budget.alert_threshold` 是 **0-1** 小数，不是百分数
+ *
+ * spec-20260922-v2 Phase 1 新增（01 §2 / 06 §2）：
+ *   - 数据块状态机：`summary` + `summaryPeriod` + 左右块面（两态），
+ *     周期与面全部 **localStorage 持久化**（D10/D11，key 见 constants/finance.ts）
+ *   - `fetchSummary()`：流水页顶部四个数（income/expense/net/budget）**全走服务端**（修 S2）
+ *   - ⚠️ 一切交易/预算写入成功后必须 `void fetchSummary()`（07 验收：记一笔后数字立即更新）
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { showFailToast, showSuccessToast } from 'vant'
+import { showFailToast } from 'vant'
+import { feedback } from '@/utils/feedback'
 import { financeApi } from '@/api/finance'
 import type {
   Account,
@@ -32,6 +39,8 @@ import type {
   CreateBudgetReq,
   CreateTransactionReq,
   DebtsResp,
+  FinanceSummaryPeriod,
+  FinanceSummaryResp,
   ListTransactionsQuery,
   ReverseTransactionResp,
   Transaction,
@@ -42,6 +51,12 @@ import type {
   UpdateTransactionReq,
 } from '@/api/types'
 import { nowISO, toLocalISOString } from '@/utils/date'
+import {
+  FINANCE_MASK_KEY,
+  SUMMARY_CARD_LEFT_KEY,
+  SUMMARY_CARD_RIGHT_KEY,
+  SUMMARY_PERIOD_KEY,
+} from '@/constants/finance'
 
 /** 交易每页条数（无限滚动） */
 const TX_PAGE_SIZE = 20
@@ -86,6 +101,59 @@ export const useFinanceStore = defineStore('finance', () => {
     debts: 0,
     netWorth: 0,
   })
+
+  // ==================== state：数据块（spec-20260922-v2 · 01 §2） ====================
+  /**
+   * 偏好读取做 try/catch：隐私模式 / WebView 禁存储时 localStorage 会抛
+   * （先例：经期遮罩 `ls:period:masked` 的容错做法）。偏好丢失可接受，白屏不可接受。
+   */
+  function lsGet(key: string): string | null {
+    try {
+      return localStorage.getItem(key)
+    } catch {
+      return null
+    }
+  }
+  function lsSet(key: string, value: string): void {
+    try {
+      localStorage.setItem(key, value)
+    } catch {
+      /* 写入失败 = 本机记住不了，下次进页面回默认，可接受 */
+    }
+  }
+
+  /** 周期（月/周/年）；非法存量值回退 month（01 §2.5，D10 默认月） */
+  const summaryPeriod = ref<FinanceSummaryPeriod>(
+    (() => {
+      const v = lsGet(SUMMARY_PERIOD_KEY)
+      return v === 'week' || v === 'year' ? v : 'month'
+    })()
+  )
+  /** 左块面：收入 | 支出 */
+  const summaryCardLeft = ref<'income' | 'expense'>(
+    lsGet(SUMMARY_CARD_LEFT_KEY) === 'expense' ? 'expense' : 'income'
+  )
+  /** 右块面：预算 | 结余 */
+  const summaryCardRight = ref<'budget' | 'net'>(
+    lsGet(SUMMARY_CARD_RIGHT_KEY) === 'net' ? 'net' : 'budget'
+  )
+  /** /finance/summary 响应（服务端口径；null = 无数据） */
+  const summary = ref<FinanceSummaryResp | null>(null)
+  const summaryLoading = ref(false)
+  const summaryError = ref(false)
+
+  // ==================== state：金额遮罩（spec-20260922-v2 · 03） ====================
+  /**
+   * ⚠️ **定义时同步读** localStorage（不放 onMounted）—— 首帧闪一下真值 = 隐私泄漏（03 §7）。
+   * 设备级偏好（'1' 才算开启），与经期 `ls:period:masked` 先例同构；不入库、不调接口。
+   */
+  const masked = ref(lsGet(FINANCE_MASK_KEY) === '1')
+
+  /** 切换遮罩：只写本地，**不弹 toast**（03 §3.1 —— 图标自变即反馈） */
+  function toggleMasked(): void {
+    masked.value = !masked.value
+    lsSet(FINANCE_MASK_KEY, masked.value ? '1' : '0')
+  }
 
   // ==================== getters ====================
   /** 本地求和（乐观更新期间立即反映；展示优先用 serverTotalBalance） */
@@ -150,7 +218,6 @@ export const useFinanceStore = defineStore('finance', () => {
       const acc = await financeApi.createAccount(data)
       accounts.value.push(acc)
       serverTotalBalance.value += acc.balance ?? 0
-      showSuccessToast('账户已创建')
       return acc
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -176,7 +243,6 @@ export const useFinanceStore = defineStore('finance', () => {
       const real = await financeApi.updateAccount(id, data)
       const cur = accounts.value.findIndex((a) => a.id === id)
       if (cur >= 0) accounts.value[cur] = real
-      showSuccessToast('账户已更新')
       return real
     } catch (e) {
       const cur = accounts.value.findIndex((a) => a.id === id)
@@ -196,7 +262,7 @@ export const useFinanceStore = defineStore('finance', () => {
     serverTotalBalance.value -= original.balance ?? 0
     try {
       await financeApi.deleteAccount(id)
-      showSuccessToast('账户已删除')
+      feedback.destructiveDone('账户已删除')
       // 删除后可能存在关联交易数量变化，重拉一次校正
       await fetchAccounts()
     } catch (e) {
@@ -332,7 +398,7 @@ export const useFinanceStore = defineStore('finance', () => {
       if (cur >= 0) transactions.value[cur] = real
       // 余额以服务端为准
       await fetchAccounts()
-      showSuccessToast(data.type === 'expense' ? '记账成功' : '收入已记录')
+      void fetchSummary() // 01 验收：记一笔后数据块立即更新
       return real
     } catch (e) {
       if (originalAcc) {
@@ -358,7 +424,7 @@ export const useFinanceStore = defineStore('finance', () => {
       const idx = transactions.value.findIndex((t) => t.id === id)
       if (idx >= 0) transactions.value[idx] = real
       await fetchAccounts()
-      showSuccessToast('交易已更新')
+      void fetchSummary()
       return real
     } catch (e) {
       showFailToast('更新失败，请重试')
@@ -381,7 +447,8 @@ export const useFinanceStore = defineStore('finance', () => {
     try {
       await financeApi.removeTransaction(id)
       await fetchAccounts()
-      showSuccessToast('交易已删除')
+      feedback.destructiveDone('交易已删除')
+      void fetchSummary()
       return true
     } catch (e) {
       if (original) transactions.value.splice(Math.min(idx, transactions.value.length), 0, original)
@@ -402,7 +469,8 @@ export const useFinanceStore = defineStore('finance', () => {
     try {
       const res = await financeApi.reverseTransaction(id)
       await Promise.all([fetchAccounts(), fetchTransactions()])
-      showSuccessToast('已冲正')
+      feedback.destructiveDone('已冲正')
+      void fetchSummary()
       return res
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -429,7 +497,7 @@ export const useFinanceStore = defineStore('finance', () => {
       const res = await financeApi.transfer(data)
       await fetchAccounts()
       await fetchTransactions()
-      showSuccessToast('转账成功')
+      void fetchSummary()
       return res
     } catch (e) {
       const curFrom = accounts.value.findIndex((a) => a.id === originalFrom.id)
@@ -463,7 +531,7 @@ export const useFinanceStore = defineStore('finance', () => {
     try {
       const b = await financeApi.createBudget(data)
       budgets.value.unshift(b)
-      showSuccessToast('预算已创建')
+      void fetchSummary() // 预算面数字（amount/used/remaining/count）跟着变
       return b
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -484,7 +552,7 @@ export const useFinanceStore = defineStore('finance', () => {
       const b = await financeApi.updateBudget(id, data)
       const idx = budgets.value.findIndex((x) => x.id === id)
       if (idx >= 0) budgets.value[idx] = b
-      showSuccessToast('预算已更新')
+      void fetchSummary()
       return b
     } catch (e) {
       showFailToast('更新失败，请重试')
@@ -500,7 +568,8 @@ export const useFinanceStore = defineStore('finance', () => {
     if (idx >= 0) budgets.value.splice(idx, 1)
     try {
       await financeApi.removeBudget(id)
-      showSuccessToast('预算已删除')
+      feedback.destructiveDone('预算已删除')
+      void fetchSummary()
       return true
     } catch (e) {
       if (original) budgets.value.splice(Math.min(idx, budgets.value.length), 0, original)
@@ -536,12 +605,70 @@ export const useFinanceStore = defineStore('finance', () => {
    */
   async function fetchDebts(): Promise<void> {
     try {
-      debts.value = await financeApi.getDebts()
+      const res = await financeApi.getDebts()
+      // ⚠️ 后端空分组序列化为 null（Go nil slice → JSON null，260922 实测
+      //    返回 {"owed_to_me":null,"i_owe":null,"net":0}）。必须在这里归一化
+      //    成空数组 —— 否则 hasDebts / 模板里读 owed_to_me.length 直接
+      //    TypeError，账户区再次挂载时渲染崩溃 → 整片白屏（老大 260922 报障）。
+      //    新消费字段时同样在此处兜底，不要信任后端空值形状。
+      debts.value = {
+        owed_to_me: res.owed_to_me ?? [],
+        i_owe: res.i_owe ?? [],
+        net: res.net ?? 0,
+      }
     } catch (e) {
       debts.value = null
       // eslint-disable-next-line no-console
       console.error('[FinanceStore] fetchDebts failed', e)
     }
+  }
+
+  // ==================== actions：数据块（spec-20260922-v2 · 01 §2） ====================
+
+  /**
+   * 拉取当前周期的服务端汇总（GET /finance/summary）。
+   * ⚠️ 失败只置 `summaryError`，**不弹 toast** —— 块上有「加载失败 · 点击重试」态（01 §2.8）。
+   */
+  async function fetchSummary(): Promise<void> {
+    summaryLoading.value = true
+    summaryError.value = false
+    try {
+      summary.value = await financeApi.getSummary(summaryPeriod.value)
+    } catch (e) {
+      summary.value = null
+      summaryError.value = true
+      // eslint-disable-next-line no-console
+      console.error('[FinanceStore] fetchSummary failed', e)
+    } finally {
+      summaryLoading.value = false
+    }
+  }
+
+  /** 设周期并持久化 + 立即拉取（四数同周期刷新，01 验收） */
+  function setSummaryPeriod(period: FinanceSummaryPeriod): void {
+    if (period === summaryPeriod.value) return
+    summaryPeriod.value = period
+    lsSet(SUMMARY_PERIOD_KEY, period)
+    void fetchSummary()
+  }
+
+  /** 周期字点击：月 → 周 → 年 循环（01 §2.2 热区②，顺序写死勿改） */
+  function cycleSummaryPeriod(): void {
+    const next: FinanceSummaryPeriod =
+      summaryPeriod.value === 'month' ? 'week' : summaryPeriod.value === 'week' ? 'year' : 'month'
+    setSummaryPeriod(next)
+  }
+
+  /** 左块翻面（收入 ⇄ 支出），持久化 */
+  function flipSummaryCardLeft(): void {
+    summaryCardLeft.value = summaryCardLeft.value === 'income' ? 'expense' : 'income'
+    lsSet(SUMMARY_CARD_LEFT_KEY, summaryCardLeft.value)
+  }
+
+  /** 右块翻面（预算 ⇄ 结余），持久化 */
+  function flipSummaryCardRight(): void {
+    summaryCardRight.value = summaryCardRight.value === 'budget' ? 'net' : 'budget'
+    lsSet(SUMMARY_CARD_RIGHT_KEY, summaryCardRight.value)
   }
 
   /** 重置 */
@@ -565,6 +692,10 @@ export const useFinanceStore = defineStore('finance', () => {
     budgets.value = []
     budgetsLoading.value = false
     debts.value = null
+    // 数据块：内容清空，但「周期/两态」是设备偏好，不随登出重置（D11）
+    summary.value = null
+    summaryLoading.value = false
+    summaryError.value = false
   }
 
   return {
@@ -588,6 +719,15 @@ export const useFinanceStore = defineStore('finance', () => {
     budgets,
     budgetsLoading,
     debts,
+    // state：数据块（spec-20260922-v2 · 01 §2）
+    summary,
+    summaryLoading,
+    summaryError,
+    summaryPeriod,
+    summaryCardLeft,
+    summaryCardRight,
+    // state：金额遮罩（03）
+    masked,
     // getters
     localTotalBalance,
     totalBalance,
@@ -619,6 +759,14 @@ export const useFinanceStore = defineStore('finance', () => {
     deleteBudget,
     replaceBudget,
     fetchDebts,
+    // actions：数据块
+    fetchSummary,
+    setSummaryPeriod,
+    cycleSummaryPeriod,
+    flipSummaryCardLeft,
+    flipSummaryCardRight,
+    // actions：金额遮罩（03）
+    toggleMasked,
     reset,
   }
 })

@@ -61,7 +61,6 @@ export default function LoginPage() {
         remember,
       })
 
-      Toast.success('登录成功')
       const redirect = searchParams.get('redirect') || '/home'
       navigate(redirect)
     } catch (err: any) {
@@ -94,12 +93,17 @@ export default function LoginPage() {
       {/* Left Brand */}
       <div className="brand">
         <div className="brand-inner">
+          {/* 08 §3.2：横版 lockup = 图形 + slogan 一体，替换原 img + brand-name + brand-tagline
+              三件套（⚠️ 手写 name/tagline 必须删，否则出现两个 slogan）。
+              lockup-h 比例 2.51:1 ⇒ 内联 width:auto/height:64 覆写 .brand-square 的固定 64×64
+              （login.scss 不在本批改动范围）；左栏 480px，64 高对应宽 ~161px，放得下。 */}
           <div className="brand-logo">
-            <img src={`${import.meta.env.BASE_URL}z1-logo.png`} alt="Z1" className="brand-square" />
-            <div>
-              <div className="brand-name">Z1</div>
-              <div className="brand-tagline">Zero to One</div>
-            </div>
+            <img
+              src={`${import.meta.env.BASE_URL}brand/z1-lockup-h.svg`}
+              alt="Z1 · Zero to One"
+              className="brand-square"
+              style={{ width: 'auto', height: 64 }}
+            />
           </div>
 
           <h1 className="brand-title">

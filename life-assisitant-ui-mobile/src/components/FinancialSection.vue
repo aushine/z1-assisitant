@@ -55,18 +55,21 @@ const sub = ref<FinanceSub>(props.defaultSub)
 
 /**
  * 日历「查看全部」要带给流水列表的单日筛选（presetDate），
- * 债权债务卡「按对方看流水」要带给流水列表的对方筛选（presetContact · Phase 4）。
+ * 债权债务卡「按对方看流水」要带给流水列表的对方筛选（presetContact · Phase 4），
+ * 账户卡「查看流水 ›」要带给流水列表的账户筛选（presetAccountId · spec-20260922-v2 01 §1.3）。
  * 在触发时记下、切到 transactions 时作为 preset 传入；
  * 离开 transactions 视图时清空 —— 避免下次普通切回还残留旧筛选。
  */
 const calendarJumpDate = ref('')
 const debtJumpContact = ref('')
+const accountJumpId = ref('')
 
 function switchTo(v: FinanceSub): void {
   if (sub.value === v) return
   if (v !== 'transactions') {
     calendarJumpDate.value = ''
     debtJumpContact.value = ''
+    accountJumpId.value = ''
   }
   sub.value = v
   emit('sub-change', v)
@@ -75,6 +78,12 @@ function switchTo(v: FinanceSub): void {
 /** 债权债务卡点行：记下对方 → 切到流水列表（TransactionList 挂载时写入服务端筛选） */
 function onViewContact(contact: string): void {
   debtJumpContact.value = contact
+  switchTo('transactions')
+}
+
+/** 账户卡「查看流水 ›」：记下账户 id → 切流水（chip 呈现、可 × 移除） */
+function onViewAccount(id: string): void {
+  accountJumpId.value = id
   switchTo('transactions')
 }
 
@@ -158,8 +167,10 @@ defineExpose({ openCreate, sub })
       v-if="sub === 'transactions'"
       :preset-date="calendarJumpDate"
       :preset-contact="debtJumpContact"
+      :preset-account-id="accountJumpId"
       @edit="emit('edit-transaction', $event)"
       @view="emit('view-transaction', $event)"
+      @goto-budget="switchTo('budget')"
     />
     <CalendarView
       v-else-if="sub === 'calendar'"
@@ -173,7 +184,12 @@ defineExpose({ openCreate, sub })
       @create-at="emit('create-transaction-at', $event)"
     />
     <BudgetList v-if="sub === 'budget'" ref="budgetListRef" />
-    <AccountManager v-if="sub === 'account'" ref="accountManagerRef" @view-contact="onViewContact" />
+    <AccountManager
+      v-if="sub === 'account'"
+      ref="accountManagerRef"
+      @view-contact="onViewContact"
+      @view-account="onViewAccount"
+    />
   </div>
 </template>
 

@@ -17,6 +17,7 @@ import {
   Skeleton,
   Toast,
 } from '@douyinfe/semi-ui'
+import { feedback } from '@/utils/feedback'
 import { useDisplayName, useUserRole } from '@/stores/user'
 import { userApi } from '@/api/user'
 import { roleApi } from '@/api/role'
@@ -155,7 +156,6 @@ export default function UserPage() {
           role: form.role,
           version: editing.version ?? 0,
         })
-        Toast.success('用户已更新')
       } else {
         await userApi.create({
           username: form.username.trim(),
@@ -165,7 +165,6 @@ export default function UserPage() {
           email: emailTrimmed || undefined,
           phone: form.phone.trim() || undefined,
         })
-        Toast.success('用户已创建，初始密码 123456，首次登录将提示修改')
       }
       setModalVisible(false)
       await fetchUsers(page)
@@ -190,7 +189,6 @@ export default function UserPage() {
         try {
           // DisableUserReq 只有 status，但后端 PATCH /users/:id/status 要求 version，补上
           await userApi.setStatus(u.id, { status: next, version: u.version ?? 0 } as DisableUserReq & { version: number })
-          Toast.success(next === 'active' ? '已启用' : '已禁用')
         } catch (e) {
           console.error('[user] 状态变更失败', e)
         } finally {
@@ -210,7 +208,7 @@ export default function UserPage() {
       onOk: async () => {
         try {
           await userApi.remove(u.id)
-          Toast.success('已删除')
+          feedback.destructiveDone('已删除')
         } catch (e) {
           console.error('[user] 删除失败', e)
         } finally {

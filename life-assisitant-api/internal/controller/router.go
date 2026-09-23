@@ -154,6 +154,8 @@ func RegisterRoutes(s *ghttp.Server) {
 			// 260921 v2 + v4：收支日历 / 债权债务（沿用 finance:view，不新增权限点）
 			g.GET("/finance/calendar", Finance.GetCalendar)
 			g.GET("/finance/debts", Finance.GetDebts)
+			// 260922：流水页顶部数据块（自然周期收支 + 总预算聚合，沿用 finance:view）
+			g.GET("/finance/summary", Finance.GetFinanceSummary)
 		})
 		group.Group("", func(g *ghttp.RouterGroup) {
 			g.Middleware(middleware.RequirePermission("finance:account"))
@@ -188,6 +190,18 @@ func RegisterRoutes(s *ghttp.Server) {
 			g.POST("/finance/categories", FinanceCategory.Create)
 			g.PATCH("/finance/categories/:id", FinanceCategory.Update)
 			g.DELETE("/finance/categories/:id", FinanceCategory.Delete)
+		})
+		// 习惯/待办分类（20260922 新增，两域共用 user_categories）：
+		// 查看走 category:view，增删改走 category:manage（权限点见 db/data_260922_user_categories.sql）
+		group.Group("", func(g *ghttp.RouterGroup) {
+			g.Middleware(middleware.RequirePermission("category:view"))
+			g.GET("/user-categories", UserCategory.List)
+		})
+		group.Group("", func(g *ghttp.RouterGroup) {
+			g.Middleware(middleware.RequirePermission("category:manage"))
+			g.POST("/user-categories", UserCategory.Create)
+			g.PATCH("/user-categories/:id", UserCategory.Update)
+			g.DELETE("/user-categories/:id", UserCategory.Delete)
 		})
 
 		// ====== period 经期（记录模块的第 5 个维度）======

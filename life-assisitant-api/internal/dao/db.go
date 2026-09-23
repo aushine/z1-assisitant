@@ -85,6 +85,10 @@ func InitDB(dsn string, debug bool) error {
 		//    idx_fin_cat_user_scope / idx_fin_cat_parent），与手写 DDL 逐字一致；
 		//    主键为复合主键 (id, user_id)（详见 model/finance_category.go 的说明）
 		&model.FinanceCategory{},
+		// 习惯/待办分类（20260922 新增）—— 用户级两域共用，内置种子懒创建
+		// ⚠️ 索引名已在 model 里显式写好（uk_user_cat / idx_user_cat_domain），
+		//    与手写 DDL 逐字一致；主键为复合主键 (id, user_id)（详见 model/user_category.go）
+		&model.UserCategory{},
 	); err != nil {
 		return fmt.Errorf("AutoMigrate 失败: %w", err)
 	}

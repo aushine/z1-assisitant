@@ -67,7 +67,6 @@ async function onPickMood(mood: MoodValue): Promise<void> {
   if (props.readonly) return
   const ok = await moodStore.setMood(mood)
   if (ok) {
-    moodStore.notifySaved()
     emit('changed')
   }
 }
@@ -79,7 +78,6 @@ async function onPickEnergy(energy: EnergyValue): Promise<void> {
   // 现在会凭空发明一个用户没有选过的心情。
   const ok = await moodStore.setEnergy(energy)
   if (ok) {
-    moodStore.notifySaved()
     emit('changed')
   }
 }

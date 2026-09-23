@@ -10,9 +10,9 @@ import { assetBase } from '@/utils/asset'
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { showSuccessToast } from 'vant'
 import { useUserStore } from '@/stores/user'
 import { isEmail, isPhone, isStrongPassword } from '@/utils/validate'
+import { showToast } from 'vant'
 import Icon from '@/components/icon/Icon.vue'
 
 const router = useRouter()
@@ -99,7 +99,6 @@ async function onSubmit() {
   submitting.value = true
   try {
     await userStore.login(form.username.trim(), form.password, form.remember)
-    showSuccessToast({ message: '登录成功', duration: 800 })
     // 跳转：优先用 query.redirect，其次回首页
     const redirect = (route.query.redirect as string) || '/home'
     await router.replace(redirect)
@@ -113,8 +112,10 @@ async function onSubmit() {
 }
 
 // 第三方登录（占位）
+// spec-20260922-v2 · 05：这里**不是成功提示**（功能未上线 = 信息型），
+// 05 §2.2 保留「结果不可见」的通知，故降级为中性 toast 而非删除。
 function onThirdPartyLogin(type: 'wechat' | 'apple' | 'phone' | 'keychain') {
-  showSuccessToast({ message: `${type} 登录功能即将上线`, duration: 1000 })
+  showToast({ message: `${type} 登录功能即将上线`, duration: 1000 })
 }
 
 // 跳转注册（Phase 5.9 起为真实页面）
@@ -137,9 +138,14 @@ function goForgot() {
         <div class="blob blob-2" />
       </div>
       <div class="hero-content">
-        <img :src="`${assetBase}z1-logo.png`" alt="Z1" class="logo" />
+        <!-- 08 §3.1：hero 是深蓝渐变（P5 无可用 lockup 变体）⇒ 无底反白 mark + HTML 文字；
+             素材内建留白 ≈20%，直接整图使用，不裁切 -->
+        <img :src="`${assetBase}brand/z1-mark-white.svg`" alt="Z1" class="logo" />
         <h1 class="title">Z1</h1>
-        <p class="slogan">Zero to One · 从零到一</p>
+        <!-- slogan 照 lockup 定稿排版：深底反白时 ZERO TO 用 #9CC2FF、ONE 纯白（v3 README §四） -->
+        <p class="slogan"><span class="slogan-accent">ZERO TO</span> ONE</p>
+        <!-- 中文副行（Q11 拍板保留）：另起一行，--fs-caption-sm，70% 白 -->
+        <p class="slogan-zh">从零到一</p>
       </div>
     </header>
 
@@ -283,7 +289,11 @@ function goForgot() {
 .hero {
   position: relative;
   height: 340px;
-  background: linear-gradient(135deg, #014DB2 0%, #2563EB 50%, #0EA5E9 100%);
+  /* 08 §3.6：渐变收敛到 tokens（旧 #2563EB/#0EA5E9 不在 tokens.scss）。
+     ⚠️ 中段用 --primary-500（#014DB2）而非 spec 写的 --color-primary ——
+     后者在 [data-theme='dark'] 会被覆写成 #5B9DFF，而 hero 按 Q12 是**固定**深蓝渐变、
+     不随主题变；--primary-500 为浅色值恒定的原始色阶令牌，观感与改造前一致。 */
+  background: linear-gradient(135deg, var(--primary-700) 0%, var(--primary-500) 50%, var(--primary-300) 100%);
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -304,17 +314,18 @@ function goForgot() {
   filter: blur(40px);
   opacity: 0.5;
 }
+/* blob 色同样收敛到 tokens（08 §3.6）：#60A5FA → --primary-100、#38BDF8 → --primary-300 */
 .blob-1 {
   width: 280px;
   height: 280px;
-  background: #60A5FA;
+  background: var(--primary-100);
   top: -60px;
   right: -60px;
 }
 .blob-2 {
   width: 200px;
   height: 200px;
-  background: #38BDF8;
+  background: var(--primary-300);
   bottom: -40px;
   left: -40px;
   opacity: 0.4;
@@ -326,10 +337,11 @@ function goForgot() {
   z-index: 1;
 }
 
+/* 图形 88px（08 §3.1 定稿）；间距 = 图形高 × 0.26 ≈ 23px（图形 → 首个文字行） */
 .logo {
-  width: 96px;
-  height: 96px;
-  margin: 0 auto 16px;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 23px;
   object-fit: contain;
   display: block;
   filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.3));
@@ -343,11 +355,24 @@ function goForgot() {
   color: #FFFFFF;
 }
 
+/* slogan 字号 = 图形高 × 0.32 ≈ 28px（lockup 定稿参数，不要自己调） */
 .slogan {
-  font-size: var(--fs-body-sm);
+  font-size: 28px;
   margin: 0;
-  opacity: 0.85;
+  letter-spacing: 1px;
   color: #FFFFFF;
+}
+
+.slogan-accent {
+  color: #9CC2FF;
+}
+
+/* 中文副行（Q11 保留）：另起一行，--fs-caption-sm 一档，70% 白 */
+.slogan-zh {
+  font-size: var(--fs-caption-sm);
+  margin: 6px 0 0;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* ========== 表单卡（浮在 Hero 上） ========== */

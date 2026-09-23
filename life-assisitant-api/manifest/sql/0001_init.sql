@@ -50,6 +50,7 @@ INSERT INTO `roles` (`id`, `code`, `name`, `description`, `is_system`) VALUES
 -- 260919：经期记录模块 period 上线 → 12 模块 = 40 点
 -- 260919（第二批）：健康模块 health（3）+ 纪念日 anniversary（2）→ 14 模块 = 45 点
 -- 260921：记账分类新增 finance:category（1）→ 14 模块 = 46 点
+-- 260922：习惯/待办分类新增 category 模块 category:view / category:manage（2）→ 15 模块 = 48 点
 -- 与 db/init_data.sql 逐字一致（历史迁移 db/260917_role_permission_v2.sql 的效果已并入）
 -- ---------------------------------------------------------------------
 CREATE TABLE `permissions` (
@@ -62,7 +63,7 @@ CREATE TABLE `permissions` (
   UNIQUE KEY `uk_module_action` (`module`, `action`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限点（模块×操作）';
 
--- 预置 46 条权限点（与后端 middleware.RequirePermission 路由一一对应）
+-- 预置 48 条权限点（与后端 middleware.RequirePermission 路由一一对应）
 INSERT INTO `permissions` (`id`, `module`, `action`, `description`) VALUES
 -- home 首页
   ('p_home_view',                'home',         'view',        '查看首页聚合数据'),
@@ -79,6 +80,9 @@ INSERT INTO `permissions` (`id`, `module`, `action`, `description`) VALUES
   ('p_habit_create',             'habit',        'create',      '创建习惯'),
   ('p_habit_update',             'habit',        'update',      '编辑习惯'),
   ('p_habit_delete',             'habit',        'delete',      '删除习惯'),
+-- category 习惯/待办分类（20260922 新增；user_categories 两域共用实体，不挂 habit/task 名下）
+  ('p_category_view',            'category',     'view',        '查看习惯/待办分类'),
+  ('p_category_manage',          'category',     'manage',      '管理习惯/待办分类（增删改）'),
 -- mood 心情/精力
   ('p_mood_view',                'mood',         'view',        '查看心情记录'),
   ('p_mood_write',               'mood',         'write',       '记录今日心情/精力'),
@@ -141,8 +145,9 @@ CREATE TABLE `role_permissions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色-权限关联';
 
 -- 预置权限矩阵（D-03，目录推导 —— 与 db/init_data.sql 逐字一致）
--- admin = 全部 46 点（服务端代码旁路 + 矩阵锁定不可改）
--- user  = 个人域 36 点（排除 user_mgmt / role_mgmt；权限页可调）
+-- admin = 全部 48 点（服务端代码旁路 + 矩阵锁定不可改）
+-- user  = 个人域 38 点（排除 user_mgmt / role_mgmt；权限页可调。
+--         260922 新增 category 模块 2 点对 user 角色自动派生授予 —— 否则用户进分类页 403）
 -- version=1：与迁移后线上数据一致（首次「保存权限」会 +1 → 2）
 
 INSERT INTO `role_permissions` (`role_code`, `permission_id`, `enabled`, `version`)
@@ -241,7 +246,8 @@ CREATE TABLE `tasks` (
   `description` TEXT         DEFAULT NULL              COMMENT '详细描述',
   `priority`    VARCHAR(2)   NOT NULL DEFAULT 'P2'     COMMENT 'P0/P1/P2/P3',
   `status`      VARCHAR(16)  NOT NULL DEFAULT 'todo'   COMMENT 'todo/in_progress/done/archived',
-  `category_id` VARCHAR(32)  DEFAULT NULL              COMMENT '分类 ID（指向 categories 表，MVP 留空）',
+  `category_id` VARCHAR(32)  DEFAULT NULL              COMMENT '分类 ID（user_categories.domain=task 的 id，内置 c_work…；NULL=未分类）',
+  `icon`        VARCHAR(40)  NOT NULL DEFAULT ''       COMMENT '图标引用 lucide:<Name> / emoji；空=继承分类图标（20260922 新增）',
   `due_date`    DATE         DEFAULT NULL              COMMENT '截止日期',
   `due_time`    VARCHAR(5)   DEFAULT NULL              COMMENT '截止时间 HH:MM',
   `created_at`  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -269,10 +275,10 @@ CREATE TABLE `habits` (
   `user_id`      VARCHAR(32)   NOT NULL                       COMMENT '所属用户',
   `title`        VARCHAR(200)  NOT NULL                       COMMENT '习惯名，1-200 字符',
   `description`  VARCHAR(500)  DEFAULT NULL                   COMMENT '详细描述',
-  `icon`         VARCHAR(20)   NOT NULL DEFAULT '📌'           COMMENT 'emoji 图标',
+  `icon`         VARCHAR(40)   NOT NULL DEFAULT ''             COMMENT '图标引用 lucide:<Name> / emoji；空=继承分类图标（20260922：20→40 防静默截断；默认 📌→空）',
   `color`        VARCHAR(20)   NOT NULL DEFAULT '#014DB2'      COMMENT '图标底色 hex',
   `frequency`    VARCHAR(20)   NOT NULL DEFAULT 'daily'       COMMENT 'daily/weekly/monthly',
-  `category`     VARCHAR(20)   NOT NULL DEFAULT 'life'        COMMENT '分类：sport/diet/life/study',
+  `category`     VARCHAR(20)   NOT NULL DEFAULT 'life'        COMMENT '分类（user_categories.domain=habit 的 id，内置 sport/diet/life/study）',
   `target_count` INT           NOT NULL DEFAULT 1             COMMENT '每周期目标次数（默认 1）',
   `unit`         VARCHAR(20)   DEFAULT NULL                   COMMENT '单位（分钟/次/杯...）',
   `status`       VARCHAR(16)   NOT NULL DEFAULT 'active'      COMMENT 'active/archived',
@@ -445,6 +451,38 @@ CREATE TABLE `finance_categories` (
   KEY `idx_fin_cat_user_scope` (`user_id`, `scope`),
   KEY `idx_fin_cat_parent` (`parent_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='收支分类（两级，用户级）';
+
+-- ---------------------------------------------------------------------
+-- 11c. user_categories（习惯/待办分类，20260922 新增）
+--      习惯（domain=habit）与待办（domain=task）两域共用一张表，用户级（每人一份）。
+--      ⚠️ **复合主键 (id, user_id)**：内置 id 保留旧值（sport / c_work…，06 §3.2 零迁移），
+--         跨用户重复，单主键必撞；任何按 id 的查询必须同时带 user_id。
+--      ⚠️ 唯一索引 uk_user_cat 末列是 deleted_seq（**不是 deleted_at**）：活跃行 deleted_at 为
+--         NULL，NULL 不参与唯一比较会让约束静默失效；deleted_seq 删除时写随机值，
+--         避免「同名分类删了再建再删」撞 1062。索引名须与 model tag 逐字一致（项目铁律）。
+--      ⚠️ 内置种子**不进 SQL**（每用户一份），由后端懒创建（utility.BuildUserCategories，
+--         判断口径 = 该用户该 domain 是否存在 is_builtin=1 的行，**含已删行**）。
+--      ⚠️ 零数据回填：habits.category / tasks.category_id 存量值直接命中内置 id。
+-- ---------------------------------------------------------------------
+CREATE TABLE `user_categories` (
+  `id`          VARCHAR(32)  NOT NULL                  COMMENT '主键之一；内置项保留旧值（sport/c_work…），用户新建用 uc_<domain>_<10位随机>',
+  `user_id`     VARCHAR(32)  NOT NULL                  COMMENT '归属用户（分类是用户级的）；主键之一',
+  `domain`      VARCHAR(16)  NOT NULL                  COMMENT 'habit | task',
+  `name`        VARCHAR(30)  NOT NULL                  COMMENT '显示名，去空白后 1-10 字',
+  `emoji`       VARCHAR(20)  NOT NULL DEFAULT ''       COMMENT '可选 emoji（兼容旧渲染 / 导出）',
+  `icon`        VARCHAR(40)  NOT NULL DEFAULT ''       COMMENT 'lucide:Pin',
+  `tint`        VARCHAR(20)  NOT NULL DEFAULT 'neutral' COMMENT '语义色名（primary/success/accent/danger/warning/neutral）',
+  `sort`        INT          NOT NULL DEFAULT 0        COMMENT '排序，越小越前；内置项 10/20/30…，用户新建从 900 起',
+  `is_builtin`  TINYINT      NOT NULL DEFAULT 0        COMMENT '是否内置种子（含已删行，供「是否已播种」判断）',
+  `is_deleted`  TINYINT      NOT NULL DEFAULT 0        COMMENT '软删除标记',
+  `deleted_seq` VARCHAR(32)  NOT NULL DEFAULT ''       COMMENT '软删序号：活跃行恒为 ''''；删除时写随机值，作 uk 末列避免同名反复删撞 1062',
+  `created_at`  DATETIME     NULL,
+  `updated_at`  DATETIME     NULL,
+  `deleted_at`  DATETIME     NULL,
+  PRIMARY KEY (`id`, `user_id`),
+  UNIQUE KEY `uk_user_cat` (`user_id`, `domain`, `name`, `deleted_seq`),
+  KEY `idx_user_cat_domain` (`user_id`, `domain`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------------------
 -- 12. mood_logs（心情/精力日志）

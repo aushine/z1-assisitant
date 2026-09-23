@@ -864,6 +864,34 @@
   font-weight: 600;
   color: var(--color-text-tertiary);
 }
+// 金额遮罩开关（spec-20260922-v2 · 03 §3.1）：净资产卡右上角，全站唯一入口
+// 视觉 18px 图标 / 热区 32×32（桌面指针精细，不必按移动端 44px）；切换不弹 toast
+.summary-card {
+  position: relative; // 小眼睛定位锚点
+}
+.mask-toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+  }
+}
+
 // 净资产卡三组小计（负债显示绝对值 + 「负债」标签，不用大红；01 §5）
 .summary-breakdown {
   display: flex;

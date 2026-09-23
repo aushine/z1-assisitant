@@ -26,17 +26,18 @@ import { Icon, ICONS, TINT_VARS } from '@/components/icon'
 import { EmptyHint } from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import { useHabitStore } from '@/stores/habit'
+import { useUserCategoryStore } from '@/stores/user-category'
 import { habitApi } from '@/api/habit'
 import { statsApi } from '@/api/stats'
 import IconBox from '@/components/IconBox'
-import { getIconMapping } from '@/utils/icon-map'
-import { HABIT_CATEGORIES, getHabitCategory } from '@/utils/category-dict'
+import { HABIT_CATEGORIES, getHabitCategory, resolveHabitIconView } from '@/utils/category-dict'
 import HabitEditDrawer from '@/components/HabitEditDrawer'
 import { HabitHeatmap } from './components/HabitHeatmap'
 import { StreakBadge, MilestoneRow, streakUnit } from './components/StreakBadge'
 import type {
   Habit,
   HabitStatus,
+  UserCategory,
   CreateHabitReq,
   UpdateHabitReq,
   HabitHeatmapItem,
@@ -48,15 +49,24 @@ const habitFilterOptions = [
   { value: 'archived', label: '已归档' },
 ]
 
-const categoryFilterOptions = [
-  { value: '', label: '全部分类' },
-  ...HABIT_CATEGORIES.map((c) => ({ value: c.id, label: c.label })),
-]
+/**
+ * 分类筛选项：**store 优先、常量兜底**（spec-20260922-v2 #48）。
+ * 常量表不删 —— store 该域未加载时（或接口失败）至少要能筛。
+ */
+function buildCategoryFilterOptions(items: UserCategory[]) {
+  const base = items.length > 0
+    ? items.map((c) => ({ value: c.id, label: c.name }))
+    : HABIT_CATEGORIES.map((c) => ({ value: c.id, label: c.label }))
+  return [{ value: '', label: '全部分类' }, ...base]
+}
 
 const frequencyLabel: Record<string, string> = { daily: '每日', weekly: '每周', monthly: '每月' }
 
 export function HabitSection() {
   const habitStore = useHabitStore()
+  // 订阅 habit 域分类：新增/改名/删除后筛选项自动跟着变（zustand 非响应式补丁）
+  const habitCats = useUserCategoryStore((st) => st.items.habit)
+  const categoryFilterOptions = useMemo(() => buildCategoryFilterOptions(habitCats), [habitCats])
   const now = useMemo(() => new Date(), [])
   const [calYear, setCalYear] = useState(now.getFullYear())
   const [calMonth, setCalMonth] = useState(now.getMonth() + 1) // 1-12
@@ -115,8 +125,10 @@ export function HabitSection() {
       dataIndex: 'title',
       width: 260,
       render: (_v: any, record: Habit, _i: number) => {
-        const habitIcon = record.icon ? getIconMapping(record.icon).icon : ICONS.HelpCircle
-        const iconBg = record.color ? record.color + '22' : undefined
+        // 图标优先级链（04 §4.2）：habits.icon > 分类.icon > 分类.emoji > lucide:Pin
+        const iv = resolveHabitIconView({ icon: record.icon, category: record.category })
+        const habitIcon = ICONS[iv.icon] ?? ICONS.HelpCircle
+        const iconBg = record.color ? record.color + '22' : TINT_VARS[iv.tint].bg
         return (
           <div className="col-habit" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <IconBox icon={habitIcon} bg={iconBg} fg={record.color || undefined} size={32} iconSize={16} />

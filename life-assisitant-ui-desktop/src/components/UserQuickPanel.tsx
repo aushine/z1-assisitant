@@ -182,7 +182,6 @@ export default function UserQuickPanel({ onNavigate }: {
         setRevokingId(s.id)
         try {
           await authApi.revokeSession(s.id)
-          Toast.success('该设备已退出')
           if (isSelf) {
             // 把自己脚下的会话撤了，本地凭据也别留
             useUserStore.getState().resetLocal()
@@ -208,7 +207,6 @@ export default function UserQuickPanel({ onNavigate }: {
       cancelText: '取消',
       onOk: async () => {
         await userStore.logout()
-        Toast.success('已退出登录')
         navigate('/login')
       },
     })
@@ -223,7 +221,6 @@ export default function UserQuickPanel({ onNavigate }: {
       cancelText: '取消',
       onOk: async () => {
         await userStore.logoutAllDevices()
-        Toast.success('已退出所有设备')
         navigate('/login')
       },
     })

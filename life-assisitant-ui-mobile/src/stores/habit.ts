@@ -28,8 +28,9 @@
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { showFailToast, showSuccessToast } from 'vant'
+import { showFailToast } from 'vant'
 import { habitApi } from '@/api/habit'
+import { feedback } from '@/utils/feedback'
 import type {
   CreateHabitReq,
   Habit,
@@ -176,7 +177,6 @@ export const useHabitStore = defineStore('habit', () => {
         today_completed: false,
         today_done: false,
       })
-      showSuccessToast('习惯已创建')
       return habit
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -212,7 +212,6 @@ export const useHabitStore = defineStore('habit', () => {
           today_done: optimistic.today_done,
         }
       }
-      showSuccessToast('习惯已更新')
       return real
     } catch (e) {
       const cur = habits.value.findIndex((h) => h.id === id)
@@ -232,7 +231,7 @@ export const useHabitStore = defineStore('habit', () => {
     habits.value.splice(idx, 1)
     try {
       await habitApi.delete(id)
-      showSuccessToast('习惯已删除')
+      feedback.destructiveDone('习惯已删除')
       return true
     } catch (e) {
       habits.value.splice(Math.min(idx, habits.value.length), 0, original)
@@ -292,11 +291,6 @@ export const useHabitStore = defineStore('habit', () => {
           last_check_in_date: real.last_check_in_date,
           total_check_ins: real.total_check_ins,
         }
-      }
-      if (!wasDone && nowDone) {
-        showSuccessToast('🎉 已完成今日目标')
-      } else {
-        showSuccessToast(`已打卡 (${nextCount}/${target})`)
       }
       return real
     } catch (e) {

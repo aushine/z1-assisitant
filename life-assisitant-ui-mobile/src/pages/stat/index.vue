@@ -45,11 +45,12 @@ import { healthApi } from '@/api/health'
 import { BOWEL_TYPE_OPTIONS, DEFAULT_WATER_GOAL_ML } from '@/constants/health'
 import type { ExportType, FinanceCategoryStat, HealthDayDetail, HealthSettings, StatsRange } from '@/api/types'
 import { getTint } from '@/utils/tint'
-import { formatMoney, todayDate, addDays } from '@/utils/date'
+import { todayDate, addDays } from '@/utils/date'
 import { heatColor } from '@/utils/heatmap'
 import { findCategoryByEmoji, resolveAccountIcon } from '@/utils/category-dict'
 import { getIconMapping } from '@/utils/icon-map'
 import Icon from '@/components/icon/Icon.vue'
+import MoneyText from '@/components/finance/MoneyText.vue'
 import { useHeaderAction } from '@/composables/usePageChrome'
 import type { IconMapping } from '@/utils/icon-map'
 import BarChart from '@/components/charts/BarChart.vue'
@@ -201,6 +202,7 @@ async function onExportSelect(action: { name: string }): Promise<void> {
   const target = EXPORT_OPTIONS.find((o) => o.name === action.name)
   if (!target) return
   const ok = await statsStore.exportCSV({ range: range.value, type: target.type })
+  // spec-20260922-v2 · 05 §2.2 R2 保留：导出为异步任务，"文件已开始下载"是浏览器侧动作
   if (ok) showSuccessToast('导出完成，文件已开始下载')
   else showFailToast('导出失败，请稍后重试')
 }
@@ -769,9 +771,9 @@ function retryHealth(): void {
             <span class="kpi-label">{{ rangeLabel }}支出</span>
           </div>
           <div class="kpi-value" :style="{ color: getTint('danger').fg }">
-            ¥{{ formatMoney(rangeExpense) }}
+            <MoneyText :value="rangeExpense" />
           </div>
-          <div class="kpi-sub">收入 ¥{{ formatMoney(rangeIncome) }}</div>
+          <div class="kpi-sub">收入 <MoneyText :value="rangeIncome" /></div>
           <div class="kpi-foot">
             <span class="kpi-badge-range">随筛选</span>
           </div>
@@ -796,9 +798,9 @@ function retryHealth(): void {
               color: totalBalance < 0 ? getTint('danger').fg : getTint('success').fg,
             }"
           >
-            ¥{{ formatMoney(totalBalance) }}
+            <MoneyText :value="totalBalance" />
           </div>
-          <div class="kpi-sub">本区间净值 ¥{{ formatMoney(rangeNet) }}</div>
+          <div class="kpi-sub">本区间净值 <MoneyText :value="rangeNet" /></div>
           <div class="kpi-foot">
             <span class="kpi-badge-fixed">当前 · 固定</span>
           </div>
@@ -1003,7 +1005,7 @@ function retryHealth(): void {
             <div class="detail-body">
               <div class="detail-top">
                 <span class="detail-name">{{ catOf(c).name }}</span>
-                <span class="detail-amount">¥{{ formatMoney(c.amount) }}</span>
+                <span class="detail-amount"><MoneyText :value="c.amount" /></span>
               </div>
               <div class="detail-bottom">
                 <div class="detail-bar">
@@ -1040,7 +1042,7 @@ function retryHealth(): void {
             <div class="detail-body">
               <div class="detail-top">
                 <span class="detail-name">{{ a.account }}</span>
-                <span class="detail-amount">¥{{ formatMoney(a.amount) }}</span>
+                <span class="detail-amount"><MoneyText :value="a.amount" /></span>
               </div>
               <div class="detail-bottom">
                 <span class="detail-count">{{ a.count }} 笔</span>

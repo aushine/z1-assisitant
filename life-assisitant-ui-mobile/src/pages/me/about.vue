@@ -37,9 +37,10 @@ function onOpenLink(label: string): void {
 
     <main class="sub-body">
       <section class="card brand-card">
-        <img :src="`${assetBase}z1-logo.png`" alt="Z1" class="brand-logo" />
-        <h3 class="brand-name">Z1 {{ APP_VERSION }}</h3>
-        <p class="brand-slogan">Zero to One</p>
+        <!-- 08 §3.4：竖版 lockup（图形上 / slogan 下，同事定稿成品）替换手写 name + slogan；
+             版本号是功能信息 ⇒ 保留，移至 lockup 下方 -->
+        <img :src="`${assetBase}brand/z1-lockup-v.svg`" alt="Z1 · Zero to One" class="brand-logo" />
+        <p class="brand-version">{{ APP_VERSION }}</p>
         <p class="brand-desc">任务 · 习惯 · 记账 · 统计，一站式个人效率管理平台</p>
 
         <button class="btn btn-ghost check-btn" type="button" @click="onCheckUpdate">
@@ -78,23 +79,19 @@ function onOpenLink(label: string): void {
   padding: 32px var(--space-4) 24px;
 }
 .brand-logo {
-  width: 88px;
+  /* lockup-v 为竖版构图（viewBox 384×428，高>宽）⇒ 定高 88px、宽度按比率自动；
+     旧手写 brand-name / brand-slogan 两行已由 lockup 成品取代（08 §3.4） */
   height: 88px;
+  width: auto;
   object-fit: contain;
   display: block;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
 }
-.brand-name {
-  margin: 0 0 4px;
-  font-size: var(--fs-h4);
-  font-weight: 700;
-  color: var(--color-text-primary);
-}
-.brand-slogan {
+.brand-version {
   margin: 0 0 var(--space-3);
-  font-size: var(--fs-caption-sm);
+  font-size: var(--fs-caption);
   color: var(--color-text-tertiary);
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
 }
 .brand-desc {
   margin: 0 0 var(--space-5);

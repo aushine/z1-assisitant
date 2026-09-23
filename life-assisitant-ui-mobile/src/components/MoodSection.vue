@@ -19,7 +19,6 @@
  *   - 时间线当前小时行高亮 + 「现在」标记；点任一行打开 MoodHourSheet 编辑那个小时。
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { showSuccessToast } from 'vant'
 import MoodHourSheet from '@/components/MoodHourSheet.vue'
 import Icon from '@/components/icon/Icon.vue'
 import { useMoodStore } from '@/stores/mood'
@@ -105,7 +104,6 @@ async function pickMood(m: MoodValue): Promise<void> {
   const mood = selMood.value === m ? 0 : m
   const resp = await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, mood })
   if (resp) {
-    showSuccessToast(resp.item === null ? '已清除这一条' : mood === 0 ? '已恢复沿用上一条' : '已记录')
   }
 }
 
@@ -113,13 +111,11 @@ async function pickEnergy(e: EnergyValue): Promise<void> {
   const energy = selEnergy.value === e ? 0 : e
   const resp = await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, energy })
   if (resp) {
-    showSuccessToast(resp.item === null ? '已清除这一条' : energy === 0 ? '已恢复沿用上一条' : '已记录')
   }
 }
 
 async function clearEnergy(): Promise<void> {
   const resp = await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, energy: 0 })
-  if (resp) showSuccessToast(resp.item === null ? '已清除这一条' : '已恢复沿用上一条')
 }
 
 async function saveNote(): Promise<void> {
@@ -129,7 +125,6 @@ async function saveNote(): Promise<void> {
     hour: moodStore.nowHour,
     note: noteDraft.value.slice(0, 50),
   })
-  if (resp) showSuccessToast('已记录')
 }
 
 // ---- 时间线（倒序：新→旧） ----
@@ -166,7 +161,7 @@ function openHour(item: MoodHourItem): void {
 }
 
 function onSheetSaved(): void {
-  showSuccessToast('已保存')
+  // spec-20260922-v2 · 05 §2.2：成功提示已删（时间线就地刷新 = 结果可见，R1）
 }
 
 defineExpose({ reload: load })

@@ -28,6 +28,8 @@ var (
 	localAnniversary IAnniversaryService
 	// 260921：记账分类（用户级，内置种子懒创建）
 	localFinanceCategory IFinanceCategoryService
+	// 260922：习惯/待办分类（用户级两域共用，内置种子懒创建）
+	localUserCategory IUserCategoryService
 )
 
 // 注册器：main.go 启动时调用 impl.Register() 自动注入
@@ -52,6 +54,7 @@ func SetHealth(s IHealthService)             { localHealth = s }
 func SetAnniversary(s IAnniversaryService)   { localAnniversary = s }
 
 func SetFinanceCategory(s IFinanceCategoryService) { localFinanceCategory = s }
+func SetUserCategory(s IUserCategoryService)       { localUserCategory = s }
 
 func Auth() IAuthService                 { return localAuth }
 func User() IUserService                 { return localUser }
@@ -72,3 +75,5 @@ func Health() IHealthService             { return localHealth }
 func Anniversary() IAnniversaryService   { return localAnniversary }
 
 func FinanceCategory() IFinanceCategoryService { return localFinanceCategory }
+
+func UserCategory() IUserCategoryService { return localUserCategory }

@@ -21,6 +21,7 @@
  */
 import { create } from 'zustand'
 import { Toast } from '@douyinfe/semi-ui'
+import { feedback } from '@/utils/feedback'
 import { healthApi } from '@/api/health'
 import type {
   CreateHealthEventReq,
@@ -237,7 +238,6 @@ export const useHealthStore = create<HealthStore>((set, get) => ({
       await get().fetchOverview()
       if (get().calendarMonth) await get().fetchCalendar(get().calendarMonth, true)
 
-      Toast.success('已记录')
       return true
     } catch (e) {
       // 失败：清掉陈旧数据，避免展示与后端不一致的本地值
@@ -268,7 +268,7 @@ export const useHealthStore = create<HealthStore>((set, get) => ({
         monthSummary: res.month_summary,
         prediction: res.prediction ?? null,
       })
-      Toast.success('已删除')
+      feedback.destructiveDone('已删除')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -299,7 +299,6 @@ export const useHealthStore = create<HealthStore>((set, get) => ({
       set({ settings: s })
       // 指标/目标变化会影响概览卡与完成度，顺手刷新
       await get().fetchOverview()
-      Toast.success('已保存')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -320,7 +319,6 @@ export const useHealthStore = create<HealthStore>((set, get) => ({
       set({ initialized: true, setupSkipped: false })
       get().invalidateCalendar()
       await get().fetchOverview()
-      Toast.success('健康模块已开启')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -366,14 +364,12 @@ export const useHealthStore = create<HealthStore>((set, get) => ({
    * 追加一次记录。
    * ⚠️ time 不传 = 服务端当前时刻，前端**不要**自己算（客户端时钟可能不准 / 跨时区）。
    */
-  async addEvent(data: CreateHealthEventReq, opts?: { silent?: boolean }) {
+  async addEvent(data: CreateHealthEventReq) {
     set({ saving: true })
     try {
       const res = await healthApi.createEvent(data)
       if (res.day !== undefined && data.date === get().today) set({ todayLog: res.day })
       await get().refreshAfterEvent(data.date)
-      // ⚠️ 高频操作（如概览卡「＋ 喝一杯」）不弹成功 toast，就地反馈即可
-      if (!opts?.silent) Toast.success('已记录')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -391,7 +387,6 @@ export const useHealthStore = create<HealthStore>((set, get) => ({
       const res = await healthApi.patchEvent(id, data)
       if (res.day !== undefined && res.item?.date === get().today) set({ todayLog: res.day })
       await get().refreshAfterEvent(res.item?.date ?? get().selectedDate)
-      Toast.success('已更新')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -408,7 +403,7 @@ export const useHealthStore = create<HealthStore>((set, get) => ({
     try {
       await healthApi.deleteEvent(id)
       await get().refreshAfterEvent(date)
-      Toast.success('已删除')
+      feedback.destructiveDone('已删除')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console

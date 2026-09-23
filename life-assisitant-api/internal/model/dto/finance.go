@@ -280,3 +280,34 @@ type DebtsResp struct {
 	IOwe     []DebtItem `json:"i_owe"`      // 我欠别人（borrow）
 	Net      float64    `json:"net"`        // 净（Σowed_to_me − Σi_owe）
 }
+
+// ====== 流水页顶部数据块（20260922，06 §2） ======
+
+// FinanceSummaryReq 汇总查询参数
+type FinanceSummaryReq struct {
+	Period string `json:"period" dc:"week/month/year，缺省 month；非法 → 400001"`
+}
+
+// FinanceBudgetSummary 预算聚合（⚠️ 只统计 scope=total 且 period 匹配请求的预算，D8）
+//
+// 无匹配预算时 count=0、三个数值均为 0（前端显示「未设预算」，不显示 ¥0）。
+type FinanceBudgetSummary struct {
+	Count     int     `json:"count"`
+	Amount    float64 `json:"amount"`
+	Used      float64 `json:"used"`      // 与 GET /budgets 同源（budgetToResp → budgetCurrentRange）
+	Remaining float64 `json:"remaining"` // = amount − used
+}
+
+// FinanceSummaryResp 流水页顶部数据块响应
+//
+// income/expense 不含 transfer、排除 exclude_stats=1；
+// 区间为自然周期（week = 周一–周日，与预算 used 口径同一推算函数）。
+type FinanceSummaryResp struct {
+	Period    string               `json:"period"`
+	StartDate string               `json:"start_date"` // YYYY-MM-DD
+	EndDate   string               `json:"end_date"`   // YYYY-MM-DD
+	Income    float64              `json:"income"`
+	Expense   float64              `json:"expense"`
+	Net       float64              `json:"net"` // = income − expense（后端算）
+	Budget    FinanceBudgetSummary `json:"budget"`
+}

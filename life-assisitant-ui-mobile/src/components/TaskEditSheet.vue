@@ -26,14 +26,22 @@
  *   `category-dict` 及桌面端的 `c_work` / `c_other` 不一致 ——
  *   后端只存 category_id、不返回 category_emoji，字典查不中就渲染不出图标。
  *   现统一为字典里的 `c_*`。
+ *
+ * 260922 分类实体化（spec-20260922-v2/04 #44/45）：
+ *   - 分类 6 宫格 → `<CategoryTiles>`（用户可增删，store 优先 + 尾部的「管理 ›」）；
+ *   - 新增图标行（已选图标 + 更换 › → IconPicker），保存走 Q10 口径
+ *     （`lucide:<Name>`，存量 emoji 顺手换算；空 = 继承分类图标）。
  */
 import { computed, reactive, ref, watch } from 'vue'
-import { showSuccessToast } from 'vant'
 import type { CreateTaskReq, SubtaskReq, Task, TaskPriority } from '@/api/types'
 import { TASK_PRIORITIES, DEFAULT_TASK_PRIORITY } from '@/utils/task-dict'
-import { TASK_CATEGORIES } from '@/utils/category-dict'
-import { todayDate, addDays, toLocalISOString } from '@/utils/date'
+import { resolveTaskIconView } from '@/utils/category-dict'
+import { getIconMapping } from '@/utils/icon-map'
+import { ICONS, type IconName } from '@/components/icon/names'
 import Icon from '@/components/icon/Icon.vue'
+import IconPicker from '@/components/finance/IconPicker.vue'
+import CategoryTiles from '@/components/finance/CategoryTiles.vue'
+import { todayDate, addDays, toLocalISOString } from '@/utils/date'
 
 interface Props {
   show: boolean
@@ -52,8 +60,6 @@ const emit = defineEmits<{
 // ==================== 选项 ====================
 /** 优先级（B1 修复：此前硬编码 P0~P3，真实值是 relaxed/normal/important/urgent） */
 const PRIORITIES = TASK_PRIORITIES
-/** 分类（走 category-dict 唯一真相，id 与后端 / 桌面端一致：c_work…） */
-const CATEGORIES = TASK_CATEGORIES
 
 /** 重复规则（RRULE 子集，与桌面端 RECURRENCE_OPTIONS 一致） */
 const RECURRENCE_OPTIONS = [
@@ -83,6 +89,8 @@ const form = reactive<{
   priority: TaskPriority
   category_id: string
   recurrence_rule: string
+  /** 图标引用（`lucide:<Name>` | 裸名 | emoji）；'' = 跟随分类图标（04 §4.2） */
+  icon: string
 }>({
   title: '',
   description: '',
@@ -93,6 +101,7 @@ const form = reactive<{
   priority: DEFAULT_TASK_PRIORITY,
   category_id: 'c_other',
   recurrence_rule: '',
+  icon: '',
 })
 
 const subtasks = ref<SubtaskForm[]>([])
@@ -148,6 +157,7 @@ function resetForm() {
   form.priority = t?.priority ?? DEFAULT_TASK_PRIORITY
   form.category_id = t?.category_id || 'c_other'
   form.recurrence_rule = t?.recurrence_rule ?? ''
+  form.icon = t?.icon ?? ''
 
   // reminder_at 是 ISO datetime，拆成「日期 + 时间」两段
   if (t?.reminder_at) {
@@ -332,10 +342,48 @@ function onRecurrenceConfirm({ selectedOptions }: { selectedOptions: Array<{ val
   recurrencePickerShow.value = false
 }
 
-// ==================== 分类 ====================
-function selectCategory(id: string) {
-  // 再点一次取消选择（与桌面端 onPickCategory 一致），但保留兜底分类
+// ==================== 分类（CategoryTiles，04 #44） ====================
+function onPickCategory(id: string) {
+  // 再点一次取消选择（与桌面端 onPickCategory 一致），但保留兜底分类。
+  // 取消策略留在父级：CategoryTiles 只报「点了哪个」，不自己判重。
   form.category_id = form.category_id === id ? 'c_other' : id
+}
+
+// ==================== 图标选择（IconPicker，04 §4.3） ====================
+const iconPickerShow = ref(false)
+
+/** 摘要行展示的图标：task.icon > 分类.icon > 分类.emoji > CircleDashed */
+const iconView = computed(() =>
+  resolveTaskIconView({ icon: form.icon, category_id: form.category_id })
+)
+
+/** IconPicker 的 modelValue 要的是**裸名**（无 lucide: 前缀）；存量 emoji 视为未选 */
+const pickerIcon = computed<string | null>(() => {
+  const raw = form.icon
+  if (!raw) return null
+  const bare = raw.startsWith('lucide:') ? raw.slice(7) : raw
+  return bare in ICONS ? (bare as IconName) : null
+})
+
+function openIconPicker() {
+  if (submitting.value) return
+  iconPickerShow.value = true
+}
+
+function onPickIcon(name: IconName) {
+  // 落库口径 `lucide:<Name>`（04 §4.3）
+  form.icon = `lucide:${name}`
+}
+
+/**
+ * Q10：保存时统一图标引用 ——
+ * 空 = 继承分类图标；lucide 引用原样；存量 emoji 顺手换成 `lucide:<映射名>`。
+ */
+function iconForPayload(raw: string): string {
+  if (!raw) return ''
+  if (raw.startsWith('lucide:')) return raw
+  if (raw in ICONS) return `lucide:${raw}`
+  return `lucide:${getIconMapping(raw).icon}`
 }
 
 // ==================== 子任务（Phase 2.6） ====================
@@ -381,11 +429,11 @@ async function handleSave() {
       reminder_at: buildReminderISO(),
       recurrence_rule: form.recurrence_rule || undefined,
       subtasks: validSubtasks.length > 0 ? validSubtasks : undefined,
+      icon: iconForPayload(form.icon),
     }
 
     const ok = await props.onSave(payload)
     if (ok) {
-      showSuccessToast(isEdit.value ? '任务已更新' : '任务已创建')
       emit('saved', null)
       emit('update:show', false)
     }
@@ -598,25 +646,33 @@ function pad(n: string | number): string {
             </div>
           </div>
 
-          <!-- 8. 分类 -->
+          <!-- 8. 分类（一级平铺 chips + 管理入口，04 #44） -->
           <div class="field-group">
             <div class="cell-label">分类</div>
-            <div class="category-grid">
-              <button
-                v-for="c in CATEGORIES"
-                :key="c.id"
-                type="button"
-                class="category-item"
-                :class="{ 'is-active': form.category_id === c.id }"
-                :disabled="submitting"
-                @click="selectCategory(c.id)"
-              >
-                <span class="cat-emoji" :style="{ background: c.vars.bg, color: c.vars.fg }">
-                  <Icon :name="c.icon" :size="16" />
-                </span>
-                <span class="cat-name">{{ c.label }}</span>
-              </button>
+            <CategoryTiles
+              :model-value="form.category_id"
+              domain="task"
+              :disabled="submitting"
+              @update:model-value="onPickCategory"
+            />
+          </div>
+
+          <!-- 8b. 图标（已选 + 更换 › → IconPicker，04 §4.1/§4.3） -->
+          <div class="field-group">
+            <div class="cell-label">图标</div>
+            <div class="icon-row" role="button" tabindex="0" :aria-disabled="submitting" @click="openIconPicker">
+              <span class="icon-preview" :style="{ background: iconView.vars.bg, color: iconView.vars.fg }">
+                <Icon :name="iconView.icon" :size="20" />
+              </span>
+              <span class="icon-summary">{{ form.icon ? '已自选图标' : '跟随分类图标' }}</span>
+              <span class="icon-change">更换 ›</span>
             </div>
+            <!-- ⚠️ 嵌套图标选择器（自身 teleport="body"） -->
+            <IconPicker
+              v-model:show="iconPickerShow"
+              :model-value="pickerIcon"
+              @select="onPickIcon"
+            />
           </div>
 
           <!-- 9. 子任务（Phase 2.6） -->
@@ -907,51 +963,38 @@ function pad(n: string | number): string {
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
-/* 分类 grid */
-.category-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  padding: 0 16px 16px;
-}
-.category-item {
+/* 图标单行摘要（与 HabitEditSheet 同款，04 §4.1） */
+.icon-row {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 12px 4px;
-  background: var(--color-bg-card);
-  border: 1.5px solid var(--color-border-light);
-  border-radius: 12px;
+  gap: 12px;
+  padding: 4px 16px 16px;
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-default);
   -webkit-tap-highlight-color: transparent;
-  &:active { transform: scale(0.97); }
-  &.is-active {
-    border-color: var(--color-primary);
-    background: var(--color-primary-light);
-  }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
+  &:active { opacity: 0.7; }
+  &[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 }
-.cat-emoji {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.icon-preview {
   width: 40px;
   height: 40px;
   border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   line-height: 1;
-  /* 图标尺寸由 <Icon :size> 控制 */
   svg { display: block; }
 }
-.cat-name {
-  font-size: var(--fs-caption);
+.icon-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-body);
   color: var(--color-text-primary);
-  font-weight: 500;
 }
-.category-item.is-active .cat-name {
+.icon-change {
+  font-size: var(--fs-body-sm);
   color: var(--color-primary);
-  font-weight: 600;
+  flex-shrink: 0;
 }
 
 /* 子任务 */

@@ -4,7 +4,7 @@
  * 通知偏好开关暂无后端端点，仍走本地 localStorage。
  */
 import { useState, useCallback, useEffect } from 'react'
-import { Card, Switch, Toast, Button, Skeleton, Tag } from '@douyinfe/semi-ui'
+import { Card, Switch, Button, Skeleton, Tag } from '@douyinfe/semi-ui'
 import { useNavigate } from 'react-router-dom'
 import { storage } from '@/utils/storage'
 import { useNotificationStore } from '@/stores/notification'
@@ -70,12 +70,10 @@ export default function MeNotificationsPage() {
     const next = { ...prefs, [key]: val }
     setPrefs(next)
     saveNotifPrefs(next)
-    Toast.success(`${NOTIF_LABELS[key].title}已${val ? '开启' : '关闭'}`)
   }, [prefs])
 
   const markAllRead = () => {
     notificationStore.markAllRead()
-    Toast.success('已全部标记为已读')
   }
 
   const showError = error && !notificationStore.loading && notificationStore.items.length === 0

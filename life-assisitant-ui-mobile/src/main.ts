@@ -6,6 +6,9 @@ import router from './router'
 
 // Vant 4 样式
 import 'vant/lib/index.css'
+// ⚠️ 05 §3.2 写的 `Toast.setDefaultOptions` 是 Vant 3 API，Vant 4（实装 4.10.2）
+// 的同名能力是 `setToastDefaultOptions`，从 vant 直接引入、无副作用（样式已由上方全量 CSS 覆盖）。
+import { setToastDefaultOptions } from 'vant'
 
 // 全局样式
 import './styles/tokens.scss'
@@ -18,6 +21,9 @@ import { initUploadsBase } from './utils/avatar'
 
 const app = createApp(App)
 const pinia = createPinia()
+
+// 反馈规范（05 §3.2）：全局 toast 统一 1.5s、不拦截点击（Vant 默认 2s）
+setToastDefaultOptions({ duration: 1500, forbidClick: false })
 
 // Pinia 状态管理
 app.use(pinia)

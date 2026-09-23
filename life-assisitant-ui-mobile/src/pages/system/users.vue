@@ -27,7 +27,8 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { showConfirmDialog, showSuccessToast, showToast } from 'vant'
+import { showConfirmDialog, showToast } from 'vant'
+import { feedback } from '@/utils/feedback'
 import { userApi } from '@/api/user'
 import { roleApi } from '@/api/role'
 import { ApiError } from '@/api/request'
@@ -222,11 +223,9 @@ async function handleSave(payload: {
         }
         if (roleChanged) body.role = payload.role
         await userApi.update(target.id, body)
-        showSuccessToast('用户已更新')
       } else if (roleChanged && canAssignRole.value) {
         // 只有 assign_role：资料字段后端不让改，这里只提交角色
         await roleApi.assignRole(target.id, payload.role)
-        showSuccessToast('角色已更新')
       } else {
         showToast({ message: '没有可提交的改动', duration: 1500 })
         return false
@@ -242,7 +241,6 @@ async function handleSave(payload: {
       email: payload.email || undefined,
       phone: payload.phone || undefined,
     })
-    showSuccessToast('用户已创建，初始密码 123456')
     await reloadFirst()
     return true
   } catch (e) {
@@ -283,7 +281,6 @@ async function toggleStatus(u: User): Promise<void> {
   try {
     // PATCH /users/:id/status 要求 version 乐观锁
     await userApi.setStatus(u.id, { status: next, version: u.version ?? 0 })
-    showSuccessToast(next === 'active' ? '已启用' : '已禁用')
   } catch (e) {
     if (e instanceof ApiError && e.code === ErrorCode.VERSION_CONFLICT) {
       showToast({ message: '该用户已被他人修改，已刷新', duration: 1800 })
@@ -308,7 +305,7 @@ async function removeUser(u: User): Promise<void> {
 
   try {
     await userApi.remove(u.id)
-    showSuccessToast('已删除')
+    feedback.destructiveDone('已删除')
   } catch {
     // 拦截器已 toast（自保护 / 末位管理员等）
   } finally {

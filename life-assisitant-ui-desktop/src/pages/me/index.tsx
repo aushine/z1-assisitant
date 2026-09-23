@@ -47,6 +47,8 @@ export default function MePage() {
   const canAnniversary = useHasPermission('anniversary:view')
   /** 记账分类入口按 finance:view 显隐（与分类选择器同权限点） */
   const canFinanceCategory = useHasPermission('finance:view')
+  /** 习惯 / 待办分类管理入口按 category:view 显隐（spec-20260922-v2/06 §5 新增权限点） */
+  const canUserCategory = useHasPermission('category:view')
   const role = userStore.user?.role
   const rl = role ? roleLabel[role] : roleLabel.viewer
 
@@ -65,7 +67,6 @@ export default function MePage() {
       const freshUser = { ...userStore.user!, avatar: res.avatar }
       storage.set('user', freshUser)
       useUserStore.setState({ user: freshUser })
-      Toast.success('头像已更新')
     } catch (err) {
       console.error('[me] 头像更新失败', err)
       if (err instanceof TypeError) Toast.error('图片处理失败，请换一张试试')
@@ -144,6 +145,18 @@ const GROUP_ORDER: ReadonlyArray<{ key: string; title: string }> = [
                 label: '记账分类',
                 sublabel: '自定义收支分类',
                 onClick: () => navigate('/me/finance-categories'),
+              },
+            ]
+          : []),
+        // 习惯 / 待办分类管理（spec-20260922-v2/04 §4.4，与「记账分类」同款形态）
+        ...(canUserCategory
+          ? [
+              {
+                key: 'categories',
+                icon: <Icon name="FolderOpen" size={20} />,
+                label: '分类管理',
+                sublabel: '习惯 / 待办分类',
+                onClick: () => navigate('/me/categories'),
               },
             ]
           : []),

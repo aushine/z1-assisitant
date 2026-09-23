@@ -13,7 +13,7 @@
  */
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { showFailToast, showSuccessToast } from 'vant'
+import { showFailToast } from 'vant'
 import { authApi } from '@/api/auth'
 import Icon from '@/components/icon/Icon.vue'
 
@@ -57,7 +57,6 @@ async function onSubmit(): Promise<void> {
   try {
     await authApi.resetPassword({ token: tk, new_password: password.value })
     done.value = true
-    showSuccessToast({ message: '密码已重置，请用新密码登录', duration: 1500 })
   } catch (e) {
     // 后端对无效/过期 token 会返回明确的业务错误，拦截器已 toast
     if (!(e instanceof Error && e.message)) showFailToast('重置失败，请重新获取邮件')

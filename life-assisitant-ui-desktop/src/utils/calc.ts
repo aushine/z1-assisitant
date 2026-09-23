@@ -194,6 +194,16 @@ export function centsToAmount(cents: number): string {
   return (cents / 100).toFixed(2)
 }
 
+/**
+ * 分 → 输入框写回串（02 §7.3 失焦采纳专用）：**统一 2 位小数**。
+ * 取整规则与 centsToAmount / 移动端 formatCents 完全一致（cents 为整数，
+ * `(cents/100).toFixed(2)` 无损）；单独起一个具名出口是为了把「写回格式」
+ * 与「预览格式」解耦 —— 预览若演进（如紧凑化）不会顺带改掉输入框的写回行为。
+ */
+export function centsToFixed2(cents: number): string {
+  return centsToAmount(cents)
+}
+
 /** 预览文本：无效 → null；舍入 → ≈ 63.33；精确 → = 66.50；无运算符纯数字 → null（不需要预览行） */
 export function previewExpr(raw: string): string | null {
   const expr = normalize(raw ?? '')

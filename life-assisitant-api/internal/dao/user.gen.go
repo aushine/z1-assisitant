@@ -182,8 +182,10 @@ var (
 	Anniversary   AnniversaryDao
 	// 记账分类（20260921 新增）—— 用户级，内置种子懒创建
 	FinanceCategory FinanceCategoryDao
-	tSubtask        SubtaskDao
-	userDBOnce      bool
+	// 习惯/待办分类（20260922 新增）—— 用户级两域共用，内置种子懒创建
+	UserCategory UserCategoryDao
+	tSubtask     SubtaskDao
+	userDBOnce   bool
 )
 
 // SetDB 注入 DB 实例（在 dao.InitDB 末尾调用）
@@ -211,6 +213,7 @@ func SetDB(db *gorm.DB) {
 		HealthSetting = &healthSettingDao{db: db}
 		Anniversary = &anniversaryDao{db: db}
 		FinanceCategory = &financeCategoryDao{db: db}
+		UserCategory = &userCategoryDao{db: db}
 		userDBOnce = true
 		return
 	}
@@ -236,6 +239,7 @@ func SetDB(db *gorm.DB) {
 	HealthSetting = &healthSettingDao{db: db}
 	Anniversary = &anniversaryDao{db: db}
 	FinanceCategory = &financeCategoryDao{db: db}
+	UserCategory = &userCategoryDao{db: db}
 }
 
 // 旧 NewUserDao 保留供 SetDB 内部使用

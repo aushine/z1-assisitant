@@ -1,17 +1,20 @@
 <script setup lang="ts">
 /**
- * AmountPad —— 记一笔自绘计算键盘（移动端 · 02 §1）
+ * AmountPad —— 记一笔自绘计算键盘（移动端 · 02）
  *
- * 顶部抓手条（点箭头 / 下拉拖拽收起）+ 16 键（4 列 × 4 行）+ 整行 `=` + 整行「完成」。
+ * 顶部抓手条（点箭头 / 下拉拖拽收起）+ 16 键（4 列 × 4 行）+ 末行 `=`(1 列) +「完成」(3 列)（02 §4.2 三轮）。
  * 形态：absolute 贴记账浮层底部
  * （⚠️ 不用 fixed —— 项目铁律：底部悬浮控件一律 absolute）；
- * 高度常量 --amount-pad-h 供浮层预留底部空白（tokens.scss）。
+ * 与上方金额卡（.calc-dock 里的 .amount-card，同一个 DOM 元素平移过来）上下紧贴，
+ * 组成一整块「金额计算器」（02 §3）—— 键盘无圆角、无 border-top，外圆角与投影都归金额卡。
+ * 高度 --amount-pad-h 由 TransactionEditSheet 的 ResizeObserver 运行时实测覆写
+ * （tokens.scss 的 404px 只是兜底初值）。
  *
  * 表达式状态在**本组件**（defineModel），编辑回填由父级写 v-model:expr；
  * 「完成」只 emit，求值采纳与否由父级裁决（÷0 / 超限失败时键盘不收起）。
  * 求值语义走 utils/calc.ts（与桌面端同一张 13 条用例表对齐）。
  *
- * 交互（02 §1.6）：
+ * 交互（02 §1.6；⚠️ 本次改版**功能一条不动**，只动排版 —— 02 §6 红线）：
  *   - 连按两个运算符 → 替换前一个；以运算符开头 → 忽略
  *   - 多个小数点忽略；`.` 开头补 0；前导零归一
  *   - 单项超上限 → 拒绝该次按键（行内提示，表达式保持原样）
@@ -33,7 +36,7 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
-/** 键位照 02 §1.3：数字 3 列 + 运算 1 列（+ − × ÷ 竖排），末行 . 0 × ÷ */
+/** 键位照 02 §1.3：数字 3 列 + 运算 1 列（+ − × ÷ 竖排），末行 . 0 × ÷。⚠️ 顺序一律不动（02 §6 #1） */
 const KEYS: string[][] = [
   ['1', '2', '3', '⌫'],
   ['4', '5', '6', '+'],
@@ -186,7 +189,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- ⚠️ absolute 贴浮层底部（不用 fixed）；父级 .tx-sheet 已 position:relative -->
+  <!-- ⚠️ absolute 贴浮层底部（不用 fixed）；定位祖先为 .calc-dock（inset:0 与 .tx-sheet 等位，观感同前） -->
   <div
     ref="padEl"
     class="amount-pad"
@@ -196,7 +199,8 @@ onBeforeUnmount(() => {
     }"
     @click.stop
   >
-    <!-- 抓手条：点任意处 或 向下拖拽过阈值 → 收起（父级按「完成」同路径采纳） -->
+    <!-- 抓手条（02 §4.2：单杠 36×4 + 12px 弱箭头，原「pill+箭头+pill」三元素简化）：
+         整条 32px 热区不变，点任意处 或 向下拖拽过阈值 → 收起（父级按「完成」同路径采纳） -->
     <div
       class="pad-grab"
       @touchstart="onGrabDown"
@@ -205,24 +209,26 @@ onBeforeUnmount(() => {
       @touchcancel="onGrabEnd"
       @click="onGrabClick"
     >
-      <span class="grab-pill" aria-hidden="true" />
-      <Icon class="grab-arrow" name="ChevronDown" :size="16" aria-label="收起键盘" />
-      <span class="grab-pill" aria-hidden="true" />
+      <span class="grab-bar" aria-hidden="true" />
+      <Icon class="grab-arrow" name="ChevronDown" :size="12" aria-label="收起键盘" />
     </div>
 
-    <!-- 显示区：左侧行内提示 / 右侧结果预览（无运算符且无提示时整行塌缩为 0 高） -->
+    <!-- 表达式小字行（02 §4.2 改左对齐，与金额卡里的 ¥ 视线连贯）；
+         无运算符且无提示时整行塌缩为 0 高；aria-live 保留（02 §6 #11） -->
     <div class="pad-preview" aria-live="polite">
       <span v-if="hint" class="pad-hint">{{ hint }}</span>
       <span v-else-if="preview" class="pad-result">{{ preview }}</span>
     </div>
 
+    <!-- ⚠️ 键位内容与顺序 = KEYS.flat() 16 格，一律不动（02 §6 #1，改了就是改功能）。
+         末行是追加的 `=` +「完成」两格（02 §4.3 三轮互换：= 左 1 列 / 完成 右 3 列，高 56） -->
     <div class="pad-grid">
       <button
         v-for="key in KEYS.flat()"
         :key="key"
         type="button"
         class="pad-key"
-        :class="{ 'is-op': '+−×÷'.includes(key) }"
+        :class="{ 'is-op': '+−×÷'.includes(key), 'is-del': key === '⌫' }"
         @click="onKey(key)"
         @touchstart.passive="key === '⌫' && onBackspaceDown()"
         @touchend.passive="key === '⌫' && pressEnd()"
@@ -231,10 +237,9 @@ onBeforeUnmount(() => {
       >
         {{ key }}
       </button>
+      <button type="button" class="pad-equals" @click="onEquals">=</button>
+      <button type="button" class="pad-done" @click="emit('complete')">完成</button>
     </div>
-
-    <button type="button" class="pad-equals" @click="onEquals">=</button>
-    <button type="button" class="pad-done" @click="emit('complete')">完成</button>
   </div>
 </template>
 
@@ -245,16 +250,16 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 0;
   z-index: 2;
-  /* 顶部 4px 让给抓手条（比原 8px 略增高度，中部放下拉箭头） */
   padding: 0 12px calc(8px + env(safe-area-inset-bottom, 0px));
   background: var(--color-bg-card);
-  border-top: 1px solid var(--color-border-light);
+  /* ⚠️ 02 §3 条件 3：原 border-top:1px 已删 —— 那条分割线正是「像两块」的元凶；
+     底色与上方金额卡同为 --color-bg-card，零缝隙相接（卡 bottom 由 JS 实测的 --amount-pad-h 钉住）。 */
   /* 下拉拖拽跟手；松手回弹 / 收起都走这 200ms */
   transition: transform 0.2s ease;
   will-change: transform;
 }
 
-/* 抓手条：整条可点（收起）+ 可向下拖拽；中部一个向下箭头 */
+/* 抓手条：整条 32px 热区可点（收起）+ 可向下拖拽；单杠 + 弱箭头（02 §4.2，行为不动 §6 #4） */
 .pad-grab {
   display: flex;
   align-items: center;
@@ -267,7 +272,7 @@ onBeforeUnmount(() => {
   user-select: none;
   &:active .grab-arrow { color: var(--color-primary); }
 }
-.grab-pill {
+.grab-bar {
   width: 36px;
   height: 4px;
   border-radius: 999px;
@@ -279,11 +284,11 @@ onBeforeUnmount(() => {
   pointer-events: none; /* 点击统一归口到 .pad-grab，箭头只做视觉 */
 }
 
-/* 显示区：主行是浮层顶部的金额输入框，这里只有预览副行（--fs-caption / 主色） */
+/* 表达式小字行：提示 / 结果预览，左对齐（02 §4.2）；无运算符且无提示时整行塌缩为 0 高 */
 .pad-preview {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   min-height: 0;
   margin-bottom: 4px;
 
@@ -305,7 +310,7 @@ onBeforeUnmount(() => {
 .pad-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
+  gap: 8px; /* 02 §4.2：6 → 8，放宽间距 */
 }
 .pad-key {
   height: 56px;
@@ -320,43 +325,52 @@ onBeforeUnmount(() => {
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 
-  /* 按下反馈只加深背景，不做缩放（键盘缩放会晃眼，02 §1.3） */
-  &:active {
-    background: var(--color-border);
-  }
-
+  /* 运算符键补底色（02 §4.1 诊断 #1：原只改字色/字号、与数字键同底，16 格看不出运算列）。
+     字色字号保留原有，只加 background。 */
   &.is-op {
+    background: var(--color-primary-light);
     color: var(--color-primary);
     font-size: var(--fs-h4);
     font-weight: 600;
   }
+
+  /* ⌫：中性但可辨（02 §4.2 —— 与数字键同底、字色降为次级） */
+  &.is-del {
+    background: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+  }
+
+  /* 按下反馈只加深背景，不做缩放（键盘缩放会晃眼，02 §1.3）。
+     ⚠️ 刻意排在 is-op / is-del 之后：同为 (0,2,0) 特异度，后者胜出 —— 保证运算键/⌫ 按下仍有变色反馈 */
+  &:active {
+    background: var(--color-border);
+  }
 }
 
-/* `=`：就地求值写回表达式（键盘不收起），主色描边次级按钮，压在「完成」上方 */
+/* `=`：02 §4.2 —— 从整行 40px 横条改为**末行左 1 列单键**（primary-light 底 + primary 字 + --fs-h3）。
+   行为不动：就地求值写回表达式、键盘不收起（02 §6 #2） */
 .pad-equals {
-  display: block;
-  width: 100%;
-  height: 40px;
-  margin-top: 6px;
-  border: 1.5px solid var(--color-primary);
+  grid-column: 1;
+  height: 56px;
+  border: 0;
   border-radius: 10px;
   background: var(--color-primary-light);
   color: var(--color-primary);
-  font-size: var(--fs-h4);
+  font-size: var(--fs-h3);
   font-weight: 700;
   font-family: var(--font-num);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  user-select: none;
   &:active {
     background: var(--color-border-light);
   }
 }
 
+/* 「完成」：02 §4.3 三轮 —— 移到末行右侧占 3 列（确认键在右、面积大、主操作更好点中） */
 .pad-done {
-  display: block;
-  width: 100%;
-  height: 48px;
-  margin-top: 6px;
+  grid-column: 2 / -1;
+  height: 56px;
   border: 0;
   border-radius: 10px;
   background: var(--color-primary);
@@ -365,6 +379,7 @@ onBeforeUnmount(() => {
   font-weight: 600;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  user-select: none;
   &:active {
     background: var(--color-primary-dark);
   }

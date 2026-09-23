@@ -38,7 +38,6 @@ export default function MeProfilePage() {
       const freshUser = { ...userStore.user!, ...updated }
       storage.set('user', freshUser)
       useUserStore.setState({ user: freshUser })
-      Toast.success('资料已更新')
     } catch (e) {
       // M3：失败即显式报错，不再「仅本地生效」假写。
       // 响应拦截器已 Toast 具体原因（校验 / 邮箱冲突 / 版本冲突），这里只记录。

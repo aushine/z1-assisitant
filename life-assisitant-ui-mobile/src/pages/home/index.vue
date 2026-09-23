@@ -16,9 +16,10 @@
  *   - 桌面端 `todoProgress = kpi.todo_rate * 100` —— 但后端 `todo_rate` 注释明确是
  *     **0-100**（`model/dto/home.go`），桌面端这一处多乘了 100（进度条恒 100%）。
  *     移动端按后端口径直接用，不再复刻该缺陷。
- *   - 桌面端习惯列表读 `h.category` / `h.unit`，但 `HomeHabitItem` 结构里没有这两个
- *     字段（见 dto/home.go）→ 桌面端所有首页习惯图标都降级成灰色。
- *     移动端改用响应里真实存在的 `icon` / `color` 渲染，单位从 habit store 兜底查。
+ *   - `HomeHabitItem`（dto/home.go）只有 `icon` / `color`，**没有 `category` / `unit`**
+ *     ⇒ 分类图标与单位都要回 habit store 按 id 兜底查。
+ *     20260922 两端一致：走 `resolveHabitIconView`（04 §4.2 优先级链），
+ *     桌面端原先读 `h.category`（结构里没有 ⇒ 图标恒为灰色）已同轮修正。
  */
 import { computed, onMounted, ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
@@ -37,6 +38,7 @@ import Timeline from '@/components/Timeline.vue'
 import MoodSection from '@/components/MoodSection.vue'
 import type {
   CreateTransactionReq,
+  HomeHabitItem,
   HomeResp,
   TimelineEvent,
   TransferReq,
@@ -44,10 +46,11 @@ import type {
   UpdateTransactionReq,
 } from '@/api/types'
 import { getTint, type TintName } from '@/utils/tint'
-import { formatMoney, formatMonthDayWeekday, greetingByHour, todayDate } from '@/utils/date'
+import { formatMonthDayWeekday, greetingByHour, todayDate } from '@/utils/date'
 import Icon from '@/components/icon/Icon.vue'
+import MoneyText from '@/components/finance/MoneyText.vue'
 import type { IconName } from '@/components/icon/names'
-import { getIconMapping } from '@/utils/icon-map'
+import { resolveHabitIconView } from '@/utils/category-dict'
 import { computeRecs } from '@/utils/smart-recs'
 
 const router = useRouter()
@@ -133,6 +136,10 @@ interface KpiCell {
   icon: IconName
   tint: TintName
   value: string
+  /** 金额型 KPI（03 §2.2 #9）：给真值而非拼好的字符串 —— 遮罩统一由 MoneyText 接管 */
+  amount?: number
+  /** 金额取整（KPI 位窄，大额显示 `¥1.2万`→仍为千分位整数） */
+  integer?: boolean
   sub?: string
   progress?: number
   route: string
@@ -166,7 +173,9 @@ const kpiCells = computed<KpiCell[]>(() => {
       label: '本月支出',
       icon: 'Banknote',
       tint: 'danger',
-      value: `¥${formatMoney(k?.month_expense ?? 0, true)}`,
+      value: '',
+      amount: k?.month_expense ?? 0,
+      integer: true,
       route: '/stat',
     },
     {
@@ -174,7 +183,9 @@ const kpiCells = computed<KpiCell[]>(() => {
       label: '本月收入',
       icon: 'Banknote',
       tint: 'success',
-      value: `¥${formatMoney(k?.month_income ?? 0, true)}`,
+      value: '',
+      amount: k?.month_income ?? 0,
+      integer: true,
       route: '/stat',
     },
   ]
@@ -215,6 +226,22 @@ const longestStreak = computed(() =>
 function habitUnit(id: string): string {
   return habitStore.findById(id)?.unit ?? ''
 }
+
+/**
+ * 首页习惯图标：HomeHabitItem 也不含 `category` / `icon`（只有裸 icon），
+ * 20260922 起 `habits.icon` 空 = **继承分类图标**（04 §4.2），故同样从 habit store
+ * 兜底取 category 后再走优先级链：habits.icon > 分类.icon > 分类.emoji > lucide:Pin。
+ * store 未到位时退化为响应里的 icon 本身（不空、不闪）。
+ */
+function habitIconView(h: HomeHabitItem) {
+  const s = habitStore.findById(h.id)
+  return resolveHabitIconView({ icon: s?.icon || h.icon, category: s?.category })
+}
+
+/** 习惯行（图标视图算一次，模板里不再重复调用） */
+const todayHabitRows = computed(() =>
+  todayHabits.value.map((h) => ({ h, iv: habitIconView(h) }))
+)
 
 function habitPct(item: { today_count: number; target_count: number }): number {
   if (item.target_count <= 0) return 0
@@ -363,7 +390,8 @@ function clampPct(n: number): number {
             <span class="kpi-label">{{ k.label }}</span>
           </div>
           <div class="kpi-value" :style="{ color: getTint(k.tint).fg }">
-            {{ k.value }}<span v-if="k.sub" class="kpi-value-sub">{{ k.sub }}</span>
+            <MoneyText v-if="k.amount !== undefined" :value="k.amount" :integer="k.integer" />
+            <template v-else>{{ k.value }}</template><span v-if="k.sub" class="kpi-value-sub">{{ k.sub }}</span>
           </div>
           <div v-if="k.progress !== undefined" class="kpi-foot">
             <div class="kpi-bar">
@@ -458,9 +486,9 @@ function clampPct(n: number): number {
           </div>
 
           <ul class="habit-list">
-            <li v-for="h in todayHabits" :key="h.id" class="habit-line" :class="{ 'is-done': h.completed }">
-              <span class="habit-emoji" :style="{ background: h.color + '22' }" aria-hidden="true">
-                <Icon :name="getIconMapping(h.icon).icon" :size="16" :style="{ color: getIconMapping(h.icon).vars.fg }" />
+            <li v-for="{ h, iv } in todayHabitRows" :key="h.id" class="habit-line" :class="{ 'is-done': h.completed }">
+              <span class="habit-emoji" :style="{ background: iv.vars.bg }" aria-hidden="true">
+                <Icon :name="iv.icon" :size="16" :style="{ color: iv.vars.fg }" />
               </span>
               <div class="habit-body">
                 <div class="habit-name">{{ h.title }}</div>
@@ -502,14 +530,15 @@ function clampPct(n: number): number {
           <div class="finance-summary">
             <div class="finance-cell">
               <div class="finance-label">支出</div>
-              <div class="finance-value is-expense">¥{{ formatMoney(monthFinance.expense, true) }}</div>
+              <!-- 精确金额 ⇒ 遮（03 §5 判别式）；颜色 class 在父容器，遮罩态由 MoneyText 中性化 -->
+              <div class="finance-value is-expense"><MoneyText :value="monthFinance.expense" integer /></div>
               <div class="kpi-change" :style="{ color: changeColor(monthFinance.expense_change) }">
                 {{ changeLabel(monthFinance.expense_change) }}
               </div>
             </div>
             <div class="finance-cell">
               <div class="finance-label">收入</div>
-              <div class="finance-value is-income">¥{{ formatMoney(monthFinance.income, true) }}</div>
+              <div class="finance-value is-income"><MoneyText :value="monthFinance.income" integer /></div>
               <div class="kpi-change" :style="{ color: changeColor(monthFinance.income_change) }">
                 {{ changeLabel(monthFinance.income_change) }}
               </div>
@@ -521,7 +550,7 @@ function clampPct(n: number): number {
             <div v-for="c in financeCats" :key="c.name" class="finance-cat-row">
               <span class="finance-cat-dot" :style="{ background: c.color }" />
               <span class="finance-cat-name">{{ c.name }}</span>
-              <span class="finance-cat-value">¥{{ formatMoney(c.value, true) }}</span>
+              <span class="finance-cat-value"><MoneyText :value="c.value" integer /></span>
               <span class="finance-cat-pct">{{ c.pct }}%</span>
             </div>
           </div>

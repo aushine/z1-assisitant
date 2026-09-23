@@ -20,7 +20,7 @@
  * 选中态来源是「时间线最后一条」（后端已向前延续填充），不是本地 state。
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Card, Modal, Skeleton, TextArea, Toast } from '@douyinfe/semi-ui'
+import { Button, Card, Modal, Skeleton, TextArea } from '@douyinfe/semi-ui'
 import { Icon, TINT_VARS } from '@/components/icon'
 import { useMoodStore } from '@/stores/mood'
 import ErrorState from '@/components/ErrorState'
@@ -55,13 +55,8 @@ function energyText(e: number): string {
   return ENERGY_META[e as EnergyValue]?.label ?? ''
 }
 
-/** 落库后的提示：整行被清空 > 取消该字段 > 正常记录 */
-function toastOf(resp: { item: MoodHourItem | null } | null, cleared: boolean): void {
-  if (!resp) return // 失败由 store 统一提示
-  if (resp.item === null) Toast.success('已清除这一条')
-  else if (cleared) Toast.success('已恢复沿用上一条')
-  else Toast.success('已记录')
-}
+/* spec-20260922-v2 · 05：落库成功提示已删（结果就地可见 —— 选中态/时间线立刻更新，R1）。
+   失败仍由 store 统一提示（R3）。原 `toastOf(resp, cleared)` 辅助函数随之退休。 */
 
 interface Props {
   /**
@@ -122,29 +117,25 @@ export function MoodSection({ collapse = false }: Props) {
   async function pickMood(m: MoodValue) {
     // 再点同一个值 = 该小时不再单独记录（只发 mood:0），显示时回落到上一条的延续值
     const mood = selMood === m ? 0 : m
-    const resp = await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, mood })
-    toastOf(resp, mood === 0)
+    await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, mood })
   }
 
   async function pickEnergy(e: EnergyValue) {
     const energy = selEnergy === e ? 0 : e
-    const resp = await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, energy })
-    toastOf(resp, energy === 0)
+    await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, energy })
   }
 
   async function clearEnergy() {
-    const resp = await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, energy: 0 })
-    toastOf(resp, true)
+    await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, energy: 0 })
   }
 
   async function saveNote() {
     setNoteEditing(false)
-    const resp = await moodStore.upsertHour({
+    await moodStore.upsertHour({
       date: today,
       hour: moodStore.nowHour,
       note: noteDraft.slice(0, 50),
     })
-    toastOf(resp, false)
   }
 
   // ---- 弹窗编辑某一小时 ----
@@ -175,8 +166,7 @@ export function MoodSection({ collapse = false }: Props) {
       setEditing(null)
       return
     }
-    const resp = await moodStore.upsertHour(payload)
-    toastOf(resp, false)
+    await moodStore.upsertHour(payload)
     setEditing(null)
   }
 

@@ -19,7 +19,8 @@ type CreateTaskReq struct {
 	Title          string       `json:"title"           v:"required|length:1,200"  dc:"任务标题，1-200 字符"`
 	Description    string       `json:"description"     v:"length:0,5000"          dc:"详细描述"`
 	Priority       string       `json:"priority"        v:"in:,relaxed,normal,important,urgent" dc:"优先级：relaxed/normal/important/urgent，默认 normal"`
-	CategoryID     string       `json:"category_id"     v:"length:0,32"            dc:"分类 ID"`
+	CategoryID     string       `json:"category_id"     v:"length:0,32"            dc:"分类 ID（须属于当前用户 domain=task 且未删；空=未分类）"`
+	Icon           string       `json:"icon"            v:"length:0,40"            dc:"图标引用 lucide:<Name> / emoji；空=继承分类图标（20260922 新增）"`
 	DueDate        string       `json:"due_date"        v:"date"                   dc:"截止日期 YYYY-MM-DD"`
 	DueTime        string       `json:"due_time"        v:"regex:^[0-2][0-9]:[0-5][0-9]$" dc:"截止时间 HH:MM"`
 	ReminderAt     string       `json:"reminder_at"     v:"length:0,30"            dc:"提醒时间 ISO datetime，可选"`
@@ -35,7 +36,8 @@ type UpdateTaskReq struct {
 	Description    *string      `json:"description"      v:"length:0,5000"         dc:"详细描述"`
 	Priority       *string      `json:"priority"         v:"in:,relaxed,normal,important,urgent"       dc:"优先级"`
 	Status         *string      `json:"status"           v:"in:,todo,in_progress,done,archived" dc:"状态"`
-	CategoryID     *string      `json:"category_id"      v:"length:0,32"           dc:"分类 ID"`
+	CategoryID     *string      `json:"category_id"      v:"length:0,32"           dc:"分类 ID（须属于当前用户 domain=task 且未删；空串=清空为未分类）"`
+	Icon           *string      `json:"icon"             v:"length:0,40"           dc:"图标引用 lucide:<Name> / emoji；空串=继承分类图标"`
 	DueDate        *string      `json:"due_date"         v:"date"                  dc:"截止日期 YYYY-MM-DD；传空字符串表示清空"`
 	DueTime        *string      `json:"due_time"         v:"regex:^[0-2][0-9]:[0-5][0-9]$" dc:"截止时间 HH:MM；传空字符串表示清空"`
 	ReminderAt     *string      `json:"reminder_at"      v:"length:0,30"           dc:"提醒时间；传空字符串表示清空"`
@@ -77,6 +79,7 @@ type TaskResp struct {
 	Status         string        `json:"status"`
 	CategoryID     string        `json:"category_id,omitempty"`
 	CategoryEmoji  string        `json:"category_emoji,omitempty"`
+	Icon           string        `json:"icon,omitempty"`
 	DueDate        string        `json:"due_date,omitempty"`
 	DueTime        string        `json:"due_time,omitempty"`
 	ReminderAt     string        `json:"reminder_at,omitempty"`

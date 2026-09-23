@@ -18,10 +18,11 @@
  *   长按     → 进入多选模式并选中
  *   左滑     → 编辑 / 删除
  */
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useLongPress } from '@/composables/useLongPress'
 import { getTaskPriority } from '@/utils/task-dict'
-import { getTaskCategory, resolveCategory } from '@/utils/category-dict'
+import { getTaskCategory, resolveCategory, resolveTaskIconView } from '@/utils/category-dict'
+import { useUserCategoryStore } from '@/stores/user-category'
 import { formatDayLabel, todayDate } from '@/utils/date'
 import Icon from '@/components/icon/Icon.vue'
 import type { IconName } from '@/components/icon/names'
@@ -46,14 +47,30 @@ const emit = defineEmits<{
 // ==================== 长按 → 多选 ====================
 const lp = useLongPress(() => emit('longpress'))
 
+// 分类 store 预热（SWR 有 1.5s 去重，多卡片并发调用只会打一次请求）
+const catStore = useUserCategoryStore()
+onMounted(() => {
+  void catStore.ensureFresh('task')
+})
+
 // ==================== 派生展示数据 ====================
 const priority = computed(() => getTaskPriority(props.task.priority))
+// store 优先、常量兜底（04 #45/53）；deleted/unknown 标记由 getTaskCategory 透出
 const category = computed(() => getTaskCategory(props.task.category_id ?? undefined))
 
+/** 图标优先级链：tasks.icon > 分类.icon > 分类.emoji > lucide:CircleDashed */
+const iconView = computed(() =>
+  resolveTaskIconView({ icon: props.task.icon, category_id: props.task.category_id })
+)
+
+// 分类查不到时（store 未加载且非常量 id）才回退旧的运行时 emoji 解析
 const resolvedCat = computed(() => resolveCategory(props.task.category_emoji))
-const iconName = computed<IconName>(() => category.value?.icon ?? resolvedCat.value.icon)
-const iconBg = computed(() => category.value?.vars.bg ?? resolvedCat.value.vars.bg)
-const iconFg = computed(() => category.value?.vars.fg ?? resolvedCat.value.vars.fg)
+const useIconView = computed(() => !!props.task.icon || !!category.value)
+const iconName = computed<IconName>(() =>
+  useIconView.value ? iconView.value.icon : resolvedCat.value.icon
+)
+const iconBg = computed(() => (useIconView.value ? iconView.value.vars : resolvedCat.value.vars).bg)
+const iconFg = computed(() => (useIconView.value ? iconView.value.vars : resolvedCat.value.vars).fg)
 
 /** 截止文案 */
 const dueText = computed(() => {

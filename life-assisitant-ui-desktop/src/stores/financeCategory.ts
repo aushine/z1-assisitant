@@ -16,6 +16,7 @@
  */
 import { create } from 'zustand'
 import { Toast } from '@douyinfe/semi-ui'
+import { feedback } from '@/utils/feedback'
 import { financeApi } from '@/api/finance'
 import type {
   FinanceCategory,
@@ -307,7 +308,6 @@ export const useFinanceCategoryStore = create<FinanceCategoryState>((set, get) =
     try {
       const created = await financeApi.createCategory(data)
       setTree(set, replaceById(get().tree, tempId, created))
-      Toast.success('分类已创建')
       return created
     } catch {
       setTree(set, removeById(get().tree, tempId))
@@ -322,7 +322,6 @@ export const useFinanceCategoryStore = create<FinanceCategoryState>((set, get) =
     setTree(set, patchById(get().tree, id, data))
     try {
       await financeApi.updateCategory(id, data)
-      Toast.success('已保存')
       return true
     } catch {
       setTree(set, replaceById(get().tree, id, before))
@@ -336,7 +335,7 @@ export const useFinanceCategoryStore = create<FinanceCategoryState>((set, get) =
     setTree(set, removeById(beforeTree, id))
     try {
       await financeApi.removeCategory(id)
-      Toast.success('已删除')
+      feedback.destructiveDone('已删除')
       return true
     } catch {
       setTree(set, beforeTree)

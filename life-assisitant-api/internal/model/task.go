@@ -9,13 +9,15 @@ import (
 // Task 任务表实体
 // M5 扩展字段：reminder_at / recurrence_rule / parent_task_id / subtasks_count
 type Task struct {
-	ID             string         `gorm:"column:id;primaryKey;type:varchar(32)"               json:"id"`
-	UserID         string         `gorm:"column:user_id;type:varchar(32);not null;index"        json:"user_id"`
-	Title          string         `gorm:"column:title;type:varchar(200);not null"               json:"title"`
-	Description    *string        `gorm:"column:description;type:text"                          json:"description,omitempty"`
-	Priority       string         `gorm:"column:priority;type:varchar(10);default:normal;index"      json:"priority"`
-	Status         string         `gorm:"column:status;type:varchar(16);default:todo;index"     json:"status"`
-	CategoryID     *string        `gorm:"column:category_id;type:varchar(32)"                   json:"category_id,omitempty"`
+	ID          string  `gorm:"column:id;primaryKey;type:varchar(32)"               json:"id"`
+	UserID      string  `gorm:"column:user_id;type:varchar(32);not null;index"        json:"user_id"`
+	Title       string  `gorm:"column:title;type:varchar(200);not null"               json:"title"`
+	Description *string `gorm:"column:description;type:text"                          json:"description,omitempty"`
+	Priority    string  `gorm:"column:priority;type:varchar(10);default:normal;index"      json:"priority"`
+	Status      string  `gorm:"column:status;type:varchar(16);default:todo;index"     json:"status"`
+	CategoryID  *string `gorm:"column:category_id;type:varchar(32)"                   json:"category_id,omitempty"`
+	// Icon 图标引用（lucide:<Name> / emoji）；空 = 继承分类图标（20260922 新增，与 habits.icon 同规格）
+	Icon           string         `gorm:"column:icon;type:varchar(40);not null;default:''"                 json:"icon"`
 	DueDate        *time.Time     `gorm:"column:due_date;type:date"                             json:"due_date,omitempty"`
 	DueTime        *string        `gorm:"column:due_time;type:varchar(5)"                       json:"due_time,omitempty"`
 	ReminderAt     *time.Time     `gorm:"column:reminder_at;type:datetime"                      json:"reminder_at,omitempty"`
@@ -33,18 +35,18 @@ func (t *Task) TableName() string { return "tasks" }
 
 // ====== 任务状态枚举 ======
 const (
-	TaskStatusTodo        = "todo"
-	TaskStatusInProgress  = "in_progress"
-	TaskStatusDone        = "done"
-	TaskStatusArchived    = "archived"
+	TaskStatusTodo       = "todo"
+	TaskStatusInProgress = "in_progress"
+	TaskStatusDone       = "done"
+	TaskStatusArchived   = "archived"
 )
 
 // ====== 优先级枚举 ======
 const (
-	TaskPriorityRelaxed  = "relaxed"
-	TaskPriorityNormal   = "normal"
+	TaskPriorityRelaxed   = "relaxed"
+	TaskPriorityNormal    = "normal"
 	TaskPriorityImportant = "important"
-	TaskPriorityUrgent   = "urgent"
+	TaskPriorityUrgent    = "urgent"
 )
 
 // ====== 列表 filter 取值 ======

@@ -13,6 +13,7 @@ import StatPage from '@/pages/stat'
 import MePage from '@/pages/me'
 import MeAnniversariesPage from '@/pages/me/anniversaries'
 import MeFinanceCategoriesPage from '@/pages/me/finance-categories'
+import MeCategoriesPage from '@/pages/me/categories'
 import MeProfilePage from '@/pages/me/profile'
 import MeNotificationsPage from '@/pages/me/notifications'
 import MeSecurityPage from '@/pages/me/security'
@@ -95,6 +96,15 @@ export const router = createBrowserRouter([
         element: (
           <AuthGuard requiresPermission="finance:view">
             <MeFinanceCategoriesPage />
+          </AuthGuard>
+        ),
+      },
+      // 习惯 / 待办分类管理（spec-20260922-v2/04 §4.4）—— 权限点 category:view
+      {
+        path: 'me/categories',
+        element: (
+          <AuthGuard requiresPermission="category:view">
+            <MeCategoriesPage />
           </AuthGuard>
         ),
       },

@@ -31,9 +31,13 @@
         document.documentElement.style.setProperty('--app-height', '100vh')
       })()
     </script>
-    <link rel="icon" type="image/png" href="/favicon.png" />
-    <!-- iOS 主屏图标：必须实心 PNG（透明会被填黑），180x180；iOS 不认 manifest 里的 icons -->
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <!-- 品牌图标（08 §3.5）：SVG 优先（现代浏览器，任意缩放清晰），32px PNG 兜底
+         （684 B —— 旧 PNG 为 452 KB / 1289px，已随品牌落地弃用） -->
+    <link rel="icon" type="image/svg+xml" href="/brand/z1-icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/brand/z1-icon-32.png" />
+    <!-- iOS 主屏图标：必须实心 PNG（透明会被填黑），180x180；iOS 不认 manifest 里的 icons。
+         素材无 180 档 ⇒ 取满幅 square-192（iOS 自行缩放 12px 无感，且 iOS 自切圆角）。 -->
+    <link rel="apple-touch-icon" sizes="192x192" href="/brand/z1-icon-square-192.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta
       name="viewport"
@@ -52,7 +56,8 @@
          ① iOS 根本不渲染超出视口的 fixed 元素，负偏移被忽略或裁掉；
          ② 真正的问题不是内缩，而是视口高度被少算（见文件头部注释）。
          现在底部胶囊改用 absolute 锚定在 .home-layout 内，系统不介入。 -->
-    <meta name="theme-color" content="#0A3D4D" />
+    <!-- 状态栏/地址栏色（08 §3.5）：--primary-500 品牌蓝，与 logo 同色系（旧 #0A3D4D 深青已弃用） -->
+    <meta name="theme-color" content="#014DB2" />
     <meta
       name="description"
       content="Z1 · Zero to One - 让每个认真生活的人，井井有条地过好每一天。任务、习惯、记账、统计一站式个人效率工具。"

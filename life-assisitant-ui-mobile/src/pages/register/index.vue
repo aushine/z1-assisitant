@@ -20,7 +20,7 @@ import { assetBase } from '@/utils/asset'
  */
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { showFailToast, showSuccessToast } from 'vant'
+import { showFailToast } from 'vant'
 import { useUserStore } from '@/stores/user'
 import { isEmail, isPhone, isUsername } from '@/utils/validate'
 import Icon from '@/components/icon/Icon.vue'
@@ -91,7 +91,6 @@ async function onSubmit(): Promise<void> {
       email: form.email.trim(),
       phone: form.phone.trim() || undefined,
     })
-    showSuccessToast({ message: '注册成功，已自动登录', duration: 1200 })
     await router.replace('/home')
   } catch (e) {
     // 响应拦截器已 toast 具体原因（用户名已存在 / 邮箱已注册 / 校验失败），
@@ -116,7 +115,8 @@ function goLogin(): void {
 
     <main class="sub-body">
       <div class="auth-hero">
-        <img :src="`${assetBase}z1-logo.png`" alt="Z1" class="auth-logo" />
+        <!-- 08 §3.2：浅底页面无底 mark（h3「加入 Z1」是页面文案，保留） -->
+        <img :src="`${assetBase}brand/z1-mark.svg`" alt="Z1" class="auth-logo" />
         <h3 class="auth-title">加入 Z1</h3>
         <p class="auth-subtitle">任务 · 习惯 · 记账 · 统计，一处管好</p>
       </div>

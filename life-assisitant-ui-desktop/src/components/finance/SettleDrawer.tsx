@@ -14,12 +14,17 @@
  *
  * 金额默认 = 未结清额，可改（Q13 部分核销/部分报销）。成功后由 store 的
  * createTransaction → fetchDebts 联动刷新债权债务与列表。
+ *
+ * 260922 Phase 2（02 §7.4）：金额从 InputNumber 换成**表达式文本框 + 失焦采纳**，
+ * 与记账 TransactionEditDrawer 同语义（空→不动 / 无效→保留原文 / 有效→统一 2 位小数写回），
+ * 消除「记账能算、核销不能算」的不一致。⚠️ 预算 / 账户余额 / 健康等 InputNumber
+ * **刻意不跟**（02 §7.4 Non-goals：步进器与范围校验不能被表达式吃掉）。
  */
 import { useState, useEffect, useMemo } from 'react'
-import { SideSheet, Button, InputNumber, TextArea, Select, DatePicker, Toast, Typography } from '@douyinfe/semi-ui'
+import { SideSheet, Button, Input, TextArea, Select, DatePicker, Toast, Typography } from '@douyinfe/semi-ui'
 import { Icon } from '@/components/icon'
 import { useFinanceStore } from '@/stores/finance'
-import { evalAmountExpr } from '@/utils/calc'
+import { evalAmountExpr, centsToFixed2 } from '@/utils/calc'
 import type { Transaction } from '@/api/types'
 
 const { Title } = Typography
@@ -54,7 +59,8 @@ interface Props {
 
 export default function SettleDrawer({ visible, action, transaction, openAmount, onClose, onSettled }: Props) {
   const financeStore = useFinanceStore()
-  const [amount, setAmount] = useState<number>(0)
+  // 金额表达式原文（与记账抽屉 amountText 同构：文本为输入源，提交取 evalAmountExpr 结果）
+  const [amountText, setAmountText] = useState('')
   const [accountId, setAccountId] = useState('')
   const [happenedAt, setHappenedAt] = useState('')
   const [note, setNote] = useState('')
@@ -66,7 +72,8 @@ export default function SettleDrawer({ visible, action, transaction, openAmount,
 
   useEffect(() => {
     if (!visible || !action) return
-    setAmount(Math.max(0, Number(openAmount.toFixed(2)))) // 默认 = 未结清，可改（Q13）
+    // 默认 = 未结清，可改（Q13）；统一 2 位小数写回形式（失焦幂等：默认值再失焦不变）
+    setAmountText(centsToFixed2(Math.max(0, Math.round(openAmount * 100))))
     setAccountId(financeStore.accounts[0]?.id ?? '')
     setHappenedAt(toLocalMin())
     setNote('')
@@ -79,11 +86,29 @@ export default function SettleDrawer({ visible, action, transaction, openAmount,
     [financeStore.accounts]
   )
 
+  // ===== 失焦采纳（02 §7.3 三规则，与记账 TransactionEditDrawer 全同；不弹任何「已计算」提示）=====
+  const onAmountChange = (v: string) => {
+    setAmountText(v)
+    // 错误清除判定与记账同构：有效且非 0 才清（无效半成品由提交兜底再拦）
+    const r = evalAmountExpr(v)
+    if (r.valid && r.cents > 0) setAmountError('')
+  }
+
+  const onAmountBlur = () => {
+    const raw = amountText.trim()
+    if (!raw) return // ① 空框 → 不动
+    const r = evalAmountExpr(raw)
+    if (!r.valid) return // ② 无效表达式 → 保留原文（半成品不写坏）
+    setAmountText(centsToFixed2(r.cents)) // ③ 有效 → 写回 2 位小数（幂等；payload 金额在提交时再 evalAmountExpr 兜底）
+  }
+
   async function handleSubmit() {
     if (!meta || !transaction) return
     let valid = true
-    const r = evalAmountExpr(String(amount ?? ''))
-    if (!(amount > 0) || !r.valid || r.cents <= 0) {
+    // 金额 = 表达式文本：提交兜底再求值（与记账抽屉同语义，02 §8「提交兜底」行；无效不采纳、保留原文）
+    const raw = amountText.trim()
+    const r = evalAmountExpr(raw)
+    if (!raw || !r.valid || r.cents <= 0) {
       setAmountError('请输入有效金额')
       valid = false
     }
@@ -114,7 +139,6 @@ export default function SettleDrawer({ visible, action, transaction, openAmount,
         settle_of: transaction.id,
       })
       if (created) {
-        Toast.success(`${meta.title}成功`)
         onSettled?.()
         onClose()
       } else {
@@ -151,19 +175,17 @@ export default function SettleDrawer({ visible, action, transaction, openAmount,
         )}
         <div className="field">
           <label className="field-label">金额 <span className="required">*</span></label>
-          <InputNumber
-            value={amount}
-            onChange={(v) => {
-              setAmount(parseFloat(String(v)) || 0)
-              if (amountError) setAmountError('')
-            }}
-            min={0.01}
-            step={0.01}
-            precision={2}
+          <Input
+            type="text"
+            value={amountText}
+            onChange={onAmountChange}
+            onBlur={onAmountBlur}
+            placeholder="0.00"
             style={{ width: '100%' }}
+            // 表达式输入 + 失焦采纳（02 §7.4：与记账同语义；此处金额天然需要算 —— 分账/部分报销）
           />
           {amountError && <div className="field-error">{amountError}</div>}
-          <div className="field-tip">默认未结清额，可改（部分核销）</div>
+          <div className="field-tip">默认未结清额，可改（部分核销）；支持 + − × ÷（例：15/3 → 5.00）</div>
         </div>
         <div className="field">
           <label className="field-label">账户 <span className="required">*</span></label>

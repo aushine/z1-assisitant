@@ -27,14 +27,14 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { statsApi } from '@/api/stats'
 import { useHabitStore } from '@/stores/habit'
-import { HABIT_CATEGORIES, getHabitCategory } from '@/utils/category-dict'
-import { getIconMapping } from '@/utils/icon-map'
+import { HABIT_CATEGORIES, getHabitCategory, resolveHabitIconView } from '@/utils/category-dict'
+import { useUserCategoryStore } from '@/stores/user-category'
 import Icon from '@/components/icon/Icon.vue'
 import { todayDate } from '@/utils/date'
 import HabitHeatmap from '@/components/HabitHeatmap.vue'
 import MilestoneRow from '@/components/MilestoneRow.vue'
 import StreakBadge from '@/components/StreakBadge.vue'
-import type { Habit, HabitCategory, HabitHeatmapItem, HabitStatus } from '@/api/types'
+import type { Habit, HabitHeatmapItem, HabitStatus } from '@/api/types'
 
 const emit = defineEmits<{
   (e: 'create'): void
@@ -43,6 +43,8 @@ const emit = defineEmits<{
 }>()
 
 const habitStore = useHabitStore()
+// 习惯/待办分类（spec-20260922-v2/04）：分类筛选与图标都改为 store 优先
+const catStore = useUserCategoryStore()
 
 // ==================== 日期 / 日历 ====================
 const now = new Date()
@@ -116,10 +118,18 @@ const STATUS_FILTERS: Array<{ text: string; value: HabitStatus | '' }> = [
   { text: '活跃', value: 'active' },
   { text: '已归档', value: 'archived' },
 ]
-const CATEGORY_FILTERS: Array<{ text: string; value: HabitCategory | '' }> = [
-  { text: '全部分类', value: '' },
-  ...HABIT_CATEGORIES.map((c) => ({ text: c.label, value: c.id as HabitCategory })),
-]
+/**
+ * 分类筛选选项 —— store 优先（用户可自由增删分类，04 §4.4），
+ * 分类未拉回来时先用常量兜底表（数据到达后 Pinia 响应式替换）。
+ */
+const CATEGORY_FILTERS = computed<Array<{ text: string; value: string }>>(() => {
+  const list = catStore.loadedOnce.habit
+    ? catStore
+        .listByDomain('habit')
+        .map((c) => ({ text: catStore.resolveCategory('habit', c.id)?.name ?? c.name, value: c.id }))
+    : HABIT_CATEGORIES.map((c) => ({ text: c.label, value: c.id }))
+  return [{ text: '全部分类', value: '' }, ...list]
+})
 
 const statusIndex = ref(0)
 const categoryIndex = ref(0)
@@ -132,7 +142,7 @@ async function onStatusChange(index: number | string): Promise<void> {
 
 function onCategoryChange(index: number | string): void {
   const i = Number(index)
-  habitStore.setCategoryFilter(CATEGORY_FILTERS[i]?.value ?? '')
+  habitStore.setCategoryFilter(CATEGORY_FILTERS.value[i]?.value ?? '')
 }
 
 // ==================== 打卡 ====================
@@ -177,14 +187,18 @@ function isDone(h: Habit): boolean {
   return !!(h.today_done ?? h.today_completed)
 }
 
-/** 习惯图标（数据驱动：后端 h.icon 是 emoji，渲染层走字典取 Lucide 图标 + 语义色） */
+/**
+ * 习惯图标 —— 04 §4.2 优先级链：`habits.icon`（存量可为 emoji，自动换算）
+ * > 分类.icon > 分类.emoji > lucide:Pin。store 未加载时走常量兜底，不闪空。
+ */
 function habitIcon(h: Habit) {
-  // 空 icon 直接走 getIconMapping 内置兜底（HelpCircle + 中性色），不引入 emoji 字面量
-  return getIconMapping(h.icon || '')
+  return resolveHabitIconView({ icon: h.icon, category: h.category })
 }
 
 // ==================== 生命周期 ====================
 onMounted(async () => {
+  // 分类 store 静默预热（SWR：缓存先渲染，后台对服务端，04 §4.2）
+  void catStore.ensureFresh('habit')
   await Promise.all([habitStore.fetchHabits(), fetchHeatmap()])
 })
 

@@ -17,8 +17,9 @@
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { showFailToast, showSuccessToast } from 'vant'
+import { showFailToast } from 'vant'
 import { periodApi } from '@/api/period'
+import { feedback } from '@/utils/feedback'
 import {
   PERIOD_MASK_STORAGE_KEY,
   periodCanShowDates,
@@ -168,7 +169,6 @@ export const usePeriodStore = defineStore('period', () => {
       if (res.prediction) prediction.value = res.prediction
       if (res.cycles_changed) invalidateCalendar()
       if (date === today.value) todayLog.value = res.day
-      showSuccessToast('已记录')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -192,7 +192,7 @@ export const usePeriodStore = defineStore('period', () => {
       if (date === today.value) todayLog.value = res.today_log
       initialized.value = res.initialized
       hasEnoughData.value = res.has_enough_data
-      showSuccessToast('已删除')
+      feedback.destructiveDone('已删除')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -232,7 +232,6 @@ export const usePeriodStore = defineStore('period', () => {
     saving.value = true
     try {
       settings.value = await periodApi.patchSettings(data)
-      showSuccessToast('已保存')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -254,7 +253,6 @@ export const usePeriodStore = defineStore('period', () => {
       disclaimerAccepted.value = true
       invalidateCalendar()
       await fetchSettings()
-      showSuccessToast('已开启周期预测')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -274,7 +272,7 @@ export const usePeriodStore = defineStore('period', () => {
       invalidateCalendar()
       cycles.value = []
       await fetchOverview()
-      showSuccessToast('已清空经期数据')
+      feedback.destructiveDone('已清空经期数据')
       return true
     } catch (e) {
       // eslint-disable-next-line no-console

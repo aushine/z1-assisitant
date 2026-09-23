@@ -54,6 +54,7 @@ import { BANKS } from '@/constants/banks'
 import ErrorState from '@/components/ErrorState'
 import { EmptyHint } from '@/components/EmptyState'
 import { AssetSummaryCard } from './AssetSummaryCard'
+import { MoneyText } from '@/components/finance/MoneyText'
 import TransactionEditDrawer from '@/components/TransactionEditDrawer'
 import type { Account, CreateTransactionReq, DebtItem } from '@/api/types'
 
@@ -118,13 +119,13 @@ function DebtGroup({ title, items, onRow }: { title: string; items: DebtItem[]; 
     <div className="debt-group">
       <div className="debt-group-head">
         <span>{title}</span>
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>¥ {sum.toFixed(2)}</span>
+        <span style={{ fontVariantNumeric: 'tabular-nums' }}><MoneyText value={sum} /></span>
       </div>
       {items.map((it) => (
         <button key={it.contact} type="button" className="debt-row" onClick={() => onRow(it.contact)}>
           <span className="debt-contact">{it.contact}</span>
           <span className="debt-kind">{debtKindLabel(it.kinds)}</span>
-          <span className="debt-open">¥ {it.open.toFixed(2)}</span>
+          <span className="debt-open"><MoneyText value={it.open} /></span>
           <Icon name="ChevronRight" size={14} />
         </button>
       ))}
@@ -134,9 +135,12 @@ function DebtGroup({ title, items, onRow }: { title: string; items: DebtItem[]; 
 
 export function AccountManager({
   onViewContact,
+  onViewAccount,
 }: {
   /** Phase 4.2：点债权债务行 → 跳收支视图并按对方筛选（由 FinancialTab 提供） */
   onViewContact?: (contact: string) => void
+  /** spec-20260922-v2 · 07 #30b：账户卡「查看流水」→ 跳收支视图并按该账户筛选（方案 B：账户 Select 自动同步选中） */
+  onViewAccount?: (accountId: string) => void
 } = {}) {
   const financeStore = useFinanceStore()
   const [loading, setLoading] = useState(true)
@@ -380,10 +384,14 @@ export function AccountManager({
                     <div className="acc-info">
                       <div className="acc-name">{a.name}</div>
                       <div className="acc-balance" style={{ color: a.balance < 0 ? 'var(--color-danger-dark)' : 'var(--color-text-primary)' }}>
-                        ¥ {a.balance.toFixed(2)}
+                        <MoneyText value={a.balance} />
                       </div>
                     </div>
                     <div className="acc-actions">
+                      {/* 查看流水（07 #30b）：写 txQuery.account_id → 收支视图，账户 Select 受控自动同步 */}
+                      <Tooltip content="查看流水">
+                        <Button theme="borderless" type="tertiary" size="small" icon={<Icon name="Receipt" size={16} />} onClick={() => onViewAccount?.(a.id)} />
+                      </Tooltip>
                       <Tooltip content="编辑">
                         <Button theme="borderless" type="tertiary" size="small" icon={<Icon name="Pencil" size={16} />} onClick={() => openEdit(a)} />
                       </Tooltip>
@@ -406,7 +414,7 @@ export function AccountManager({
         <div className="debt-card">
           <div className="debt-card-head">
             <span className="debt-card-title">债权债务</span>
-            <span className="debt-net">净 ¥ {financeStore.debts.net.toFixed(2)}</span>
+            <span className="debt-net">净 <MoneyText value={financeStore.debts.net} /></span>
           </div>
           <DebtGroup title="别人欠我" items={financeStore.debts.owed_to_me} onRow={(c) => onViewContact?.(c)} />
           <DebtGroup title="我欠别人" items={financeStore.debts.i_owe} onRow={(c) => onViewContact?.(c)} />

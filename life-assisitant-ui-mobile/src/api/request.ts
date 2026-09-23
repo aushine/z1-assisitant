@@ -27,7 +27,7 @@ import axios, {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios'
-import { showToast, showFailToast, showSuccessToast } from 'vant'
+import { showToast, showFailToast } from 'vant'
 import router from '@/router'
 import { useUserStore } from '@/stores/user'
 import { AUTH_FAILURE_CODES, ErrorCode, REFRESHABLE_CODES } from '@/constants/auth-codes'
@@ -309,8 +309,6 @@ export const http = {
   delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
     return request.delete(url, config) as unknown as Promise<T>
   },
-  /** 全局成功提示（业务层也可单独用 Vant 的 showSuccessToast） */
-  successToast: (msg: string) => showSuccessToast(msg),
   /** 全局失败提示 */
   failToast: (msg: string) => showFailToast(msg),
   /** 全局普通提示 */

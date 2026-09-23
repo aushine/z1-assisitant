@@ -1,7 +1,13 @@
 /**
  * Habit create/edit Drawer
+ *
+ * 260922 分类实体化（spec-20260922-v2/04 #46/47）：
+ *   - 16 个硬编码 emoji → 「已选图标 + 更换」单行 → IconPicker（分组候选，
+ *     两端共用注册表），落库口径 `lucide:<Name>`（Q10：存量 emoji 顺手换算）；
+ *   - 分类 Select（写死 4 项）→ `<CategoryTiles>` 平铺 chips + 「管理 ›」，
+ *     用户自建分类即时可见。
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   SideSheet,
   Button,
@@ -11,12 +17,15 @@ import {
   RadioGroup,
   Radio,
   Typography,
-  Select,
   Checkbox,
 } from '@douyinfe/semi-ui'
-import { Icon, TINT_VARS } from '@/components/icon'
+import { Icon, ICONS, TINT_VARS } from '@/components/icon'
+import type { IconName } from '@/components/icon'
 import { getIconMapping } from '@/utils/icon-map'
-import { HABIT_CATEGORIES } from '@/utils/category-dict'
+import { resolveHabitIconView } from '@/utils/category-dict'
+import { lucideIconName } from '@/stores/user-category'
+import IconPicker from '@/components/finance/IconPicker'
+import CategoryTiles from '@/components/finance/CategoryTiles'
 import type {
   Habit,
   CreateHabitReq,
@@ -25,11 +34,6 @@ import type {
 } from '@/api/types'
 
 const { Title } = Typography
-
-const EMOJI_OPTIONS = [
-  '💧', '🏃', '📚', '🧘', '🍎', '💤', '☕', '🎯',
-  '✍️', '💪', '🚴', '🎨', '🎵', '🧹', '💊', '🌱',
-]
 
 const COLOR_OPTIONS = [
   { value: '#014DB2', label: '主色蓝' },
@@ -60,7 +64,7 @@ export default function HabitEditDrawer({ visible, habit, saving = false, onClos
   const [form, setForm] = useState<CreateHabitReq>({
     title: '',
     description: '',
-    icon: '💧',
+    icon: '', // '' = 跟随分类图标（04 §4.2；旧默认 '💧' 废除）
     color: '#014DB2',
     category: 'life',
     frequency: 'daily',
@@ -69,6 +73,7 @@ export default function HabitEditDrawer({ visible, habit, saving = false, onClos
     track_duration: false,
   })
   const [titleError, setTitleError] = useState('')
+  const [iconOpen, setIconOpen] = useState(false)
 
   useEffect(() => {
     if (!visible) return
@@ -76,7 +81,8 @@ export default function HabitEditDrawer({ visible, habit, saving = false, onClos
       setForm({
         title: habit.title ?? '',
         description: habit.description ?? '',
-        icon: habit.icon ?? '💧',
+        // 存量 icon 可为 emoji：表单原样携带，保存时 iconForPayload 统一换算（Q10）
+        icon: habit.icon ?? '',
         color: habit.color ?? '#014DB2',
         category: habit.category ?? 'life',
         frequency: habit.frequency ?? 'daily',
@@ -88,7 +94,7 @@ export default function HabitEditDrawer({ visible, habit, saving = false, onClos
       setForm({
         title: '',
         description: '',
-        icon: '💧',
+        icon: '',
         color: '#014DB2',
         frequency: 'daily',
         target_count: 1,
@@ -96,6 +102,7 @@ export default function HabitEditDrawer({ visible, habit, saving = false, onClos
       })
     }
     setTitleError('')
+    setIconOpen(false)
   }, [visible, habit?.id])
 
   const isEdit = !!habit
@@ -106,8 +113,30 @@ export default function HabitEditDrawer({ visible, habit, saving = false, onClos
     if (v.trim()) setTitleError('')
   }, [])
 
-  const pickEmoji = useCallback((em: string) => {
-    setForm((f) => ({ ...f, icon: em }))
+  /** 摘要行展示的图标：habit.icon > 分类.icon > 分类.emoji > Pin（store 优先、常量兜底） */
+  const iconView = useMemo(
+    () => resolveHabitIconView({ icon: form.icon, category: form.category }),
+    [form.icon, form.category],
+  )
+
+  /** IconPicker 要**裸名**（无 lucide: 前缀）；存量 emoji 引用视为未选 */
+  const pickerIcon: IconName | null = useMemo(() => {
+    const raw = form.icon ?? ''
+    if (!raw) return null
+    const bare = raw.startsWith('lucide:') ? raw.slice(7) : raw
+    return (ICONS as Record<string, unknown>)[bare] ? (bare as IconName) : null
+  }, [form.icon])
+
+  /**
+   * Q10：新建/编辑保存时统一图标引用 ——
+   * 空 = 继承分类图标；lucide 引用原样；存量 emoji 顺手换成 `lucide:<映射名>`。
+   */
+  const iconForPayload = useCallback((raw: string | undefined): string => {
+    if (!raw) return ''
+    if (raw.startsWith('lucide:')) return raw
+    if ((ICONS as Record<string, unknown>)[raw]) return `lucide:${raw}`
+    // 桌面端 icon-map 返回组件 ⇒ 经注册表反查名字（未注册降级 HelpCircle）
+    return `lucide:${lucideIconName(getIconMapping(raw).icon) ?? 'HelpCircle'}`
   }, [])
 
   const pickColor = useCallback((c: string) => {
@@ -132,7 +161,7 @@ export default function HabitEditDrawer({ visible, habit, saving = false, onClos
     onSubmit({
       title: t,
       description: form.description?.trim() || undefined,
-      icon: form.icon,
+      icon: iconForPayload(form.icon),
       color: form.color,
       category: form.category,
       frequency: form.frequency,
@@ -193,45 +222,32 @@ export default function HabitEditDrawer({ visible, habit, saving = false, onClos
           />
         </div>
 
-        {/* Emoji */}
+        {/* 图标：已选 + 更换 › → IconPicker（04 §4.1，替代 16 格 emoji） */}
         <div className="field">
           <label className="field-label">图标</label>
-          <div className="emoji-grid">
-            {EMOJI_OPTIONS.map((em) => {
-              const m = getIconMapping(em)
-              return (
-                <div
-                  key={em}
-                  className={`emoji-chip${form.icon === em ? ' active' : ''}`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => pickEmoji(em)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') pickEmoji(em) }}
-                >
-                  <m.icon size={20} />
-                </div>
-              )
-            })}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              className="cat-icon-pick"
+              onClick={() => setIconOpen(true)}
+              style={{ background: form.color ? form.color + '22' : TINT_VARS[iconView.tint].bg }}
+            >
+              <Icon name={iconView.icon} size={18} style={{ color: TINT_VARS[iconView.tint].fg }} />
+              <span className="cat-icon-pick-text">更换</span>
+            </button>
+            <span className="field-tip" style={{ margin: 0 }}>
+              {form.icon ? '已自选图标' : '跟随分类图标'}
+            </span>
           </div>
         </div>
 
-        {/* Category */}
+        {/* Category：一级平铺 chips + 管理入口（04 #46） */}
         <div className="field">
           <label className="field-label">分类</label>
-          <Select
-            value={form.category}
-            onChange={(v: any) => setForm((f) => ({ ...f, category: v }))}
-            optionList={HABIT_CATEGORIES.map((c) => ({
-              value: c.id,
-              label: (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <Icon name={c.icon} size={16} style={{ color: TINT_VARS[c.tint].fg }} />
-                  {c.label}
-                </span>
-              ),
-            }))}
-            style={{ width: '100%' }}
-            placeholder="请选择习惯分类"
+          <CategoryTiles
+            domain="habit"
+            value={form.category ?? ''}
+            onChange={(id) => setForm((f) => ({ ...f, category: id }))}
           />
         </div>
 
@@ -315,7 +331,9 @@ export default function HabitEditDrawer({ visible, habit, saving = false, onClos
             <div
               className="preview-emoji"
               style={{ background: form.color + '33', color: form.color }}
-            >{(() => { const m = getIconMapping(form.icon || '💧'); return <m.icon size={24} style={{ color: form.color }} />; })()}</div>
+            >
+              <Icon name={iconView.icon} size={24} style={{ color: form.color }} />
+            </div>
             <div className="preview-text">
               <div className="preview-title">{form.title || '习惯名'}</div>
               <div className="preview-sub">
@@ -329,6 +347,18 @@ export default function HabitEditDrawer({ visible, habit, saving = false, onClos
         <Button theme="light" type="secondary" disabled={saving} onClick={onClose}>取消</Button>
         <Button theme="solid" type="primary" loading={saving} onClick={handleSubmit}>保存</Button>
       </div>
+
+      {/* 分组图标候选（两端共用 icon-groups 注册表，零改动复用） */}
+      <IconPicker
+        visible={iconOpen}
+        value={pickerIcon}
+        onClose={() => setIconOpen(false)}
+        onSelect={(n) => {
+          // 落库口径 `lucide:<Name>`（04 §4.3）
+          setForm((f) => ({ ...f, icon: `lucide:${n}` }))
+          setIconOpen(false)
+        }}
+      />
     </SideSheet>
   )
 }

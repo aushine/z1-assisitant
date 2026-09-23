@@ -4,7 +4,7 @@
  */
 import { useMemo, useEffect, useState, useCallback } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Tag, Badge, Button, Modal, Popover, Toast } from '@douyinfe/semi-ui'
+import { Tag, Badge, Button, Modal, Popover } from '@douyinfe/semi-ui'
 import UserAvatar from '@/components/UserAvatar'
 import UserQuickPanel from '@/components/UserQuickPanel'
 import { Icon } from '@/components/icon'
@@ -12,6 +12,7 @@ import type { IconName } from '@/components/icon'
 import { useUserStore, useIsAdmin, useIsLoggedIn, useDisplayName, useHasPermission } from '@/stores/user'
 import { matchPermission } from '@/utils/permissions'
 import { useNotificationStore } from '@/stores/notification'
+import { useThemeStore } from '@/stores/theme'
 import '@/styles/reset.scss'
 import '@/styles/global.scss'
 
@@ -50,6 +51,13 @@ export default function MainLayout() {
   const permissions = userStore.permissions
   // 左下用户卡的快捷面板开合（受控：面板内跳转后需要主动收起浮层）
   const [userPanelOpen, setUserPanelOpen] = useState(false)
+
+  // 08 §3.3 / D35：暗色主题下 z1-mark 的深蓝「1」会沉进深色侧栏 ⇒ logo 按主题切 src。
+  // 主题状态源 = stores/theme.ts（zustand；'system' 的解析方式与 applyTheme 保持一致）。
+  const theme = useThemeStore((s) => s.theme)
+  const isDarkTheme =
+    theme === 'dark' ||
+    (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 
   // D-03：无 notification:view 时不拉未读数（避免 403001 噪声）
   useEffect(() => {
@@ -156,7 +164,6 @@ export default function MainLayout() {
       cancelText: '取消',
       onOk: async () => {
         await userStore.logout()
-        Toast.success('已退出登录')
         navigate('/login')
       },
     })
@@ -224,8 +231,14 @@ export default function MainLayout() {
       {/* ====== Left Sidebar ====== */}
       <aside className="sidebar">
         <div className="logo">
-          <img src={`${import.meta.env.BASE_URL}z1-logo.png`} alt="Z1" className="logo-square" />
-          <span className="logo-text">Z1</span>
+          {/* 08 §3.3：侧栏半透明白底 ⇒ 浅底用无底 mark；暗色切 -white（isDarkTheme，D35）。
+              ⚠️ 原手写 <span className="logo-text">Z1</span> 已删 —— mark 内已含 Z1 字形，
+              并存即「两个 Z1」（v3 规范 §5.6 禁止） */}
+          <img
+            src={`${import.meta.env.BASE_URL}brand/${isDarkTheme ? 'z1-mark-white.svg' : 'z1-mark.svg'}`}
+            alt="Z1"
+            className="logo-square"
+          />
         </div>
 
         <nav className="nav">

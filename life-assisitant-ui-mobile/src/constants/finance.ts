@@ -2,6 +2,7 @@
  * 记账分类 · 共享常量（移动端）
  *
  * 契约文档：md/spec-20260921-v1/05-交互与页面设计.md §2.6
+ *          + md/spec-20260922-v2/01 §2.5（数据块两态/周期持久化 key）
  *
  * ⚠️ `MENU_ACTIONS` 是**「对分类做点什么」的唯一一套菜单**，
  *    选择器（`components/finance/CategoryPicker.vue`）与分类管理页
@@ -53,4 +54,22 @@ export function txDeleteConfirm(t: Pick<Transaction, 'category_name' | 'type' | 
     confirmButtonText: '删除',
   }
 }
+
+/* ============================================================================
+ * 流水页数据块 · localStorage keys（spec-20260922-v2 · 01 §2.5 / D10 / D11）
+ *
+ * ⚠️ 「这台设备上的显示偏好」—— 与经期遮罩 `ls:period:masked` 同一先例，
+ *    **入库是错的**（D11：设备级，不上报、不同步）。
+ *    两端共用同一组 key（桌面端 constants/finance.ts 同值 ⇒ 同机两端一致）。
+ * ========================================================================== */
+
+/** 数据块周期（week | month | year） */
+export const SUMMARY_PERIOD_KEY = 'ls:finance:summaryPeriod'
+/** 左块面（income | expense） */
+export const SUMMARY_CARD_LEFT_KEY = 'ls:finance:cardLeft'
+/** 右块面（budget | net） */
+export const SUMMARY_CARD_RIGHT_KEY = 'ls:finance:cardRight'
+
+/** 财务金额遮罩开关（spec-20260922-v2 · 03 §3.2，设备级、不入库） */
+export const FINANCE_MASK_KEY = 'ls:finance:masked'
 

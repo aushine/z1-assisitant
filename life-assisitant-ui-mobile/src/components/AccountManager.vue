@@ -6,11 +6,11 @@
  *                    （桌面端 AccountTab 是它的薄壳；重复的 AssetTab 已于
  *                     D-03 第十六轮删除，两端「资产」入口均已移除）
  * SYNC-FROM-BACKEND: life-assisitant-api/internal/controller/finance.go
- * 最后同步：2026-09-18（Phase 3.6）
+ * 最后同步：2026-09-22（spec-20260922-v2 · 01 #26：账户卡「查看流水 ›」）
  *
  * 与桌面端对应：
  *   总资产卡（total_balance 服务端口径 + 账户数）
- *   账户网格（图标 / 名称 / 余额，负额标红）
+ *   账户网格（图标 / 名称 / 余额，负额标红；卡上「查看流水 ›」→ 07 清单 #26）
  *   新建账户 + 转账
  *
  * ⚠️ 2026-09-19：移动端原「资产」「账户」两个 Tab 都渲染本组件（内容完全一样），
@@ -28,7 +28,7 @@ import { useFinanceStore } from '@/stores/finance'
 import { resolveAccountIcon } from '@/utils/category-dict'
 import Icon from '@/components/icon/Icon.vue'
 import BrandLogo from '@/components/BrandLogo.vue'
-import { formatMoney } from '@/utils/date'
+import MoneyText from '@/components/finance/MoneyText.vue'
 import { useLongPress } from '@/composables/useLongPress'
 import { TX_SOURCE_LABEL } from '@/constants/finance'
 import { ACCOUNT_CATEGORIES, accountCategoryOf, type AccountCategory } from '@/constants/account'
@@ -47,6 +47,8 @@ import type {
 const emit = defineEmits<{
   /** 债权债务卡点行 → 跳流水页并按该对方筛选（Phase 4 · D50） */
   (e: 'view-contact', contact: string): void
+  /** 账户卡「查看流水 ›」→ 跳流水页注入 account_id（spec-20260922-v2 01 §1.3；移动端删账户下拉后的唯一账户入口） */
+  (e: 'view-account', accountId: string): void
 }>()
 
 const financeStore = useFinanceStore()
@@ -178,22 +180,39 @@ defineExpose({
   <div class="account-manager">
     <!-- 净资产卡（spec-20260922-v1 Phase 4：总资产 → 净资产；三组小计；负债取绝对值） -->
     <section class="asset-card">
+      <!--
+        金额遮罩开关（03 §2.3）：净资产卡右上角 = 全站**唯一**开关入口。
+        ⚠️ 点击不弹 toast（§3.1，= 05 反馈规范的首个应用点）：小眼睛自身就是状态反馈。
+        热区靠负边距扩到 ≥44×44，图标 18px 三级色（不抢净资产数字的视觉权重）。
+        aria-label 用「金额已隐藏」而非动作词：读屏用户在遮罩态首先要知道的是**当前状态**。
+      -->
+      <button
+        type="button"
+        class="mask-toggle"
+        :aria-label="financeStore.masked ? '金额已隐藏' : '隐藏金额'"
+        @click="financeStore.toggleMasked()"
+      >
+        <Icon :name="financeStore.masked ? 'EyeOff' : 'Eye'" :size="18" aria-hidden="true" />
+      </button>
+
       <div class="asset-label">净资产</div>
+      <!-- ⚠️ 颜色绑在**外层容器**（继承），不能绑到 MoneyText 根元素上：
+           内联 color 会盖过组件内的遮罩中性色 → 正负泄露（见 MoneyText 头注释） -->
       <div
         class="asset-value"
         :style="{ color: netWorth < 0 ? 'var(--color-danger)' : 'var(--color-primary)' }"
       >
-        ¥{{ formatMoney(netWorth) }}
+        <MoneyText :value="netWorth" />
       </div>
       <div class="asset-sub">共 {{ financeStore.accounts.length }} 个账户</div>
 
       <div class="asset-breakdown">
-        <span class="asset-part">资金 ¥{{ formatMoney(balanceSummary.assets) }}</span>
-        <span class="asset-part">理财 ¥{{ formatMoney(balanceSummary.investments) }}</span>
+        <span class="asset-part">资金 <MoneyText :value="balanceSummary.assets" /></span>
+        <span class="asset-part">理财 <MoneyText :value="balanceSummary.investments" /></span>
         <span
           v-if="balanceSummary.debts < 0"
           class="asset-part is-debt"
-        >负债 ¥{{ formatMoney(Math.abs(balanceSummary.debts)) }}</span>
+        >负债 <MoneyText :value="Math.abs(balanceSummary.debts)" /></span>
       </div>
 
       <div class="asset-actions">
@@ -210,13 +229,13 @@ defineExpose({
     <section v-if="hasDebts && debts" class="debts-card">
       <div class="debts-head">
         <h4 class="debts-title">债权债务</h4>
-        <span class="debts-net">净 ¥{{ formatMoney(debts.net) }}</span>
+        <span class="debts-net">净 <MoneyText :value="debts.net" /></span>
       </div>
 
       <template v-if="debts.owed_to_me.length > 0">
         <div class="debts-group-label">
           别人欠我
-          <span class="debts-group-sum">¥{{ formatMoney(debts.owed_to_me.reduce((s, d) => s + d.open, 0)) }}</span>
+          <span class="debts-group-sum"><MoneyText :value="debts.owed_to_me.reduce((s, d) => s + d.open, 0)" /></span>
         </div>
         <button
           v-for="d in debts.owed_to_me"
@@ -227,7 +246,7 @@ defineExpose({
         >
           <span class="debts-contact">{{ d.contact }}</span>
           <span class="debts-kinds">{{ kindLabels(d) }}</span>
-          <span class="debts-open">¥{{ formatMoney(d.open) }}</span>
+          <span class="debts-open"><MoneyText :value="d.open" /></span>
           <span class="debts-arrow" aria-hidden="true">›</span>
         </button>
       </template>
@@ -235,7 +254,7 @@ defineExpose({
       <template v-if="debts.i_owe.length > 0">
         <div class="debts-group-label">
           我欠别人
-          <span class="debts-group-sum">¥{{ formatMoney(debts.i_owe.reduce((s, d) => s + d.open, 0)) }}</span>
+          <span class="debts-group-sum"><MoneyText :value="debts.i_owe.reduce((s, d) => s + d.open, 0)" /></span>
         </div>
         <button
           v-for="d in debts.i_owe"
@@ -246,7 +265,7 @@ defineExpose({
         >
           <span class="debts-contact">{{ d.contact }}</span>
           <span class="debts-kinds">{{ kindLabels(d) }}</span>
-          <span class="debts-open">¥{{ formatMoney(d.open) }}</span>
+          <span class="debts-open"><MoneyText :value="d.open" /></span>
           <span class="debts-arrow" aria-hidden="true">›</span>
         </button>
       </template>
@@ -302,8 +321,21 @@ defineExpose({
               class="acc-balance"
               :style="{ color: a.balance < 0 ? 'var(--color-danger)' : 'var(--color-text-primary)' }"
             >
-              ¥{{ formatMoney(a.balance) }}
+              <MoneyText :value="a.balance" />
             </div>
+            <!--
+              查看流水入口（07 #26）：移动端账户下拉已删（D2），这里是账户筛选的**发起点**。
+              ⚠️ 必须 .stop 掉 click **和** touchstart —— 前者防冒泡触发卡片的「点击编辑」，
+                 后者防触发卡片的长按删除计时（44px 最小热区，见样式）。
+            -->
+            <button
+              type="button"
+              class="acc-flow"
+              @click.stop="emit('view-account', a.id)"
+              @touchstart.stop
+            >
+              查看流水 ›
+            </button>
           </div>
         </div>
       </section>
@@ -333,12 +365,32 @@ defineExpose({
 
 /* ========== 总资产卡 ========== */
 .asset-card {
+  position: relative; /* 遮罩开关的定位锚点（03 §2.3） */
   padding: 20px;
   background: linear-gradient(135deg, #E0F2FF 0%, #F0E8FF 100%);
   border-radius: 16px;
   box-shadow: var(--shadow-xs);
   text-align: center;
   margin-bottom: 20px;
+}
+/* 金额遮罩开关：视觉 18px 图标，热区 44×44（负边距扩，不撑大卡片） */
+.mask-toggle {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  &:active { background: rgba(255, 255, 255, 0.6); }
 }
 .asset-label {
   font-size: var(--fs-caption);
@@ -528,6 +580,20 @@ defineExpose({
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   &:active { transform: scale(0.98); }
+}
+/* 查看流水入口（07 #26）：负边距扩热区到 ≈40px 高，视觉只有一行小字 */
+.acc-flow {
+  display: block;
+  width: fit-content;
+  margin: 2px -6px -6px auto;
+  padding: 10px 6px;
+  border: 0;
+  background: transparent;
+  font-size: var(--fs-micro);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  &:active { opacity: 0.6; }
 }
 .acc-head {
   display: flex;

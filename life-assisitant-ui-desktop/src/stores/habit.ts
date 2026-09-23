@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Toast } from '@douyinfe/semi-ui'
+import { feedback } from '@/utils/feedback'
 import { habitApi } from '@/api/habit'
 import type {
   Habit,
@@ -116,7 +116,6 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
       const { items } = get()
       const newItems = [habit, ...items]
       set({ items: newItems, ...deriveFromItems(newItems, get().loading) })
-      Toast.success('习惯已创建')
       return habit
     } catch {
       return null
@@ -142,7 +141,6 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
       const freshItems = [...get().items]
       freshItems[idx] = fresh
       set({ items: freshItems, ...deriveFromItems(freshItems, get().loading) })
-      Toast.success('习惯已更新')
       return fresh
     } catch {
       const rollbackItems = [...get().items]
@@ -162,7 +160,7 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
     set({ items: newItems, ...deriveFromItems(newItems, get().loading) })
     try {
       await habitApi.remove(id)
-      Toast.success('习惯已删除')
+      feedback.destructiveDone('习惯已删除')
       return true
     } catch {
       const rollbackItems = [...get().items]
@@ -204,9 +202,7 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
       }
       set({ items: freshItems, ...deriveFromItems(freshItems, get().loading) })
       if (!wasDone && nowDone) {
-        Toast.success('🎉 今日习惯完成')
       } else {
-        Toast.success(`已打卡 (${nextCount}/${target})`)
       }
     } catch {
       const rollbackItems = [...get().items]

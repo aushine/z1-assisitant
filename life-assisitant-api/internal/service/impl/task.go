@@ -1,9 +1,9 @@
 // Package impl 任务服务实现
 // M5 扩展：
-//   1. 子任务 CRUD + 全量替换 + 父任务自动完成
-//   2. reminder_at 字段持久化（推送逻辑延迟至 v1.1）
-//   3. recurrence_rule 字段持久化（定时扩展延迟至 v1.1）
-//   4. 批量操作（complete / delete）
+//  1. 子任务 CRUD + 全量替换 + 父任务自动完成
+//  2. reminder_at 字段持久化（推送逻辑延迟至 v1.1）
+//  3. recurrence_rule 字段持久化（定时扩展延迟至 v1.1）
+//  4. 批量操作（complete / delete）
 package impl
 
 import (
@@ -41,6 +41,7 @@ func taskToResp(t *model.Task, subtasks []model.Subtask) *dto.TaskResp {
 		Title:         t.Title,
 		Priority:      t.Priority,
 		Status:        t.Status,
+		Icon:          t.Icon,
 		SubtasksCount: t.SubtasksCount,
 	}
 	if t.Description != nil {
@@ -194,9 +195,20 @@ func (s *TaskService) Create(ctx context.Context, req *dto.CreateTaskReq) (*dto.
 		d := strings.TrimSpace(req.Description)
 		t.Description = &d
 	}
-	if req.CategoryID != "" {
-		c := req.CategoryID
-		t.CategoryID = &c
+	if catID := strings.TrimSpace(req.CategoryID); catID != "" {
+		// ⚠️ 归属校验（06 §3.4）：category 必须是当前用户 domain=task 未删分类；
+		// 空 = 未分类，照旧合法（不做校验）。老前端（从未调过 GET /user-categories）
+		// 建带分类的任务时，先按懒创建口径补齐该域种子再校验，避免误伤。
+		if _, err := seedUserCategoriesIfAbsent(ctx, uid, model.UserCategoryDomainTask); err != nil {
+			return nil, err
+		}
+		if err := validateCategoryOwnership(ctx, uid, model.UserCategoryDomainTask, catID); err != nil {
+			return nil, err
+		}
+		t.CategoryID = &catID
+	}
+	if icon := strings.TrimSpace(req.Icon); icon != "" {
+		t.Icon = icon // 空 = 继承分类图标（20260922 新优先级链，06 §4）
 	}
 	if req.DueDate != "" {
 		dd, err := time.ParseInLocation("2006-01-02", req.DueDate, time.Local)
@@ -337,11 +349,23 @@ func (s *TaskService) Update(ctx context.Context, id string, req *dto.UpdateTask
 		}
 	}
 	if req.CategoryID != nil {
-		if *req.CategoryID == "" {
-			updates["category_id"] = nil
+		if cid := strings.TrimSpace(*req.CategoryID); cid != "" {
+			// ⚠️ 归属校验（06 §3.4）：按**记录属主** exist.UserID 校验（管理员代改场景，04 §3）；
+			// 空串 = 清空为「未分类」，照旧合法、不校验。
+			if _, err := seedUserCategoriesIfAbsent(ctx, exist.UserID, model.UserCategoryDomainTask); err != nil {
+				return nil, err
+			}
+			if err := validateCategoryOwnership(ctx, exist.UserID, model.UserCategoryDomainTask, cid); err != nil {
+				return nil, err
+			}
+			updates["category_id"] = cid
 		} else {
-			updates["category_id"] = *req.CategoryID
+			updates["category_id"] = nil
 		}
+	}
+	if req.Icon != nil {
+		// 空串 = 清空（渲染时继承分类图标，06 §4）
+		updates["icon"] = strings.TrimSpace(*req.Icon)
 	}
 	if req.DueDate != nil {
 		if *req.DueDate == "" {
