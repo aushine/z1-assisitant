@@ -21,7 +21,8 @@
       <template v-if="phase === 'data'">
         <div class="sum-title">
           <span>{{ periodPrefix }}{{ leftFace === 'income' ? '收入' : '支出' }}</span>
-          <van-icon name="replay" class="sum-flip" />
+          <!-- R6：原用 van-icon name="replay"（环箭，视觉像刷新）→ 改 ArrowLeftRight（双向箭头，表意“切换”） -->
+          <Icon name="ArrowLeftRight" :size="14" class="sum-flip" />
         </div>
         <!-- 正负色 class 挂**父容器**（继承）；MoneyText 遮罩态的中性色会盖过继承
              ⇒ 遮罩时不泄露「这是负数」。切勿把 color 直接绑到 MoneyText 上。 -->
@@ -52,7 +53,8 @@
             <span class="sum-period" @click.stop="store.cycleSummaryPeriod()">{{ periodShort }}</span>
             <span>结余</span>
           </template>
-          <van-icon name="replay" class="sum-flip" />
+          <!-- R6：replay → ArrowLeftRight（同左卡） -->
+          <Icon name="ArrowLeftRight" :size="14" class="sum-flip" />
         </div>
         <div class="sum-main" :class="rightMainClass">
           <template v-if="rightMainValue === null">—</template>
@@ -86,6 +88,7 @@
 import { computed, onMounted } from 'vue'
 import { useFinanceStore } from '@/stores/finance'
 import MoneyText from '@/components/finance/MoneyText.vue'
+import Icon from '@/components/icon/Icon.vue'
 
 const emit = defineEmits<{ (e: 'goto-budget'): void }>()
 
@@ -231,10 +234,10 @@ function onRightBody() {
   white-space: nowrap;
 }
 
-/* 翻面提示图标（热区①） */
+/* 翻面提示图标（热区①）：2026-09-24 R6 由 replay 改为 ArrowLeftRight */
 .sum-flip {
-  font-size: 14px;
   color: var(--color-text-tertiary);
+  flex-shrink: 0;
 }
 
 /* 周期字（热区②）：primary + 下划虚线 = 可点 */

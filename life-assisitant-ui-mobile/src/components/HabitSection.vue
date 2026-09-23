@@ -30,6 +30,7 @@ import { useHabitStore } from '@/stores/habit'
 import { HABIT_CATEGORIES, getHabitCategory, resolveHabitIconView } from '@/utils/category-dict'
 import { useUserCategoryStore } from '@/stores/user-category'
 import Icon from '@/components/icon/Icon.vue'
+import IconBox from '@/components/IconBox.vue'
 import { todayDate } from '@/utils/date'
 import HabitHeatmap from '@/components/HabitHeatmap.vue'
 import MilestoneRow from '@/components/MilestoneRow.vue'
@@ -358,11 +359,13 @@ defineExpose({
       <li v-for="h in filteredItems" :key="h.id" class="habit-swipe">
         <van-swipe-cell>
           <div class="habit-row" @click="emit('edit', h)">
-            <Icon
-              class="habit-emoji"
+            <!-- 2026-09-24 R2：统一为 IconBox 40/图标 20，对齐收支列表标准 -->
+            <IconBox
               :name="habitIcon(h).icon"
-              :size="16"
-              :style="{ background: (h.color || '#014DB2') + '22', color: habitIcon(h).vars.fg }"
+              :size="40"
+              :bg="(h.color || '#014DB2') + '22'"
+              :fg="habitIcon(h).vars.fg"
+              aria-hidden="true"
             />
 
             <div class="habit-body">
@@ -701,16 +704,7 @@ defineExpose({
   -webkit-tap-highlight-color: transparent;
   &:active { background: var(--color-bg-hover); }
 }
-.habit-emoji {
-  flex-shrink: 0;
-  width: 38px;
-  height: 38px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  line-height: 1;
-}
+/* R2：旧 .habit-emoji（盒 38/图标 16）已移除，改用 IconBox 40 */
 .habit-body { flex: 1; min-width: 0; }
 .habit-title {
   font-size: var(--fs-body-sm);

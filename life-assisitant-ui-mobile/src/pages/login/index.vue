@@ -141,7 +141,9 @@ function goForgot() {
         <!-- 08 §3.1：hero 是深蓝渐变（P5 无可用 lockup 变体）⇒ 无底反白 mark + HTML 文字；
              素材内建留白 ≈20%，直接整图使用，不裁切 -->
         <img :src="`${assetBase}brand/z1-mark-white.svg`" alt="Z1" class="logo" />
-        <h1 class="title">Z1</h1>
+        <!-- ⚠️ z1-mark-white.svg 本身即完整「Z1」字标（内含 Z 与 1 的路径），
+             原先此处的 <h1 class="title">Z1</h1> 与它重复 ⇒ 视觉上「两个 Z1」。
+             2026-09-24 spec-20260924-v1 R1：移除重复标题，仅保留字标图形。 -->
         <!-- slogan 照 lockup 定稿排版：深底反白时 ZERO TO 用 #9CC2FF、ONE 纯白（v3 README §四） -->
         <p class="slogan"><span class="slogan-accent">ZERO TO</span> ONE</p>
         <!-- 中文副行（Q11 拍板保留）：另起一行，--fs-caption-sm，70% 白 -->
@@ -288,7 +290,11 @@ function goForgot() {
 /* ========== Hero ========== */
 .hero {
   position: relative;
-  height: 340px;
+  /* 2026-09-24 spec-20260924-v1 R1：原为 height:340px + overflow:hidden，
+     内容（logo 88 + margin 23 + slogan + slogan-zh）总高容易超出 340，
+     超出部分被裁 → slogan 被切/被表单卡压住。
+     改为 min-height:340 + 自适应，并加大底部内边距，保证内容完整且与表单卡有间距。 */
+  min-height: 340px;
   /* 08 §3.6：渐变收敛到 tokens（旧 #2563EB/#0EA5E9 不在 tokens.scss）。
      ⚠️ 中段用 --primary-500（#014DB2）而非 spec 写的 --color-primary ——
      后者在 [data-theme='dark'] 会被覆写成 #5B9DFF，而 hero 按 Q12 是**固定**深蓝渐变、
@@ -300,6 +306,9 @@ function goForgot() {
   justify-content: center;
   color: #FFFFFF;
   padding-top: env(safe-area-inset-top, 0px);
+  /* R1：底部留白，避免内容贴到裁切线下缘被压；数值≥表单卡(-110px)上移量 */
+  padding-bottom: 130px;
+  box-sizing: border-box;
 }
 
 .hero-bg {
@@ -347,13 +356,8 @@ function goForgot() {
   filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.3));
 }
 
-.title {
-  font-size: 28px;
-  font-weight: 700;
-  margin: 0 0 8px;
-  letter-spacing: 1px;
-  color: #FFFFFF;
-}
+/* R1：.title 已移除（与字标 svg 重复）。logo → slogan 的间距由 .logo 的
+   margin-bottom:23px 承担，原 title 的 8px 不再需要。 */
 
 /* slogan 字号 = 图形高 × 0.32 ≈ 28px（lockup 定稿参数，不要自己调） */
 .slogan {
