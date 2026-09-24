@@ -270,7 +270,7 @@ onMounted(() => {
              ② 过渡改为**方向感知横滑**（D）：点右侧 Tab 新页从右滑入、点左侧反之；
                 非主 Tab 跳转（二级页/覆盖层）退回纯淡入 fade-page（见 transitionName）。
              详见 `md/spec-20260924-v2/` 与 `md/spec-20260924-v3/`。 -->
-        <transition :name="transitionName">
+        <transition :name="transitionName" mode="out-in">
           <keep-alive :include="KEEP_ALIVE_TABS">
             <component :is="Component" :key="viewKey" />
           </keep-alive>
@@ -531,29 +531,22 @@ onMounted(() => {
    ② 万一方向未判定的极端场景，仍有淡入不白屏。 */
 
 /* ——— 方向横滑（D） ——— */
-/* ⚠️ 两页共存的关键：leaving 页转场期间**脱离文档流**（absolute），否则
-   `.content` 是 flex 列，两个子元素会各分 50% 高度 → 切换瞬间抽一下。
-   entering 页保持正常流、填满内容区；leaving 绝对定位铺在同一区域做推挤。
+/* ⚠️ 2026-09-24 修复（用户报「上一屏画面/上一页数据残留」）：
+   `<KeepAlive>` + **无 mode** 的 `<Transition>` 是冲突组合：KeepAlive 要把旧页
+   **缓存保留（deactivate）**，而 Transition 要让它离场并移除 —— 同一个节点上两套
+   意图打架，旧页 DOM 会赖在 `.content` 里不走 → 画面/数据残留（上一屏还盖着）。
+   修复：改回 **`mode="out-in"`**（模板里已改）—— 旧页**完全离场后**新页才进场，
+   同一时刻 `.content` 只有一个子元素，不会与 KeepAlive 打架，也天然没有
+   「flex 列两子均分高度抽一下」的问题（所以下面的 `position:absolute` 已不再需要）。
 
-   ⚠️ 必须用 `:deep()` + `!important`：
-   ① 页面根自己写了 `position: relative`（FAB 定位容器），且子路由样式在
-      HomeLayout 之后注入 → 同特异性下页面根会赢；
-   ② scoped 编译会把后代选择器的 `.content` 前缀丢掉（只留叶子的
-      `[data-v-父]`），特异性与页面根持平，依旧可能输。
-   所以这里用 `:deep()` 明确下钻（不依赖子组件根继承 scope id），并用
-   `!important` 钉住转场期这 200ms 的定位，确保回到正常流后不影响任何布局。 */
-:deep(.slide-forward-leave-active),
-:deep(.slide-backward-leave-active) {
-  position: absolute !important;
-  inset: 0;
-  z-index: 2;
-}
+   成本：方向感仍在（旧页往一边滑出 → 新页从另一边滑入），只是由「同时」变「先后」；
+   总时长 2步×150ms ≈ 300ms（旧页是缓存 DOM，无重拉，不会白屏）。 */
 .slide-forward-enter-active,
 .slide-forward-leave-active,
 .slide-backward-enter-active,
 .slide-backward-leave-active {
-  transition: transform var(--duration-fast) var(--ease-default),
-    opacity var(--duration-fast) var(--ease-default);
+  transition: transform var(--duration-page) var(--ease-default),
+    opacity var(--duration-page) var(--ease-default);
   will-change: transform, opacity;
 }
 
