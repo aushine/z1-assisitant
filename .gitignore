@@ -36,7 +36,11 @@ deploy/DEPLOY.md
 deploy/upgrade.md
 
 # ---------- 临时 / 调试输出 ----------
+# ⚠️ 例外：`_*` 会误伤 SCSS 局部文件 —— SCSS 规范要求局部文件以 `_` 开头
+#    （如 life-assisitant-ui-mobile/src/styles/_calendar.scss），它是日历组件的
+#    共享样式、属源码，必须入库，故先排除再捞回。
 _*
+!_*.scss
 tmp_*
 *.log
 *.out.txt

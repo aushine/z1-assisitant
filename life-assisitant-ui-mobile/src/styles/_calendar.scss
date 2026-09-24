@@ -1,0 +1,204 @@
+/**
+ * _calendar.scss —— 月历「布局与排版」共享层（03 §C 第一批）
+ *
+ * ⚠️ 只抽「布局与排版」，**不抽语义色**：
+ *   - `st-*`（经期量级 / 预测 / 易孕 / 排卵）与健康指标圆点色三套语义完全不同，
+ *     抽了就互相污染（03 §C-2 明确「不抽」）——它们留在各组件的 scoped 块里。
+ *   - 图例的色块（legend-box / legend-dot）同理，颜色是各域自己的。
+ *
+ * 当前使用方：
+ *   - `components/finance/CalendarView.vue`（收支日历，260921 v2 批次二）
+ *     ⚠️ PeriodCalendar / HealthCalendar **尚未**迁移（第二批，需逐 class diff +
+ *        逐像素比对，见 09-schedule.md Phase 2.1 末项）——在此之前它们各自
+ *        的 scoped 块仍持有自己的一份同名规则，两边并行不冲突。
+ *
+ * 用法（scoped 块**最前**，SCSS 规则：@use 必须位于其它规则之前）：
+ *   @use '@/styles/calendar';
+ */
+
+/* ==================== 卡片 ==================== */
+.cal-card {
+  padding: var(--space-4) var(--space-3) var(--space-3);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: var(--space-3);
+}
+
+/* ==================== 头部 ==================== */
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.cal-title {
+  font-size: var(--fs-caption);
+  color: var(--color-text-secondary);
+}
+.cal-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cal-nav {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-base);
+  background: var(--color-bg-hover);
+  color: var(--color-text-secondary);
+  font-size: var(--fs-body);
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+
+  &:active { transform: scale(0.94); }
+  &.is-text {
+    font-size: var(--fs-caption-sm);
+    color: var(--color-primary);
+    background: transparent;
+  }
+}
+
+/* ==================== 周标题（周一开头）==================== */
+.cal-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 6px;
+}
+.cal-week-cell {
+  text-align: center;
+  padding: 4px 0;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+
+  &.is-weekend { color: var(--color-text-tertiary); }
+}
+
+/* ==================== 网格 ==================== */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  touch-action: pan-y;
+}
+.cal-cell {
+  position: relative;
+  min-height: 52px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-base);
+  background: transparent;
+  box-sizing: border-box;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--duration-fast) var(--ease-default);
+
+  &:active:not(:disabled) { transform: scale(0.96); }
+  /* 非本月：整格留白，只留淡日期做跨月参照 */
+  &.is-out {
+    background: transparent;
+    color: var(--color-text-disabled);
+    cursor: default;
+    opacity: 0.35;
+  }
+}
+/* 今天 / 选中：优先级最高的边框与底色（基础层只定规则，颜色走令牌） */
+.cal-cell.is-today {
+  border: 2px solid var(--color-primary);
+}
+.cal-cell.is-selected {
+  background: var(--color-primary-light);
+}
+.cal-day {
+  font-size: var(--fs-caption-sm);
+  font-weight: 600;
+  line-height: 1;
+  /* 等宽数字只给日期本身：--font-num 以 monospace 收尾，
+     若下沉到整格会让中文标签落到系统等宽的 CJK 回退字体上 */
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+.cal-sub {
+  margin-top: 2px;
+  max-width: 100%;
+  font-size: var(--fs-tab);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+
+  &.is-state { font-weight: 600; }
+  /* 节气 / 农历（Period 与 Health 逐字相同，260921 二批迁入） */
+  &.is-term { color: var(--color-success-dark); font-weight: 600; }
+  &.is-lunar { color: var(--color-text-tertiary); }
+}
+
+/* ==================== 右下角圆点（基础 + 点滴） ====================
+   基础与 .is-spot 在 Period / Health 逐字相同；.is-logged 仅 Period 有、
+   .is-metric / .cal-dots / .cal-dot-more 仅 Health 有 —— 留在各自组件。 */
+.cal-dot {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+
+  &.is-spot { background: var(--color-period); }
+}
+
+/* ==================== 图例（排版；颜色块是各域自己的） ====================
+   ⚠️ 只抽排版与中性文本色；.legend-box / .legend-dot 的底色变体是
+   经期语义色（03 §C 明确「不抽」）——留在各组件。 */
+.cal-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: 0 var(--space-2);
+}
+.cal-legend-group,
+.cal-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-caption-sm);
+  color: var(--color-text-tertiary);
+}
+.cal-legend-group { gap: 3px; }
+.cal-legend-text {
+  font-size: var(--fs-caption-sm);
+  color: var(--color-text-tertiary);
+}
+.legend-box {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &.is-ovu { background: var(--color-ovulation-fill); }
+}
+.cal-legend-note {
+  margin-left: auto;
+  font-size: var(--fs-caption-sm);
+  color: var(--color-text-disabled);
+}
