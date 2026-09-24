@@ -45,6 +45,7 @@ const {
   tasks,
   isEmpty,
   finished,
+  loading,
   priority,
   keyword,
   sort,
@@ -344,8 +345,9 @@ onDeactivated(() => {
         class="task-list"
         @load="onLoad"
       >
-        <!-- 加载态 -->
-        <div v-if="listLoading && tasks.length === 0" class="loading-skeleton">
+        <!-- 加载态：van-list 自身加载 **或** store 正在拉取（切 tab/筛选后 reset 清空）
+             且当前无数据时显示骨架屏——避免请求飞行期间看到「空状态」闪一下 -->
+        <div v-if="(listLoading || loading) && tasks.length === 0" class="loading-skeleton">
           <div v-for="i in 3" :key="i" class="skel-card" />
         </div>
 
