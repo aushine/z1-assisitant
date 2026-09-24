@@ -932,21 +932,25 @@ export interface PatchCategoryReq {
 }
 
 // ============================================================================
-// 用户分类（UserCategory）—— 习惯 / 待办（spec-20260922-v2/06 §3）
+// 用户分类（UserCategory）—— 习惯 / 待办（spec-20260922-v2/06 §3；spec-20260924-v1/03 R3 扩为两级）
 //
-// 与收支的 FinanceCategory 是**两套实体**：这里只有一级平铺（无父子），
-// 按 domain 分域；id 口径与后端一致（内置沿用旧值 sport/c_work…，
-// 新建由后端生成 `uc_<domain>_<random>`，前端不造 id）。
+// 与收支的 FinanceCategory 是**两套实体**：按 domain 分域；id 口径与后端一致
+// （内置沿用旧值 sport/c_work…，新建由后端生成 `uc_<domain>_<random>`，前端不造 id）。
+// R3（2026-09-24）：支持**两级** —— parent_id 空串=一级，非空=二级。
 // ============================================================================
 
 /** 分类域：habit = 习惯，task = 待办（后端白名单校验） */
 export type UserCategoryDomain = 'habit' | 'task'
 
-/** user_categories 单条分类（一级平铺，无 children） */
+/** user_categories 单条分类（扁平列表；两级靠 parent_id 自行组树） */
 export interface UserCategory {
   id: string
   domain: UserCategoryDomain
+  /** 父分类 id（R3）；'' = 一级，非空 = 二级（同域一级的 id） */
+  parent_id: string
   name: string
+  /** 完整名（「运动-跑步」）；一级即等于 name */
+  full_name: string
   emoji?: string | null
   /** `lucide:<Name>` | `<Name>`；null/空 = 用域名默认图标（habit=Pin / task=CircleDashed） */
   icon?: string | null
@@ -972,9 +976,11 @@ export interface UserCategoryItemResp {
   item: UserCategory
 }
 
-/** 创建请求体（06 §3.2）。id 由后端生成 */
+/** 创建请求体（06 §3.2）。id 由后端生成；parent_id 空 = 一级（R3） */
 export interface CreateUserCategoryReq {
   domain: UserCategoryDomain
+  /** 可选；空/不传 = 一级，非空 = 二级（同域一级分类 id） */
+  parent_id?: string
   name: string
   icon?: string | null
   emoji?: string | null

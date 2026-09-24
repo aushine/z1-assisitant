@@ -122,11 +122,16 @@ const STATUS_FILTERS: Array<{ text: string; value: HabitStatus | '' }> = [
 /**
  * 分类筛选选项 —— store 优先（用户可自由增删分类，04 §4.4），
  * 分类未拉回来时先用常量兜底表（数据到达后 Pinia 响应式替换）。
+ *
+ * ⚠️ 2026-09-24 R3：**只取一级**（`listTopLevel`）。
+ *    habitStore 的 categoryFilter 是精确匹配（`h.category === filter`），
+ *    二级 filter 会恰好把「只挂一级」的习惯全过滤掉；筛选器语义对齐
+ *    统计「二级归集到一级」（03 §2 信息架构表），二级不单独成筛选项。
  */
 const CATEGORY_FILTERS = computed<Array<{ text: string; value: string }>>(() => {
   const list = catStore.loadedOnce.habit
     ? catStore
-        .listByDomain('habit')
+        .listTopLevel('habit')
         .map((c) => ({ text: catStore.resolveCategory('habit', c.id)?.name ?? c.name, value: c.id }))
     : HABIT_CATEGORIES.map((c) => ({ text: c.label, value: c.id }))
   return [{ text: '全部分类', value: '' }, ...list]

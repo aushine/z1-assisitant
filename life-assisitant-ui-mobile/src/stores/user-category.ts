@@ -6,11 +6,19 @@
  * 契约文档：md/spec-20260922-v2/06-数据模型与API.md §3、04-习惯与待办分类图标.md
  *
  * 与 `stores/finance-category.ts` 同构，差异只有三点（04 §5）：
- *   1. **一级平铺** —— 没有 parent_id / full_name / children，resolveNodeStyle
- *      的向上继承在这里退化为「icon 空 → emoji 映射 → 域默认」；
+ *   1. **两级分类（2026-09-24 R3）** —— 后端返回**扁平全量**（一级 + 二级），
+ *      前端用 `listTopLevel` / `listChildren` 自行组树；`parent_id === ''` 即一级。
+ *      （旧版是「一级平铺」，本轮 spec-20260924-v1/03 已推翻。）
  *   2. 域是 `domain`（habit | task）而非 scope，且请求**必传**；
  *   3. 无快照列 —— 历史行只有 category_id，降级显示走
  *      「已删除分类 / 原 id + 中性色」（04 §3.3），不再查 emoji 快照。
+ *
+ * ⚠️ **存的是扁平数组，树是「视图」不是「状态」**（R3 §6）：
+ *    `items[domain]` 是后端原样返回的一级+二级混合列表；
+ *    `byIdMap` / `byId` / `resolveCategory` 语义**不变**（二级 id 一样能解析）；
+ *    展示层一律走 `listTopLevel` / `listChildren`，不要自己 filter。
+ *    之所以不做成 children 嵌套：那样每次增删改都要两端同步维护嵌套结构，
+ *    而扁平数组只需 append/replace 一行（与后端响应形状也一致）。
  *
  * ⚠️ icon 引用兼容三种写法（后端种子 / 存量数据都可能碰到）：
  *    `lucide:<Name>`（04 §4.3 落库口径）→ 去前缀查注册表；
@@ -170,9 +178,26 @@ function categoryStyle(cat: UserCategory): { icon: IconName; tint: TintName; emo
   return { icon: 'HelpCircle', tint: safeTint(cat.tint) ?? 'neutral', emoji }
 }
 
-/** 内置顺序 + 新建追加：尊重后端 sort 升序 */
-function sortNodes(nodes: UserCategory[]): UserCategory[] {
-  return nodes.slice().sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))
+/**
+ * 全序比较（R3，2026-09-24）：先按 parent_id 分组、组内按 sort。
+ *
+ * ⚠️ 落盘 / 内存里的 `items[domain]` 用这个顺序。
+ *    原因：旧的「只按 sort 排」在一级（10/20/30…）与二级（各自父下 10/20/30…）
+ *    **值域重叠**时会扁平混排、同级互相穿插，靠 Array.sort 的稳定性去赌
+ *    「同 sort 的相对顺序」在不同引擎/不同插入历史下并不保险（旧 sortNodes 已删）。
+ *    加上 parent_id 作首键后：一级聚在前（parent_id===''）、每个父的二级各自连续，
+ *    组内 sort 升序 —— 树助手因此只需一次 filter 就能拿到正确顺序，无需二次排序。
+ *    对「按 parent 分组后」的稳定性由 spec R3 §1 显式要求。
+ */
+function sortFlat(nodes: UserCategory[]): UserCategory[] {
+  return nodes
+    .slice()
+    .sort(
+      (a, b) =>
+        a.parent_id.localeCompare(b.parent_id) ||
+        a.sort - b.sort ||
+        a.name.localeCompare(b.name)
+    )
 }
 
 export const useUserCategoryStore = defineStore('userCategory', () => {
@@ -199,6 +224,42 @@ export const useUserCategoryStore = defineStore('userCategory', () => {
     loadedOnce.value = { habit: true, task: true }
   }
 
+  // ==================== 树助手（2026-09-24 R3 新增） ====================
+  /**
+   * 某域的**一级**分类（`parent_id === ''`），按 sort 升序。
+   * ⚠️ 与 `listByDomain` 的区别：后者是**扁平全量**（一级+二级），
+   *    只用于「全量查找 / id 合法性校验」；任何列表渲染都该用本助手。
+   */
+  function listTopLevel(domain: UserCategoryDomain): UserCategory[] {
+    return (items.value[domain] ?? []).filter((c) => c.parent_id === '')
+  }
+
+  /**
+   * 某一级下的**二级**分类，按 sort 升序。
+   * `parentId` 为空 ⇒ 返回 []（不是「一级」，二级必须挂在父下）。
+   * 分类未加载 / 父不存在 ⇒ []（调用方按空处理，不报错）。
+   */
+  function listChildren(domain: UserCategoryDomain, parentId: string): UserCategory[] {
+    if (!parentId) return []
+    return (items.value[domain] ?? []).filter((c) => c.parent_id === parentId)
+  }
+
+  /**
+   * 某域的「一级 id → 其二级列表」映射（管理页 / 选择器一次遍历用）。
+   * 值可能是空数组 —— 表示该一级**没有二级**（此时 UI 不展开二级行）。
+   * 键的顺序即 items 的全序，组内已按 sort 升序。
+   */
+  function childrenByParent(domain: UserCategoryDomain): Map<string, UserCategory[]> {
+    const map = new Map<string, UserCategory[]>()
+    for (const c of items.value[domain] ?? []) {
+      if (!c.parent_id) continue
+      const list = map.get(c.parent_id)
+      if (list) list.push(c)
+      else map.set(c.parent_id, [c])
+    }
+    return map
+  }
+
   // ==================== getters ====================
   /** id → 分类（两域拍平；内置 id 与 uc_ 前缀 id 天然不互撞） */
   const byIdMap = computed<Map<string, UserCategory>>(() => {
@@ -207,7 +268,16 @@ export const useUserCategoryStore = defineStore('userCategory', () => {
     return map
   })
 
-  /** 某域的列表（CategoryTiles / 管理页 / 筛选项用） */
+  /**
+   * 某域的**扁平全量**列表（一级 + 二级混排，全序见 sortFlat）。
+   *
+   * ⚠️ 2026-09-24 R3：语义收窄为「纯数据出口」，**不要再拿它直接平铺渲染** ——
+   *    它含二级，平铺会把二级当一级显示。
+   *    树形展示请用 `listTopLevel` / `listChildren`；
+   *    「分类 id 是否合法」这类全量查找仍可用它（等价于 byIdMap 的那一半）。
+   *    现存消费点：`stores/habit.ts` 的 id 合法性校验、`HabitSection.vue` 的
+   *    筛选 chip（已按 parent_id 过滤只取一级）。
+   */
   function listByDomain(domain: UserCategoryDomain): UserCategory[] {
     return items.value[domain] ?? []
   }
@@ -321,7 +391,8 @@ export const useUserCategoryStore = defineStore('userCategory', () => {
     if (!silent) loading.value[domain] = true
     try {
       const res = await userCategoryApi.list({ domain })
-      items.value = { ...items.value, [domain]: sortNodes(res.items ?? []) }
+      // R3：响应是扁平全量（一级 + 二级），落盘前先做全序归一（见 sortFlat）
+      items.value = { ...items.value, [domain]: sortFlat(res.items ?? []) }
       seeded.value = { ...seeded.value, [domain]: Boolean(res.seeded) }
       loadedOnce.value = { ...loadedOnce.value, [domain]: true }
       writeCache({ items: items.value, seeded: seeded.value })
@@ -362,14 +433,21 @@ export const useUserCategoryStore = defineStore('userCategory', () => {
     )
   }
 
-  /** 本地插入（新分类追加在域尾 —— "内置顺序 + 新建追加"，04 §4.4） */
+  /**
+   * 本地插入（新分类追加在域尾 —— "内置顺序 + 新建追加"，04 §4.4）。
+   * ⚠️ R3：二级同样走这里（parent_id 非空）—— 插入后立即 sortFlat 重排，
+   *    保证树助手拿到的组内顺序就是 sort 序。
+   */
   function insertLocal(item: UserCategory): void {
     const list = items.value[item.domain] ?? []
-    items.value = { ...items.value, [item.domain]: [...list, item] }
+    items.value = { ...items.value, [item.domain]: sortFlat([...list, item]) }
   }
 
   /**
    * 新建分类（POST /user-categories）。成功后把带真实 id 的 item 插入本地并落盘。
+   * ⚠️ 2026-09-24 R3：`data.parent_id` 非空 = 建二级（后端校验父必须存在且同域
+   *    一级）。这里不做任何加工，**直接透传** —— 二级同样走 insertLocal + 落盘，
+   *    否则新建完刷新，二级会先消失。
    */
   async function create(data: CreateUserCategoryReq): Promise<UserCategory | null> {
     try {
@@ -397,7 +475,7 @@ export const useUserCategoryStore = defineStore('userCategory', () => {
       try {
         const res = await userCategoryApi.update(id, data)
         const d = res.item.domain
-        items.value = { ...items.value, [d]: sortNodes([...(items.value[d] ?? []), res.item]) }
+        items.value = { ...items.value, [d]: sortFlat([...(items.value[d] ?? []), res.item]) }
         writeCache({ items: items.value, seeded: seeded.value })
           return res.item
       } catch (e) {
@@ -431,7 +509,8 @@ export const useUserCategoryStore = defineStore('userCategory', () => {
 
     function replaceLocal(next: UserCategory): void {
       const list = (items.value[domain] ?? []).map((c) => (c.id === next.id ? next : c))
-      items.value = { ...items.value, [domain]: list }
+      // ⚠️ 改名会改变同 sort 下的次序 —— 用 sortFlat 保持与 fetchDomain 同一口径
+      items.value = { ...items.value, [domain]: sortFlat(list) }
     }
   }
 
@@ -493,6 +572,10 @@ export const useUserCategoryStore = defineStore('userCategory', () => {
     // 查询助手
     byId,
     listByDomain,
+    // 树助手（R3）
+    listTopLevel,
+    listChildren,
+    childrenByParent,
     resolveCategory,
     resolveHabitIcon,
     resolveTaskIcon,

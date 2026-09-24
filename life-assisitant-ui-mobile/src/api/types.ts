@@ -1095,12 +1095,13 @@ export interface FinanceCategoryResp {
  *
  * SYNC-FROM-BACKEND: life-assisitant-api/internal/model/dto/user_category.go
  *
- * 三条约定（与收支分类同构，但只有**一级**）：
+ * 四条约定（与收支分类同构）：
  *   1. `domain` 区分两域：habit（内置 id = sport/diet/life/study）
  *      task（内置 id = c_work/c_study/c_life/c_health/c_social/c_other）；
  *      新建的 id = uc_<domain>_<10 位随机>（后端生成，前端不造 id）；
  *   2. `icon` 为 `lucide:<Name>` 引用（04 §4.3 落库口径）；空 = 用 emoji 兜底；
- *   3. 无 parent_id / full_name —— 一级平铺，不做两级（D21）。
+ *   3. **两级分类**（spec-20260924-v1/03 R3）：`parent_id` 空串 = 一级；
+ *      非空 = 二级，指向同域一级分类的 id；`full_name` = 「运动-跑步」（一级即等于 name）。
  * ========================================================================== */
 
 /** 分类所属域（习惯 / 待办） */
@@ -1110,8 +1111,12 @@ export type UserCategoryDomain = 'habit' | 'task'
 export interface UserCategory {
   id: string
   domain: UserCategoryDomain
+  /** 父分类 id（R3 两级分类）；空串 = 一级，非空 = 二级 */
+  parent_id: string
   /** 显示名（≤10 字） */
   name: string
+  /** 完整名（「运动-跑步」）；一级即等于 name */
+  full_name: string
   /** 兼容 emoji（渲染优先 icon；icon 空时用 emoji 反查） */
   emoji?: string | null
   /** 图标引用：lucide:<Name>；空 = 走 emoji 兜底 */
@@ -1141,7 +1146,9 @@ export interface UserCategoryItemResp {
 /** 新建分类请求体（POST /user-categories） */
 export interface CreateUserCategoryReq {
   domain: UserCategoryDomain
-  /** 去空白后 1–10 字；同 user+domain 下不可重名（后端行内错误） */
+  /** 可选；空 = 一级，非空 = 二级（同域一级分类 id） */
+  parent_id?: string
+  /** 去空白后 1–10 字；同 user+domain+parent 下不可重名（后端行内错误） */
   name: string
   icon?: string | null
   emoji?: string | null

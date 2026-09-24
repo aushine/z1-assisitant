@@ -148,15 +148,22 @@ const GROUP_ORDER: ReadonlyArray<{ key: string; title: string }> = [
               },
             ]
           : []),
-        // 习惯 / 待办分类管理（spec-20260922-v2/04 §4.4，与「记账分类」同款形态）
+        // 习惯 / 待办分类管理（spec-20260924-v1 §04 R4：两个独立入口，各自带 domain）
         ...(canUserCategory
           ? [
               {
-                key: 'categories',
+                key: 'habit-categories',
                 icon: <Icon name="FolderOpen" size={20} />,
-                label: '分类管理',
-                sublabel: '习惯 / 待办分类',
-                onClick: () => navigate('/me/categories'),
+                label: '习惯分类管理',
+                sublabel: '管理习惯分类（支持二级）',
+                onClick: () => navigate('/me/categories?domain=habit'),
+              },
+              {
+                key: 'task-categories',
+                icon: <Icon name="FolderOpen" size={20} />,
+                label: '待办分类管理',
+                sublabel: '管理待办分类（支持二级）',
+                onClick: () => navigate('/me/categories?domain=task'),
               },
             ]
           : []),

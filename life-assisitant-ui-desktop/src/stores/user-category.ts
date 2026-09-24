@@ -6,8 +6,8 @@
  * 契约文档：md/spec-20260922-v2/06-数据模型与API.md §3、04-习惯与待办分类图标.md
  *
  * 与 `stores/financeCategory.ts` 同构（乐观更新 + 失败回滚 + Toast），差异：
- *   1. **一级平铺** —— 没有 parent_id / children，样式解析退化为
- *      「icon 引用 > emoji 映射 > 域默认图标」；
+ *   1. **支持两级**（R3） —— parent_id 空串=一级，非空=二级；
+ *      样式解析仍为「icon 引用 > emoji 映射 > 域默认图标」；
  *   2. 域是 `domain`（habit | task），请求**必传**；
  *   3. 降级显示走「已删除分类 / 原 id + 中性色」（04 §3.3），无 emoji 快照列。
  *
@@ -148,6 +148,10 @@ interface UserCategoryState {
   fetchDomain: (domain: UserCategoryDomain, opts?: { silent?: boolean }) => Promise<void>
   ensureFresh: (domain?: UserCategoryDomain) => Promise<void>
   listByDomain: (domain: UserCategoryDomain) => UserCategory[]
+  /** R3：该域的一级分类（parent_id===''），按 sort */
+  listTopLevel: (domain: UserCategoryDomain) => UserCategory[]
+  /** R3：某一级下的二级，按 sort */
+  listChildren: (domain: UserCategoryDomain, parentId: string) => UserCategory[]
   byId: (id: string | undefined | null) => UserCategory | undefined
   resolveCategory: (
     domain: UserCategoryDomain,
@@ -216,6 +220,14 @@ export const useUserCategoryStore = create<UserCategoryState>((set, get) => ({
 
   listByDomain(domain) {
     return get().items[domain] ?? []
+  },
+
+  listTopLevel(domain) {
+    return (get().items[domain] ?? []).filter((c) => !c.parent_id)
+  },
+
+  listChildren(domain, parentId) {
+    return (get().items[domain] ?? []).filter((c) => c.parent_id === parentId)
   },
 
   byId(id) {
