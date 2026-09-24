@@ -25,6 +25,7 @@ import { getTaskCategory, resolveCategory, resolveTaskIconView } from '@/utils/c
 import { useUserCategoryStore } from '@/stores/user-category'
 import { formatDayLabel, todayDate } from '@/utils/date'
 import Icon from '@/components/icon/Icon.vue'
+import IconBox from '@/components/IconBox.vue'
 import type { IconName } from '@/components/icon/names'
 import type { Task } from '@/api/types'
 
@@ -120,8 +121,8 @@ function onCardClick(): void {
         <span v-if="checked" class="check-tick" aria-hidden="true">✓</span>
       </button>
 
-      <!-- 分类图标 -->
-      <Icon class="task-emoji" :name="iconName" :size="16" :style="{ background: iconBg, color: iconFg }" aria-hidden="true" />
+      <!-- 分类图标（2026-09-24 R2：统一为 IconBox 40/图标 20，对齐收支列表标准） -->
+      <IconBox :name="iconName" :size="40" :bg="iconBg" :fg="iconFg" aria-hidden="true" />
 
       <!-- 内容 -->
       <div class="task-body">
@@ -223,18 +224,7 @@ function onCardClick(): void {
   line-height: 1;
 }
 
-/* 分类图标标签 */
-.task-emoji {
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  line-height: 1;
-  background: var(--color-bg-hover);
-}
+/* 分类图标标签（R2：旧自绘样式已移除，改用 IconBox 40）*/
 
 .task-body {
   flex: 1;

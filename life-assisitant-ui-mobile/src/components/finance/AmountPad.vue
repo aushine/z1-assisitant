@@ -199,20 +199,6 @@ onBeforeUnmount(() => {
     }"
     @click.stop
   >
-    <!-- 抓手条（02 §4.2：单杠 36×4 + 12px 弱箭头，原「pill+箭头+pill」三元素简化）：
-         整条 32px 热区不变，点任意处 或 向下拖拽过阈值 → 收起（父级按「完成」同路径采纳） -->
-    <div
-      class="pad-grab"
-      @touchstart="onGrabDown"
-      @touchmove="onGrabMove"
-      @touchend="onGrabEnd"
-      @touchcancel="onGrabEnd"
-      @click="onGrabClick"
-    >
-      <span class="grab-bar" aria-hidden="true" />
-      <Icon class="grab-arrow" name="ChevronDown" :size="12" aria-label="收起键盘" />
-    </div>
-
     <!-- 表达式小字行（02 §4.2 改左对齐，与金额卡里的 ¥ 视线连贯）；
          无运算符且无提示时整行塌缩为 0 高；aria-live 保留（02 §6 #11） -->
     <div class="pad-preview" aria-live="polite">
@@ -240,6 +226,22 @@ onBeforeUnmount(() => {
       <button type="button" class="pad-equals" @click="onEquals">=</button>
       <button type="button" class="pad-done" @click="emit('complete')">完成</button>
     </div>
+
+    <!-- 抓手条（R7 2026-09-24：从键盘**顶部移到最底部**）。
+         原位置夹在金额卡与按键之间，使用户看到「金额框→图标→按键」，
+         误以为「图标跑到上面」、破坏「一体计算器」观感。
+         功能不变：点任意处 或 向下拖拽过阈值 → 收起（父级按「完成」同路径采纳） -->
+    <div
+      class="pad-grab"
+      @touchstart="onGrabDown"
+      @touchmove="onGrabMove"
+      @touchend="onGrabEnd"
+      @touchcancel="onGrabEnd"
+      @click="onGrabClick"
+    >
+      <Icon class="grab-arrow" name="ChevronDown" :size="12" aria-label="收起键盘" />
+      <span class="grab-bar" aria-hidden="true" />
+    </div>
   </div>
 </template>
 
@@ -250,7 +252,8 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 0;
   z-index: 2;
-  padding: 0 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  /* R7：键盘顶部不再留抓手区（已移到底部），顶部直接接金额卡 ⇒ 零缝隙更彻底 */
+  padding: 0 12px calc(4px + env(safe-area-inset-bottom, 0px));
   background: var(--color-bg-card);
   /* ⚠️ 02 §3 条件 3：原 border-top:1px 已删 —— 那条分割线正是「像两块」的元凶；
      底色与上方金额卡同为 --color-bg-card，零缝隙相接（卡 bottom 由 JS 实测的 --amount-pad-h 钉住）。 */
@@ -259,17 +262,22 @@ onBeforeUnmount(() => {
   will-change: transform;
 }
 
-/* 抓手条：整条 32px 热区可点（收起）+ 可向下拖拽；单杠 + 弱箭头（02 §4.2，行为不动 §6 #4） */
+/* 抓手条（R7：已从键盘顶部移到**最底部**）。
+   原在顶部时夹在金额卡与按键之间 → 用户误以为「图标跑到上面」、破坏一体观感。
+   现在在按键下方，既保住收起功能，又不阻挡「金额卡-键盘」的一体视觉。 */
 .pad-grab {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 32px;
+  height: 24px;
+  margin-top: 2px;
+  opacity: 0.65;
   cursor: pointer;
   touch-action: none; /* ⚠️ 关掉浏览器原生滚动/双击缩放，拖拽才不被吃掉 */
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  &:active { opacity: 1; }
   &:active .grab-arrow { color: var(--color-primary); }
 }
 .grab-bar {

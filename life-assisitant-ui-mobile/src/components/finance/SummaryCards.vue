@@ -21,7 +21,8 @@
       <template v-if="phase === 'data'">
         <div class="sum-title">
           <span>{{ periodPrefix }}{{ leftFace === 'income' ? '收入' : '支出' }}</span>
-          <van-icon name="replay" class="sum-flip" />
+          <!-- R6：原用 van-icon name="replay"（环箭，视觉像刷新）→ 改 ArrowLeftRight（双向箭头，表意“切换”） -->
+          <Icon name="ArrowLeftRight" :size="14" class="sum-flip" />
         </div>
         <!-- 正负色 class 挂**父容器**（继承）；MoneyText 遮罩态的中性色会盖过继承
              ⇒ 遮罩时不泄露「这是负数」。切勿把 color 直接绑到 MoneyText 上。 -->
@@ -46,13 +47,15 @@
         <div class="sum-title">
           <template v-if="store.summaryCardRight === 'budget'">
             <span>剩余预算 ·</span>
-            <span class="sum-period" @click.stop="store.cycleSummaryPeriod()">{{ periodShort }}</span>
+            <!-- R5：改下拉/弹层选择（原为点单字循环） -->
+            <span class="sum-period" @click.stop="openPeriodPicker">{{ periodShort }}<Icon name="ChevronDown" :size="12" class="sum-period-caret" /></span>
           </template>
           <template v-else>
-            <span class="sum-period" @click.stop="store.cycleSummaryPeriod()">{{ periodShort }}</span>
+            <span class="sum-period" @click.stop="openPeriodPicker">{{ periodShort }}<Icon name="ChevronDown" :size="12" class="sum-period-caret" /></span>
             <span>结余</span>
           </template>
-          <van-icon name="replay" class="sum-flip" />
+          <!-- R6：replay → ArrowLeftRight（同左卡） -->
+          <Icon name="ArrowLeftRight" :size="14" class="sum-flip" />
         </div>
         <div class="sum-main" :class="rightMainClass">
           <template v-if="rightMainValue === null">—</template>
@@ -70,7 +73,7 @@
       <div v-else-if="phase === 'error'" class="sum-fill">
         <div class="sum-title">
           <span>数据 ·</span>
-          <span class="sum-period" @click.stop="store.cycleSummaryPeriod()">{{ periodShort }}</span>
+          <span class="sum-period" @click.stop="openPeriodPicker">{{ periodShort }}<Icon name="ChevronDown" :size="12" class="sum-period-caret" /></span>
         </div>
         <div class="sum-main">—</div>
         <div class="sum-sub">加载失败 · 点击重试</div>
@@ -80,12 +83,22 @@
       </div>
     </div>
   </div>
+
+  <!-- R5：周期选择弹层（周 / 月 / 年） -->
+  <van-action-sheet
+    v-model:show="periodPickerOpen"
+    :actions="periodActions"
+    cancel-text="取消"
+    close-on-click-action
+    @select="onPeriodSelect"
+  />
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useFinanceStore } from '@/stores/finance'
 import MoneyText from '@/components/finance/MoneyText.vue'
+import Icon from '@/components/icon/Icon.vue'
 
 const emit = defineEmits<{ (e: 'goto-budget'): void }>()
 
@@ -107,6 +120,21 @@ const periodShort = computed(() =>
   store.summaryPeriod === 'week' ? '周' : store.summaryPeriod === 'year' ? '年' : '月'
 )
 const periodPrefix = computed(() => `今${periodShort.value}`)
+
+/* ==================== R5：周期选择弹层（周/月/年） ==================== */
+const periodPickerOpen = ref(false)
+/** 当前选中项用副标题标记（ActionSheet 无原生选中态，用 subname 区分） */
+const periodActions = computed(() => [
+  { name: '本周', value: 'week' as const, subname: store.summaryPeriod === 'week' ? '当前' : '' },
+  { name: '本月', value: 'month' as const, subname: store.summaryPeriod === 'month' ? '当前' : '' },
+  { name: '本年', value: 'year' as const, subname: store.summaryPeriod === 'year' ? '当前' : '' },
+])
+function openPeriodPicker(): void {
+  periodPickerOpen.value = true
+}
+function onPeriodSelect(action: { value: 'week' | 'month' | 'year' }): void {
+  store.setSummaryPeriod(action.value)
+}
 
 /* ==================== 左块 ==================== */
 /** 当前面：income = 收入面 / expense = 支出面 */
@@ -231,22 +259,29 @@ function onRightBody() {
   white-space: nowrap;
 }
 
-/* 翻面提示图标（热区①） */
+/* 翻面提示图标（热区①）：2026-09-24 R6 由 replay 改为 ArrowLeftRight */
 .sum-flip {
-  font-size: 14px;
   color: var(--color-text-tertiary);
+  flex-shrink: 0;
 }
 
-/* 周期字（热区②）：primary + 下划虚线 = 可点 */
+/* 周期字（热区②）：primary + 下划虚线 = 可点；R5 加下拉箭头 */
 .sum-period {
   color: var(--color-primary);
   border-bottom: 1px dashed var(--color-primary);
   line-height: 14px;
   padding: 0 1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
 
   &:active {
     opacity: 0.6;
   }
+}
+/* R5：周期下拉箭头 */
+.sum-period-caret {
+  flex-shrink: 0;
 }
 
 .sum-main {
