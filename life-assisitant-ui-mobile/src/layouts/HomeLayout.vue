@@ -28,7 +28,7 @@
  *    完整推理与实测数据见 components/period/PeriodDaySheet.vue 顶部注释。
  *    新增弹层时不要省这个属性，也不要以为「z-index 调大点就行」。
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/icon/Icon.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -152,6 +152,44 @@ const viewKey = computed(() => {
 })
 
 /**
+ * 主 Tab 切换的**方向**（spec-20260924-v3 方案 D）。
+ *
+ * - 'forward'：切到右边的 Tab（activeIndex 增大）⇒ 新页从右侧滑入、旧页向左让位。
+ * - 'backward'：切到左边的 Tab（activeIndex 减小）⇒ 反向。
+ * - ''：无方向（非主 Tab 跳转 / 同页）⇒ 退回纯淡入。
+ *
+ * ⚠️ 只在**主 Tab 之间**切换时给方向：二级页（/task/:id 等）、覆盖层、
+ *    hideTab 场景一律空 → 不播横滑，避免方向错乱（D-4）。
+ */
+const slideDir = ref<'' | 'forward' | 'backward'>('')
+
+/**`<transition>` 的 name —— 按方向选方向类，空方向退回淡入类 */
+const transitionName = computed(() => {
+  if (slideDir.value === 'forward') return 'slide-forward'
+  if (slideDir.value === 'backward') return 'slide-backward'
+  return 'fade-page'
+})
+
+/**
+ * 比较两次路由的 Tab 下标，得出方向。只认**两个都是主 Tab** 的情况（D-4）。
+ */
+function tabIndexOf(name: unknown): number {
+  return TABS.findIndex((t) => t.name === name)
+}
+watch(
+  () => route.name,
+  (to, from) => {
+    const ti = tabIndexOf(to)
+    const fi = tabIndexOf(from)
+    if (ti >= 0 && fi >= 0 && ti !== fi) {
+      slideDir.value = ti > fi ? 'forward' : 'backward'
+    } else {
+      slideDir.value = ''
+    }
+  },
+)
+
+/**
  * `<KeepAlive>` 缓存白名单（spec-20260924-v2 S1）。
  *
  * 只缓存 5 个主 Tab 页，**不**含二级页 / 详情页（它们的 name 不在名单里，
@@ -227,12 +265,12 @@ onMounted(() => {
       @mousedown="swipeHandlers.mousedown"
     >
       <router-view v-slot="{ Component }">
-        <!-- 2026-09-24（spec-20260924-v2 S1+S2）：
+        <!-- 2026-09-24（spec-20260924-v2 S1+S2 + spec-20260924-v3 方案 D）：
              ① `<KeepAlive>` 缓存 5 个主 Tab 页，切回不重建、不重拉（瞬切）；
-             ② transition 去掉 `mode="out-in"`，缩短时长——原来串行 260ms
-                （淡出 130 + 淡入 130）中间有一小段空档，现在重叠且总时长约 90ms。
-             详见同批 spec `md/spec-20260924-v2/`。 -->
-        <transition name="fade-page">
+             ② 过渡改为**方向感知横滑**（D）：点右侧 Tab 新页从右滑入、点左侧反之；
+                非主 Tab 跳转（二级页/覆盖层）退回纯淡入 fade-page（见 transitionName）。
+             详见 `md/spec-20260924-v2/` 与 `md/spec-20260924-v3/`。 -->
+        <transition :name="transitionName">
           <keep-alive :include="KEEP_ALIVE_TABS">
             <component :is="Component" :key="viewKey" />
           </keep-alive>
@@ -480,11 +518,66 @@ onMounted(() => {
 
 /* 页面过渡（Tab 之间切换）。
 
-   2026-09-24（spec-20260924-v2 S2）：
-   - 去掉 `mode="out-in"`（模板里已去）—— 原来串行：旧淡出 130ms 完，新才淡入
-     130ms，总 260ms 且中间有空档。现在两者重叠，总时长约 90ms。
-   - `--duration-page`（130ms）→ `--duration-instant`（80ms）量级。
-   配合 S1 的 KeepAlive（新内容已就绪），过渡只是锦上添花，越短越好。 */
+   2026-09-24（spec-20260924-v3 方案 D）：主 Tab 切换改为**方向感知横滑**：
+   - 点右侧 Tab ⇒ slide-forward：新页从右（+18%）滑入，旧页向左（-18%）让位；
+   - 点左侧 Tab ⇒ slide-backward：方向相反；
+   - 两页**同时**进出（不加 mode="out-in"）—— 这就是「快照/位移」的推挤观感；
+     旧页是 KeepAlive 里的**静止 DOM**（非真销毁），「快照」是免费的。
+   - 幅度 18%（不是 100%）：满幅会像翻页且露背面；18% 的推挤感最像原生分段切换。
+   - 时长 200ms（--duration-fast）+ --ease-default，与底部胶囊指示块动效同族
+     （避免内容先动、胶囊后动）。
+
+   `.fade-page` 保留：① 非主 Tab 跳转（二级页 / 覆盖层）的兑底；
+   ② 万一方向未判定的极端场景，仍有淡入不白屏。 */
+
+/* ——— 方向横滑（D） ——— */
+/* ⚠️ 两页共存的关键：leaving 页转场期间**脱离文档流**（absolute），否则
+   `.content` 是 flex 列，两个子元素会各分 50% 高度 → 切换瞬间抽一下。
+   entering 页保持正常流、填满内容区；leaving 绝对定位铺在同一区域做推挤。
+
+   ⚠️ 必须用 `:deep()` + `!important`：
+   ① 页面根自己写了 `position: relative`（FAB 定位容器），且子路由样式在
+      HomeLayout 之后注入 → 同特异性下页面根会赢；
+   ② scoped 编译会把后代选择器的 `.content` 前缀丢掉（只留叶子的
+      `[data-v-父]`），特异性与页面根持平，依旧可能输。
+   所以这里用 `:deep()` 明确下钻（不依赖子组件根继承 scope id），并用
+   `!important` 钉住转场期这 200ms 的定位，确保回到正常流后不影响任何布局。 */
+:deep(.slide-forward-leave-active),
+:deep(.slide-backward-leave-active) {
+  position: absolute !important;
+  inset: 0;
+  z-index: 2;
+}
+.slide-forward-enter-active,
+.slide-forward-leave-active,
+.slide-backward-enter-active,
+.slide-backward-leave-active {
+  transition: transform var(--duration-fast) var(--ease-default),
+    opacity var(--duration-fast) var(--ease-default);
+  will-change: transform, opacity;
+}
+
+/* forward：点右键 Tab（新页从右来，旧页向左走） */
+.slide-forward-enter-from {
+  transform: translateX(18%);
+  opacity: 0;
+}
+.slide-forward-leave-to {
+  transform: translateX(-18%);
+  opacity: 0;
+}
+
+/* backward：点左键 Tab（新页从左来，旧页向右走） */
+.slide-backward-enter-from {
+  transform: translateX(-18%);
+  opacity: 0;
+}
+.slide-backward-leave-to {
+  transform: translateX(18%);
+  opacity: 0;
+}
+
+/* ——— 纯淡入（兑底 / 非主 Tab 跳转） ——— */
 .fade-page-enter-active,
 .fade-page-leave-active {
   transition: opacity var(--duration-instant) var(--ease-default);
@@ -494,11 +587,24 @@ onMounted(() => {
   opacity: 0;
 }
 
-/* 尊重「减少动态效果」的系统设置 */
+/* 尊重「减少动态效果」的系统设置：关闭位移，退化为极短淡入 */
 @media (prefers-reduced-motion: reduce) {
   .fade-page-enter-active,
   .fade-page-leave-active {
     transition: none;
+  }
+  .slide-forward-enter-active,
+  .slide-forward-leave-active,
+  .slide-backward-enter-active,
+  .slide-backward-leave-active {
+    transition: opacity var(--duration-instant) var(--ease-default);
+    will-change: auto;
+  }
+  .slide-forward-enter-from,
+  .slide-forward-leave-to,
+  .slide-backward-enter-from,
+  .slide-backward-leave-to {
+    transform: none;
   }
 }
 </style>
