@@ -62,7 +62,7 @@ UPDATE `user_categories` SET `full_name` = `name`
 --    INSERT IGNORE 依赖 (id,user_id) 主键去重，重跑不重复插入。
 INSERT IGNORE INTO `user_categories`
   (`id`,`user_id`,`domain`,`parent_id`,`name`,`full_name`,`emoji`,`icon`,`tint`,`sort`,`is_builtin`,`is_deleted`,`deleted_seq`,`created_at`,`updated_at`)
-SELECT t.seed_id, u.uid, t.domain, t.parent_id, t.name, CONCAT(p.name, '-', t.name),
+SELECT t.seed_id, u.id, t.domain, t.parent_id, t.name, CONCAT(p.name, '-', t.name),
        '', t.icon, t.tint, t.sort, 1, 0, '', NOW(), NOW()
 FROM (
   -- ===== 习惯域二级 =====
@@ -102,7 +102,7 @@ FROM (
   UNION ALL SELECT 'c_social_02','task','c_social','联络','lucide:PhoneCall','accent',20
   UNION ALL SELECT 'c_social_03','task','c_social','送礼','lucide:Gift','accent',30
 ) t
-JOIN `users` u ON u.id <> '' AND u.is_deleted = 0
+JOIN `users` u ON u.id <> '' AND u.deleted_at IS NULL
 JOIN `user_categories` p
   ON p.user_id = u.id AND p.domain = t.domain AND p.id = t.parent_id
      AND p.parent_id = '' AND p.is_builtin = 1 AND p.is_deleted = 0;
