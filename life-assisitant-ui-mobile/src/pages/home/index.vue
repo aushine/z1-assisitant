@@ -451,7 +451,7 @@ function clampPct(n: number): number {
         </div>
         <div v-else-if="timelineError" class="panel-error">
           <span>时间线加载失败</span>
-          <button type="button" class="retry-btn" @click="refresh">重试</button>
+          <button type="button" class="retry-btn" @click="refresh()">重试</button>
         </div>
         <div v-else-if="timelineItems.length === 0" class="panel-empty">
           <Icon name="Clock" :size="32" class="empty-emoji" aria-hidden="true" />
@@ -602,7 +602,7 @@ function clampPct(n: number): number {
       <!-- 整体加载失败（与「暂无数据」区分） -->
       <div v-if="homeError && !home" class="global-error">
         <span>首页数据加载失败，请检查网络后重试</span>
-        <button type="button" class="retry-btn" @click="refresh">重试</button>
+        <button type="button" class="retry-btn" @click="refresh()">重试</button>
       </div>
     </main>
 
