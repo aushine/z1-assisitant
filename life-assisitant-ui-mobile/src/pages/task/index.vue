@@ -22,7 +22,9 @@
  *   B4 删除交互由 `@contextmenu` 长按改为 `van-swipe-cell` 左滑
  *   B5 接上 `van-list` 的 @load，实现真正的上拉加载
  */
-import { computed, onMounted, ref, watchEffect } from 'vue'
+// ⚠️ 显式组件名（spec-20260924-v2 S1）：供 HomeLayout 的 `<KeepAlive :include>` 匹配。
+defineOptions({ name: 'Task' })
+import { computed, onActivated, onDeactivated, ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import { storeToRefs } from 'pinia'
@@ -260,8 +262,17 @@ async function onDelete(task: Task) {
 }
 
 // ==================== 生命周期 ====================
-onMounted(async () => {
-  await taskStore.fetchTasks()
+// 2026-09-24（spec-20260924-v2 S1）：本页被 `<KeepAlive>` 缓存。
+// 首拉带 loading（骨架屏），回归时静默刷新（不清空、不闪）。
+// onDeactivated：退出时收多选态，避免切回时还处于「已选 N 项」（幽灵状态）。
+let firstLoad = true
+onActivated(async () => {
+  const silent = !firstLoad
+  firstLoad = false
+  await taskStore.fetchTasks(undefined, { silent })
+})
+onDeactivated(() => {
+  taskStore.clearSelection()
 })
 </script>
 

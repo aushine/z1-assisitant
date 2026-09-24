@@ -88,12 +88,13 @@
 - **覆盖层子路由**（`meta.overlay`，如 `/record/finance-categories`）：必须与宿主
   共用同一 key（现逻辑保留），**不单独缓存**，走 overlay 层。
 
-### 3.2 桌面端缓存
-- 桌面端 `MainLayout.tsx` 用 React Router `<Outlet/>`，无 transition。
-- React 侧**没有** `<KeepAlive>` 对应物。方案：给 5 个主 Tab 页的**数据**做缓存
-  （store 已有 `loadedOnce` 语义，见 §4.2），避免每次进页面重新拉首屏。
-- ⚠️ **不做** React 组件级缓存（`<Activity>`/自研 cache 容器）——收益/风险不划算，
-  桌面端无过渡动画，空白感远低于移动端。
+### 桌面端缓存
+- 桌面端 `MainLayout.tsx` 用 React Router `<Outlet/>`，**无 transition**；5 个页面都是顶部
+  **急加载 import**（非 lazy chunk）→ **没有移动端那种"白一下"**。
+- React 侧**没有** `<KeepAlive>` 对应物。本批桌面端**只做已确认最小改动**：
+  **首页 `pages/home/index.tsx` 加模块级 SWR 缓存**（再次进页先用缓存渲染、后台静默刷新）。
+- ⚠️ **不做**其它 4 页的组件级缓存（`<Activity>`/自研 cache 容器）——桌面无过渡动画，
+  空白感远低于移动端，改动风险/收益不划算。其余页数据多在 store（已有缓存语义）。
 
 ---
 
@@ -165,19 +166,24 @@ KeepAlive 会**改变组件生命周期语义**，以下必须回归验证：
 ### 移动端（`life-assisitant-ui-mobile`）
 | 文件 | 改动 |
 |---|---|
-| `src/layouts/HomeLayout.vue` | ① `<router-view>` 包 `<KeepAlive :include>`；② 主 Tab 的 `:key` 改 `route.name`；③ 去掉 `.fade-page` 的 `mode="out-in"`；④ 过渡时长下调 |
-| `src/pages/home/index.vue` | `onMounted` → `onActivated`（首拉/静默分段）；骨架屏 |
-| `src/pages/task/index.vue` | 同上 |
-| `src/pages/record/index.vue` | 同上 |
-| `src/pages/stat/index.vue` | 同上 |
-| `src/pages/me/index.vue` | 数据多来自 store，确认 `onActivated` 必要性 |
-| `src/composables/`（可选新增） | `useKeepAliveRefresh.ts`：封装"首拉带 loading / 回归静默"的统一逻辑，5 页复用 |
+| `src/layouts/HomeLayout.vue` | ① `<router-view>` 包 `<KeepAlive :include>`；② key 改 `route.name`（overlay 分支返回宿主 name）；③ 去掉 `.fade-page` 的 `mode="out-in"`；④ 过渡时长 130ms→80ms + reduced-motion |
+| `src/pages/home/index.vue` | `defineOptions({name:'Home'})`；`onMounted`→`onActivated`（首拉/静默分段）；`refresh({silent})` |
+| `src/pages/task/index.vue` | 同上（name:'Task'）；+`onDeactivated` 清多选；`fetchTasks(_,{silent})` |
+| `src/pages/record/index.vue` | 同上（name:'Record'）；首拉幂等，转 `onActivated` |
+| `src/pages/stat/index.vue` | 同上（name:'Stat'）；`statsStore.refresh({silent})` |
+| `src/pages/me/index.vue` | 同上（name:'Me'）；无首拉数据，仅声明 name |
+| `src/stores/task.ts` | `fetchTasks` 加 `silent` |
+| `src/stores/stats.ts` | `refresh`/`fetchOverview`/`fetchRangeStats` 加 `silent` |
+
+> **骨架屏（S3）**：实测代码**已有**内联骨架（首页 `.panel-skel`、任务 `.loading-skeleton`、
+> 统计 `.chart-skel`、习惯 `.loading-skeleton`），**已满足"不留白"要求**，本批**不重复新增**。
 
 ### 桌面端（`life-assisitant-ui-desktop`）
 | 文件 | 改动 |
 |---|---|
-| `src/layouts/MainLayout.tsx` | 通常**不动**（确认无副作用） |
-| 5 页 `src/pages/*/index.tsx` | 依赖 store `loadedOnce` 做首屏数据缓存（部分已具备，补缺） |
+| `src/pages/home/index.tsx` | 模块级 SWR 缓存（`homeCache`）：再进页先显缓存 + `refresh({silent})` 后台刷新 |
+| `src/layouts/MainLayout.tsx` | **不动**（无过渡动画，无需改） |
+| 其余 4 页 | **不动**（急加载、无过渡，空白感低；数据多在 store） |
 
 ---
 

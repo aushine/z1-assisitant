@@ -128,14 +128,19 @@ export const useStatsStore = defineStore('stats', () => {
   /**
    * 拉取统计概览（GET /stats/overview，无 range 参数）
    * 概览是 KPI 区的主数据，失败时清空以免显示陈旧数值。
+   * @param silent 静默刷新（2026-09-24 S1）：不置 loading、失败不丢失已有数据，
+   *        用于 KeepAlive 切回 Tab 时的后台刷新。
    */
-  async function fetchOverview(): Promise<void> {
-    overviewState.value = { loading: true, error: null }
+  async function fetchOverview(opts: { silent?: boolean } = {}): Promise<void> {
+    const silent = opts.silent === true
+    if (!silent) overviewState.value = { loading: true, error: null }
     try {
       overview.value = await statsApi.getOverview()
     } catch (e) {
-      overview.value = null
-      overviewState.value = { loading: false, error: errText(e, '概览数据加载失败') }
+      if (!silent) {
+        overview.value = null
+        overviewState.value = { loading: false, error: errText(e, '概览数据加载失败') }
+      }
       return
     }
     overviewState.value = { loading: false, error: null }
@@ -144,14 +149,22 @@ export const useStatsStore = defineStore('stats', () => {
   /**
    * 并发拉取三个区间统计（tasks / habits / finance）。
    * 用 allSettled：任一失败只标该分区错误，其余照常渲染。
+   * @param customRange 指定区间
+   * @param opts.silent 静默刷新（同 fetchOverview）
    */
-  async function fetchRangeStats(customRange?: StatsRange): Promise<void> {
+  async function fetchRangeStats(
+    customRange?: StatsRange,
+    opts: { silent?: boolean } = {},
+  ): Promise<void> {
     if (customRange) range.value = customRange
     const params = { range: range.value }
+    const silent = opts.silent === true
 
-    taskState.value = { loading: true, error: null }
-    habitState.value = { loading: true, error: null }
-    financeState.value = { loading: true, error: null }
+    if (!silent) {
+      taskState.value = { loading: true, error: null }
+      habitState.value = { loading: true, error: null }
+      financeState.value = { loading: true, error: null }
+    }
 
     const [t, h, f] = await Promise.allSettled([
       statsApi.taskStats(params),
@@ -162,7 +175,7 @@ export const useStatsStore = defineStore('stats', () => {
     if (t.status === 'fulfilled') {
       taskStats.value = t.value
       taskState.value = { loading: false, error: null }
-    } else {
+    } else if (!silent) {
       taskStats.value = null
       taskState.value = { loading: false, error: errText(t.reason, '任务统计加载失败') }
     }
@@ -170,7 +183,7 @@ export const useStatsStore = defineStore('stats', () => {
     if (h.status === 'fulfilled') {
       habitStats.value = h.value
       habitState.value = { loading: false, error: null }
-    } else {
+    } else if (!silent) {
       habitStats.value = null
       habitState.value = { loading: false, error: errText(h.reason, '习惯统计加载失败') }
     }
@@ -178,15 +191,18 @@ export const useStatsStore = defineStore('stats', () => {
     if (f.status === 'fulfilled') {
       financeStats.value = f.value
       financeState.value = { loading: false, error: null }
-    } else {
+    } else if (!silent) {
       financeStats.value = null
       financeState.value = { loading: false, error: errText(f.reason, '财务统计加载失败') }
     }
   }
 
-  /** 整页刷新：概览 + 三个区间统计并发 */
-  async function refresh(): Promise<void> {
-    await Promise.all([fetchOverview(), fetchRangeStats()])
+  /**
+   * 整页刷新：概览 + 三个区间统计并发
+   * @param opts.silent 静默刷新（KeepAlive 切回时用；首拉 / 手动刷新不传）
+   */
+  async function refresh(opts: { silent?: boolean } = {}): Promise<void> {
+    await Promise.all([fetchOverview(opts), fetchRangeStats(undefined, opts)])
   }
 
   /**

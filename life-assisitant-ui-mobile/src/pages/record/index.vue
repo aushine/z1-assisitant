@@ -45,7 +45,9 @@
  * 加载策略：习惯区常驻（v-show，保留热力图月份等本地状态）；
  *   其余 Tab 用 v-if 惰性挂载，切 Tab 时不互抢列表状态。
  */
-import { computed, onMounted, ref, watch } from 'vue'
+// ⚠️ 显式组件名（spec-20260924-v2 S1）：供 HomeLayout 的 `<KeepAlive :include>` 匹配。
+defineOptions({ name: 'Record' })
+import { computed, onActivated, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog } from 'vant'
 import { useHabitStore } from '@/stores/habit'
@@ -237,7 +239,10 @@ function onFabClick(): void {
 }
 
 // ==================== 生命周期 ====================
-onMounted(async () => {
+// 2026-09-24（spec-20260924-v2 S1）：本页被 `<KeepAlive>` 缓存。
+// ⚠️ 首拉逻辑放 onActivated（不放 onMounted）—— 首次挂载也会触发 onActivated，
+//    放两处会重复执行。下面两个拉取都带「空才拉」幂等守卫，回归时天然不会重复请求。
+onActivated(async () => {
   // 习惯区在首次进入时会自行拉取（HabitSection onMounted）；
   // 这里只预热账户与预算，让用户在切换到对应 Tab 前就有数据。
   await Promise.all([

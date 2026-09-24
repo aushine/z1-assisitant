@@ -32,7 +32,9 @@
  *   - overview 基本沿用整页既有面板；finance/habit 是既有面板的子集；
  *     health 是新增领域，数据源来自 health 接口（见下方 loadHealth）。
  */
-import { computed, onMounted, ref, watch } from 'vue'
+// ⚠️ 显式组件名（spec-20260924-v2 S1）：供 HomeLayout 的 `<KeepAlive :include>` 匹配。
+defineOptions({ name: 'Stat' })
+import { computed, onActivated, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { showFailToast, showSuccessToast } from 'vant'
 import { storeToRefs } from 'pinia'
@@ -542,9 +544,15 @@ const tempChartOption = computed(() => {
 })
 
 // ==================== 生命周期 ====================
-onMounted(async () => {
+// 2026-09-24（spec-20260924-v2 S1）：本页被 `<KeepAlive>` 缓存。
+// 首拉带 loading（骨架屏），回归时静默刷新（不闪、不丢数据）。
+// ⚠️ 首拉逻辑放 onActivated（首次挂载也会触发），用 firstLoad 区分首拉/回归。
+let firstLoad = true
+onActivated(async () => {
+  const silent = !firstLoad
+  firstLoad = false
   await Promise.all([
-    statsStore.refresh(),
+    statsStore.refresh({ silent }),
     habitStore.fetchHabits(),
     financeStore.fetchAccounts(),
     // 分类缓存：占比 / 明细按 category_id 查图标与色（未加载时快照兜底）

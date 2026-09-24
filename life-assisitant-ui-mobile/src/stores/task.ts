@@ -119,10 +119,13 @@ export const useTaskStore = defineStore('task', () => {
   /**
    * 拉取任务列表首页（按当前 query，page 重置为 1）
    * @param nextFilter 传入则先切换 filter（兼容 `fetchTasks('today')` 旧调用）
+   * @param opts.silent 静默刷新（2026-09-24 S1）：不置 loading、失败不清空已有列表，
+   *        用于 KeepAlive 切回 Tab 时的后台刷新；首拉 / 下拉刷新不传。
    */
-  async function fetchTasks(nextFilter?: TaskFilter): Promise<void> {
+  async function fetchTasks(nextFilter?: TaskFilter, opts: { silent?: boolean } = {}): Promise<void> {
     if (nextFilter) filter.value = nextFilter
-    loading.value = true
+    const silent = opts.silent === true
+    if (!silent) loading.value = true
     try {
       const res = await taskApi.list(buildParams(1))
       tasks.value = res.items
@@ -131,15 +134,17 @@ export const useTaskStore = defineStore('task', () => {
       page.value = 1
       loadedOnce.value = true
     } catch (e) {
-      // 错误 toast 已在 request.ts 拦截器里弹过，这里只清空
-      tasks.value = []
-      total.value = 0
-      hasMore.value = false
-      loadedOnce.value = true
+      if (!silent) {
+        // 错误 toast 已在 request.ts 拦截器里弹过，这里只清空
+        tasks.value = []
+        total.value = 0
+        hasMore.value = false
+        loadedOnce.value = true
+      }
       // eslint-disable-next-line no-console
       console.error('[TaskStore] fetchTasks failed', e)
     } finally {
-      loading.value = false
+      if (!silent) loading.value = false
     }
   }
 

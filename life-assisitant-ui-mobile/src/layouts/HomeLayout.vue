@@ -122,19 +122,42 @@ const hideTab = computed(() => route.meta.hideTab === true)
 /**
  * 内容区 router-view 的 key。
  *
- * 默认 `fullPath`：切模块、换任务详情都要重建页面（各页 onMounted 负责首次加载）。
+ * 2026-09-24（spec-20260924-v2 S1）：切页不再销毁重建 —— 5 个主 Tab 页由
+ * `<KeepAlive>` 缓存（见 template），切回来瞬显、不重拉。key 的取值随之调整：
+ *
+ * ⚠️ 主 Tab 页的 key 用 **route.name**，**不能**再用 route.fullPath。
+ *    KeepAlive 靠 key 判断「是不是同一个实例」：若用 fullPath，同一个 Tab
+ *    带不同 query（如 /task?filter=all → /task?filter=done）会被当成两个实例、
+ *    缓存两份、且都命中不了，反而更慢。用 route.name 后同 Tab 恒定复用同一实例；
+ *    Tab 内的 query 变化交给页面自己的 watch 处理。
  *
  * ⚠️ 例外：**覆盖层子路由**（`meta.overlay`，见 router/index.ts 的
  *    /record/finance-categories）必须与它的宿主页面共用同一个 key ——
- *    否则 push 覆盖层时 fullPath 一变，宿主页（记录页）就被销毁重建，
+ *    否则 push 覆盖层时 key 一变，宿主页（记录页）就被销毁重建，
  *    「返回后回到记一笔、且不重播动画」直接落空。
- *    这里取 matched 里**上一层**的 path（即宿主页面 /record）。
+ *    这里取 matched 里**上一层**的 name（即宿主页面 Record）。
+ *
+ * ⚠️ 二级页（/task/:id 等）本就不在 KeepAlive 白名单里，key 取 name 也无妨：
+ *    它们的 name 各不相同，切换时照常重建。
  */
 const viewKey = computed(() => {
-  if (!route.meta.overlay) return route.fullPath
-  const host = route.matched[route.matched.length - 2]
-  return host?.path ?? route.fullPath
+  if (route.meta.overlay) {
+    // 返回宿主页面的 name（如 /record/finance-categories 的宿主是 Record），
+    // 与直接访问 /record 时产出的 key 完全一致（都是 'Record'），
+    // 从而保证 push/pop 覆盖层时宿主页**不被重建**。
+    const host = route.matched[route.matched.length - 2]
+    return host?.name ?? route.name ?? route.fullPath
+  }
+  return route.name ?? route.fullPath
 })
+
+/**
+ * `<KeepAlive>` 缓存白名单（spec-20260924-v2 S1）。
+ *
+ * 只缓存 5 个主 Tab 页，**不**含二级页 / 详情页（它们的 name 不在名单里，
+ * 照常销毁重建）。按 name 精确匹配，避免误缓存。
+ */
+const KEEP_ALIVE_TABS = ['Home', 'Task', 'Record', 'Stat', 'Me']
 
 /**
  * 状态栏占位的底色：必须与「当前页 header 的首端色」严格同色。
@@ -204,8 +227,15 @@ onMounted(() => {
       @mousedown="swipeHandlers.mousedown"
     >
       <router-view v-slot="{ Component }">
-        <transition name="fade-page" mode="out-in">
-          <component :is="Component" :key="viewKey" />
+        <!-- 2026-09-24（spec-20260924-v2 S1+S2）：
+             ① `<KeepAlive>` 缓存 5 个主 Tab 页，切回不重建、不重拉（瞬切）；
+             ② transition 去掉 `mode="out-in"`，缩短时长——原来串行 260ms
+                （淡出 130 + 淡入 130）中间有一小段空档，现在重叠且总时长约 90ms。
+             详见同批 spec `md/spec-20260924-v2/`。 -->
+        <transition name="fade-page">
+          <keep-alive :include="KEEP_ALIVE_TABS">
+            <component :is="Component" :key="viewKey" />
+          </keep-alive>
         </transition>
       </router-view>
     </main>
@@ -449,14 +479,26 @@ onMounted(() => {
 }
 
 /* 页面过渡（Tab 之间切换）。
-   mode="out-in" 下总耗时 = 离开 + 进入，用 --duration-page(130ms) 而不是
-   --duration-fast(200ms)，把 400ms 压到 260ms，点 Tab 的响应感明显变快。 */
+
+   2026-09-24（spec-20260924-v2 S2）：
+   - 去掉 `mode="out-in"`（模板里已去）—— 原来串行：旧淡出 130ms 完，新才淡入
+     130ms，总 260ms 且中间有空档。现在两者重叠，总时长约 90ms。
+   - `--duration-page`（130ms）→ `--duration-instant`（80ms）量级。
+   配合 S1 的 KeepAlive（新内容已就绪），过渡只是锦上添花，越短越好。 */
 .fade-page-enter-active,
 .fade-page-leave-active {
-  transition: opacity var(--duration-page) var(--ease-default);
+  transition: opacity var(--duration-instant) var(--ease-default);
 }
 .fade-page-enter-from,
 .fade-page-leave-to {
   opacity: 0;
+}
+
+/* 尊重「减少动态效果」的系统设置 */
+@media (prefers-reduced-motion: reduce) {
+  .fade-page-enter-active,
+  .fade-page-leave-active {
+    transition: none;
+  }
 }
 </style>

@@ -18,6 +18,8 @@
  *  4. 「首次登录需改密」提示（pwd_reset_required）—— 后端管理员建号初始密码
  *     123456 会置该标记，桌面端有横幅提示，移动端在此页内联提示。
  */
+// ⚠️ 显式组件名（spec-20260924-v2 S1）：供 HomeLayout 的 `<KeepAlive :include>` 匹配。
+defineOptions({ name: 'Me' })
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showFailToast, showToast } from 'vant'

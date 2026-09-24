@@ -82,26 +82,48 @@ const KPI_ITEMS: { key: string; icon: IconName; tint: TintName; label: string; r
   { key: 'income', icon: 'TrendingUp', tint: 'success', label: '本月收入', route: '/stat' },
 ]
 
+/**
+ * 首页模块级数据缓存（spec-20260924-v2 S1 · 桌面端数据级缓存）
+ *
+ * 桌面端 React 无 KeepAlive，切页会卸载重挂。用模块级变量做 SWR：
+ * 再次进页时先用上次数据立即渲染（不闪 loading），后台静默刷新。
+ * 模块级变量不随组件实例销毁而清空；登出时不必特意清（登录页不渲染首页，
+ * 下次登录后首次进首页会静默刷新覆盖）。若未来要严格隔离账号，可在登出流程里重置。
+ */
+const homeCache: { data: HomeResp | null; timeline: TimelineEvent[] | null; at: number } = {
+  data: null,
+  timeline: null,
+  at: 0,
+}
+
 export default function HomePage() {
   const navigate = useNavigate()
   const moodStore = useMoodStore()
   const habitStore = useHabitStore()
 
   // —— 首页聚合数据（本地状态，以便区分 error / empty）——
-  const [home, setHome] = useState<HomeResp | null>(null)
-  const [homeLoading, setHomeLoading] = useState(true)
+  // 初始值取模块级缓存（有则立即渲染、不闪 loading；无则首拉）
+  const [home, setHome] = useState<HomeResp | null>(() => homeCache.data)
+  const [homeLoading, setHomeLoading] = useState(homeCache.data === null)
   const [homeError, setHomeError] = useState(false)
 
   // —— 时间线数据 ——
-  const [timelineItems, setTimelineItems] = useState<TimelineEvent[]>([])
-  const [timelineLoading, setTimelineLoading] = useState(true)
+  const [timelineItems, setTimelineItems] = useState<TimelineEvent[]>(() => homeCache.timeline ?? [])
+  const [timelineLoading, setTimelineLoading] = useState(homeCache.timeline === null)
   const [timelineError, setTimelineError] = useState(false)
 
-  const refresh = useCallback(async () => {
-    setHomeLoading(true)
-    setHomeError(false)
-    setTimelineLoading(true)
-    setTimelineError(false)
+  /**
+   * @param silent 静默刷新（2026-09-24 S1）：不置 loading、失败不清空已有数据。
+   *        再次进页时 true；首进 / 手动重试不传。
+   */
+  const refresh = useCallback(async (opts: { silent?: boolean } = {}) => {
+    const silent = opts.silent === true
+    if (!silent) {
+      setHomeLoading(true)
+      setHomeError(false)
+      setTimelineLoading(true)
+      setTimelineError(false)
+    }
 
     const [homeRes, timelineRes] = await Promise.allSettled([
       homeApi.fetch(),
@@ -110,7 +132,9 @@ export default function HomePage() {
 
     if (homeRes.status === 'fulfilled') {
       setHome(homeRes.value)
-    } else {
+      homeCache.data = homeRes.value
+      homeCache.at = Date.now()
+    } else if (!silent) {
       setHome(null)
       setHomeError(true)
     }
@@ -118,15 +142,18 @@ export default function HomePage() {
 
     if (timelineRes.status === 'fulfilled') {
       setTimelineItems(timelineRes.value.items ?? [])
-    } else {
+      homeCache.timeline = timelineRes.value.items ?? []
+    } else if (!silent) {
       setTimelineItems([])
+      homeCache.timeline = []
       setTimelineError(true)
     }
     setTimelineLoading(false)
   }, [])
 
   useEffect(() => {
-    refresh()
+    // 有缓存 → 静默刷新（先显缓存）；无缓存 → 首拉带 loading
+    refresh({ silent: homeCache.data !== null })
     // 拉时间线而不是只拉 today：顺带拿到服务端 now_hour，点心情才能落到正确的小时
     moodStore.fetchTimeline()
     habitStore.fetchList()

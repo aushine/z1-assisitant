@@ -21,7 +21,11 @@
  *     20260922 两端一致：走 `resolveHabitIconView`（04 §4.2 优先级链），
  *     桌面端原先读 `h.category`（结构里没有 ⇒ 图标恒为灰色）已同轮修正。
  */
-import { computed, onMounted, ref, watchEffect } from 'vue'
+// ⚠️ 显式组件名（spec-20260924-v2 S1）：HomeLayout 的 `<KeepAlive :include>` 按
+// **组件名**匹配，而本页文件是 index.vue，不写 name 时推断名会是 "index"，
+// 与 include 白名单（'Home'）对不上 → 缓存失效。必须显式声明。
+defineOptions({ name: 'Home' })
+import { computed, onActivated, ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
@@ -74,11 +78,16 @@ const timelineItems = ref<TimelineEvent[]>([])
 const timelineLoading = ref(true)
 const timelineError = ref(false)
 
-async function refresh(): Promise<void> {
-  homeLoading.value = true
-  homeError.value = false
-  timelineLoading.value = true
-  timelineError.value = false
+async function refresh(opts: { silent?: boolean } = {}): Promise<void> {
+  const silent = opts.silent === true
+  // 静默刷新（2026-09-24 S1）：切回 Tab 时不清空、不显示 loading，先拿缓存渲染，
+  // 拉到新数据再替换（失败也保留已有内容）。首拉 / 下拉刷新仍走非静默分支。
+  if (!silent) {
+    homeLoading.value = true
+    homeError.value = false
+    timelineLoading.value = true
+    timelineError.value = false
+  }
 
   const [homeRes, timelineRes] = await Promise.allSettled([
     homeApi.fetch(),
@@ -87,7 +96,8 @@ async function refresh(): Promise<void> {
 
   if (homeRes.status === 'fulfilled') {
     home.value = homeRes.value
-  } else {
+    homeError.value = false
+  } else if (!silent) {
     home.value = null
     homeError.value = true
   }
@@ -95,7 +105,8 @@ async function refresh(): Promise<void> {
 
   if (timelineRes.status === 'fulfilled') {
     timelineItems.value = timelineRes.value.items ?? []
-  } else {
+    timelineError.value = false
+  } else if (!silent) {
     timelineItems.value = []
     timelineError.value = true
   }
@@ -344,9 +355,16 @@ async function onQuickTxSave(
 }
 
 // ==================== 生命周期 ====================
-onMounted(async () => {
+// 2026-09-24（spec-20260924-v2 S1）：本页被 `<KeepAlive>` 缓存，切回不再重建。
+// 首拉带 loading（走骨架屏），回归时**静默刷新**：先拿缓存渲染，后台拉新数据替换。
+// ⚠️ 首拉逻辑放 onActivated（不可放 onMounted）—— Vue 中首次挂载也会触发
+//    onActivated，放两处会重复发一次请求。用 firstLoad 区分首拉/回归。
+let firstLoad = true
+onActivated(async () => {
+  const silent = !firstLoad
+  firstLoad = false
   await Promise.all([
-    refresh(),
+    refresh({ silent }),
     moodStore.fetchByDate(todayDate()),
     habitStore.fetchHabits(),
     financeStore.fetchAccounts(),

@@ -41,13 +41,24 @@ const KEEP_ALIVE_TABS = ['Home', 'Task', 'Record', 'Stat', 'Me']
 </router-view>
 ```
 
+> ⚠️ **`<KeepAlive :include>` 匹配的是「组件 name」，不是 vnode key**。
+> 5 个页面都是 `pages/*/index.vue`，**不写 name 时推断名都是 `index`**（互相碰撞、
+> 且与白名单对不上）→ 缓存完全失效。因此**必须**在每个页面里显式声明：
+> ```ts
+> defineOptions({ name: 'Home' })  // Task / Record / Stat / Me 同理
+> ```
+> 这是本批最容易踩的坑，已在代码里落地并注释。
+
 > ⚠️ **key 从 `route.fullPath` 改为 `route.name`**：
 > KeepAlive 靠 key 判断"是不是同一个实例"。若 key 用 fullPath，同 Tab 带不同 query
 > （如 `/task?filter=all` → `/task?filter=done`）会被当成两个实例、缓存两份、且都命中不了，
 > 反而更差。改用 `route.name` 后，**同 Tab 恒定复用同一实例**；Tab 内的 query 变化
 > 由页面自身 `watch` 处理（现有逻辑保留）。
 > ⚠️ **覆盖层子路由**（`meta.overlay`）依赖原 `viewKey` 逻辑（与宿主共用 key）——
-> 改造时需**保留 overlay 分支**：`key = route.meta.overlay ? hostPath : route.name`。
+> 改造时需**保留 overlay 分支**，且返回**宿主路由的 name**（不是 path），
+> 才能与直接访问宿主页时产出的 key 一致：
+> `key = route.meta.overlay ? 宿主.name : route.name`。
+> （宿主的覆盖层由 Record 页自己的内层 `<router-view>` 渲染，外层只需保证宿主不重建。）
 
 ### 3.2 数据刷新：缓存 ≠ 陈旧
 缓存实例后，切回来看到的是上次的 DOM。**必须**在 `onActivated` 做静默刷新：
