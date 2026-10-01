@@ -2,12 +2,12 @@
   "id": "T-004",
   "spec": "md/spec-20261001-v3/schedule.md",
   "title": "Schedule · spec-20261001-v3",
-  "status": "claimed",
-  "branch": null,
+  "status": "in-progress",
+  "branch": "T-004-schedule",
   "pr": null,
   "schedule": "spec-20261001-v3",
   "claimed_by": "logos@104n5e53hbg3q9i",
-  "updated_at": "2026-10-01T12:20:38.517Z",
+  "updated_at": "2026-10-01T12:20:49.098Z",
   "log": [
     {
       "at": "2026-10-01T12:20:28.741Z",
@@ -20,6 +20,13 @@
       "at": "2026-10-01T12:20:38.517Z",
       "from": "todo",
       "to": "claimed",
+      "by": "runner",
+      "note": ""
+    },
+    {
+      "at": "2026-10-01T12:20:49.098Z",
+      "from": "claimed",
+      "to": "in-progress",
       "by": "runner",
       "note": ""
     }
