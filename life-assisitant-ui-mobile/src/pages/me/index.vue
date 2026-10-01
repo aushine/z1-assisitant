@@ -28,8 +28,9 @@ import { useThemeStore } from '@/stores/theme'
 import { userApi } from '@/api/user'
 import { compressAvatar } from '@/utils/avatar'
 import { displayNameOf } from '@/utils/avatar'
+import { htlbUrl } from '@/utils/external'
 import { getTint } from '@/utils/tint'
-import { ANNIVERSARY_VIEW, HEALTH_VIEW } from '@/utils/permissions'
+import { ANNIVERSARY_VIEW } from '@/utils/permissions'
 import UserAvatar from '@/components/UserAvatar.vue'
 import Icon from '@/components/icon/Icon.vue'
 import type { IconName } from '@/components/icon/names'
@@ -107,6 +108,8 @@ interface SettingItem {
   label: string
   sublabel?: string
   path: string
+  /** 外链项（spec-20261001-v2）：path 是完整 URL，点击当前页跳转而非 router.push */
+  external?: boolean
 }
 
 /**
@@ -145,18 +148,18 @@ const settings = computed<SettingGroup[]>(() => {
       path: '/me/anniversaries',
     })
   }
-  // 健康设置 —— ⚠️ 经期设置已并入这里，个人中心不再有独立的经期入口
-  // （老大 260919 复核 spec 时指出的偏差：两套经期设置并存）
-  if (userStore.hasPermission(HEALTH_VIEW)) {
-    space.push({
-      key: 'health',
-      icon: 'HeartPulse',
-      tint: getTint('danger'),
-      label: '健康设置',
-      sublabel: '指标与经期',
-      path: '/record/health/settings',
-    })
-  }
+  // 性价比人生指南（spec-20261001-v2）—— 原「健康设置」入口替换为 htlb 外链。
+  // 公开内容，不做 HEALTH_VIEW 权限限制；地址运行时按当前 host 计算（utils/external.ts）。
+  // 站内健康设置页（/record/health/settings）保留，入口在记录页。
+  space.push({
+    key: 'htlb',
+    icon: 'HeartPulse',
+    tint: getTint('danger'),
+    label: '性价比人生指南',
+    sublabel: '用最少的钱换回寿命',
+    path: htlbUrl(),
+    external: true,
+  })
   groups.push({ key: 'space', title: '我的空间', items: space })
 
   // ── 偏好 ──
@@ -255,8 +258,13 @@ const settings = computed<SettingGroup[]>(() => {
   return groups
 })
 
-function go(path: string): void {
-  router.push(path)
+function go(item: SettingItem): void {
+  // 外链项当前页跳转（spec-20261001-v2 D3：location.href，非新标签）；站内项走路由
+  if (item.external) {
+    window.location.href = item.path
+    return
+  }
+  router.push(item.path)
 }
 
 // ==================== 退出 ====================
@@ -359,7 +367,7 @@ function onVersionTap(): void {
             :key="item.key"
             class="setting-item"
             type="button"
-            @click="go(item.path)"
+            @click="go(item)"
           >
           <span class="setting-icon" :style="{ background: item.tint.bg }">
             <Icon :name="item.icon" :size="20" :style="{ color: item.tint.fg }" />

@@ -2,7 +2,7 @@
  * Me page (React 18 + TSX) — Personal center
  * M4: refactored to navigate to sub-pages instead of inline SideSheets
  */
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef } from 'react'
 import type { ChangeEvent, ReactNode } from 'react'
 import {
   Card,
@@ -13,10 +13,10 @@ import { useNavigate } from 'react-router-dom'
 import { useUserStore, useDisplayName, useHasPermission } from '@/stores/user'
 import UserAvatar from '@/components/UserAvatar'
 import { compressAvatar } from '@/utils/avatar'
+import { htlbUrl } from '@/utils/external'
 import { userApi } from '@/api/user'
 import { storage } from '@/utils/storage'
 import { Icon, TINT_VARS } from '@/components/icon'
-import HealthSettingsDrawer from '@/pages/record/components/HealthSettingsDrawer'
 import type { IconName, TintName } from '@/components/icon'
 import type { RoleCode } from '@/api/types'
 
@@ -41,8 +41,6 @@ export default function MePage() {
   const userStore = useUserStore()
   const navigate = useNavigate()
   const displayName = useDisplayName()
-  /** 健康设置浮层（「我的空间 → 健康设置」不开新页，直接开浮层） */
-  const [healthOpen, setHealthOpen] = useState(false)
   /** 纪念日入口按 anniversary:view 显隐（无权限则整项不渲染，与后端权限点一致） */
   const canAnniversary = useHasPermission('anniversary:view')
   /** 记账分类入口按 finance:view 显隐（与分类选择器同权限点） */
@@ -97,7 +95,7 @@ const GROUP_ORDER: ReadonlyArray<{ key: string; title: string }> = [
 ]
 
   // Build settings list — grouped; each item navigates to its sub-page
-  // （除了「健康设置」：它是浮层，不开新页）
+  // （例外：「性价比人生指南」是外链，当前页跳转，见 utils/external.ts）
   const groups: SettingGroup[] = [
     {
       key: 'space',
@@ -122,14 +120,14 @@ const GROUP_ORDER: ReadonlyArray<{ key: string; title: string }> = [
               },
             ]
           : []),
-        // 健康设置 —— ⚠️ 直接开浮层，不开新页（与记录页共用同一个 Drawer）。
-        // 经期设置已并入这里，个人中心不再有独立的经期入口。
+        // 性价比人生指南（spec-20261001-v2）—— 原「健康设置」浮层入口替换为 htlb 外链。
+        // 本页浮层状态已移除；HealthSettingsDrawer 组件在记录页 HealthTab 仍有独立入口，不受影响。
         {
-          key: 'health',
+          key: 'htlb',
           icon: <Icon name="HeartPulse" size={20} />,
-          label: '健康设置',
-          sublabel: '指标与经期',
-          onClick: () => setHealthOpen(true),
+          label: '性价比人生指南',
+          sublabel: '用最少的钱换回寿命',
+          onClick: () => { window.location.href = htlbUrl() },
         },
       ],
     },
@@ -284,9 +282,6 @@ const GROUP_ORDER: ReadonlyArray<{ key: string; title: string }> = [
           })}
         </div>
       </Card>
-
-      {/* 健康设置浮层（与记录页共用同一个组件） */}
-      <HealthSettingsDrawer visible={healthOpen} onClose={() => setHealthOpen(false)} />
     </div>
   )
 }
