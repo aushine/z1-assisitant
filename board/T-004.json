@@ -2,7 +2,7 @@
   "id": "T-004",
   "spec": "md/spec-20261001-v3/schedule.md",
   "title": "Schedule · spec-20261001-v3",
-  "status": "in-progress",
+  "status": "merged",
   "branch": "T-004-schedule",
   "pr": null,
   "schedule": "spec-20261001-v3",
@@ -29,6 +29,14 @@
       "to": "in-progress",
       "by": "runner",
       "note": ""
+    },
+    {
+      "at": "2026-10-01T13:07:20.000Z",
+      "from": "pr-open",
+      "to": "merged",
+      "by": "apeiron",
+      "note": "核验通过，合并 main"
     }
-  ]
+  ],
+  "note": "主理人核验通过并合并 main（merge commit）；双端 vue-tsc/tsc 0 错误，代码 8b643f7"
 }
