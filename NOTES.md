@@ -143,6 +143,16 @@ z1-assisitant/
 
 ## 6. 改动日志
 
+### 2026-10-01
+- **完成信号规范化批次 `md/spec-20261001-v1(√)`**（用户拍板：后缀统一为**全角 `(√)`**，v1/v2/v3 确认全部已上线）：
+  - 主因：罗格 18:48–18:58 把完成信号打成**裸 `√`**（`spec-xxx-v1√`），与 `md/PROCESS.md` §3.3 规定的 `(√)` 不符 → 触发状态机误判。
+  - **状态机 BUG（已修）**：`scripts/z1-fsm.py` 的 `find_active_spec()` ①正则只认全角 `(√)`，裸 `√` 不匹配 → 落入无排序的 `os.listdir` fallback → **误选中 9/24 的 `spec-20260924-v1√` 当活跃批次**并判「已完成」；②`spectest-*` 非标准命名被忽略。
+    - 修复：正则兼容 `(√)` 与裸 `√`；**显式按 (日期, 版本号) 排序**（弃用 listdir 顺序）；**非 `spec-<日期>-v<数字>` 主格式一律忽略**（spectest 不再能误入）。已用临时 fixture 回归（裸√识别 / 排序 / spectest 排除）通过。
+    - 止血：误判期间**关停** cron `596cb817`（每10分钟轮询）+ `systemctl --user stop z1-hook.service`（push→FSM），均已确认生效（8790 端口释放）。修好后**尚未重开**，待用户确认。
+  - 罗格交付（`6fbbde1` + `4086d51`）：4 个目录 `git mv` 为 `(√)`（R100 全改名）；`board/T-001.json` spec 指向校正为 `md/spec-20260924-v3(√)/README.md`、status `blocked→merged`；`md/spec-20261001-v1` 收口打 `(√)`。核验：**零业务代码改动**，schedule 全勾，`md/` 下无裸 `√` 残留。**主理人核验通过。**
+  - 遗留：`board/T-002.json` 是 runner 从本批 schedule 误收进来的伪任务（仍 in-progress），需清理；`schedules/spec-20261001-v1.md` 里 T-002 复选框未勾。
+- **罗格侧子代理通道故障**：`provider account:bigmodel-start-plan 缺失`，两次派发均失败，罗格按预案 inline 执行。
+
 ### 2026-09-30
 - **NOTES.md 迁入仓库根**（commit `32b5734`）：`z1/NOTES.md` → `z1-assisitant/NOTES.md`，成为项目级记忆，随仓库走（clone/pull 即得）。工作目录 = 仓库根。
 - **md/测试文件.txt**（commit `69d8853`，后追加 commit `91e7563`）：内容「这是写给罗格看的测试文件校验码113223333」+「测试发送到飞书群」。用于跨 bot 同步链路 + 飞书群发文件能力测试，均已验证通过。
