@@ -705,6 +705,23 @@
   }
 }
 
+// 性价比人生指南内嵌页（spec-20261001-v3）：iframe 铺满内容区。
+// .content（layout.scss）是 flex:1 的定高滚动容器 ⇒ height:100% 可解析；
+// 页内返回栏定高 + iframe flex:1，只有 iframe 内部文档滚动，无双滚动条。
+.htlb-page {
+  height: 100%;
+}
+
+.htlb-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: block;
+  border: 0;
+  // 加载瞬间的底色跟随主题，暗色下不闪白
+  background: var(--color-bg-card);
+}
+
 .field {
   margin-bottom: $space-4;
 }

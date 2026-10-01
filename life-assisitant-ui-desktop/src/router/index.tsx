@@ -20,6 +20,7 @@ import MeSecurityPage from '@/pages/me/security'
 import MeSyncPage from '@/pages/me/sync'
 import MeHelpPage from '@/pages/me/help'
 import MeAboutPage from '@/pages/me/about'
+import MeHtlbPage from '@/pages/me/htlb'
 import UserPage from '@/pages/user'
 import PermissionPage from '@/pages/permission'
 import ForbiddenPage from '@/pages/error/403'
@@ -113,6 +114,8 @@ export const router = createBrowserRouter([
       { path: 'me/sync', element: <MeSyncPage /> },
       { path: 'me/help', element: <MeHelpPage /> },
       { path: 'me/about', element: <MeAboutPage /> },
+      // 性价比人生指南 · iframe 内嵌页（spec-20261001-v3）：v2 的外链跳转改为站内二级页
+      { path: 'me/htlb', element: <MeHtlbPage /> },
       // 系统管理（D-03：权限点驱动，不再整块绑 admin——
       // 自定义角色勾选 user_mgmt:view / role_mgmt:view 即可进入）
       { path: 'system', element: <Navigate to="/system/user" replace /> },

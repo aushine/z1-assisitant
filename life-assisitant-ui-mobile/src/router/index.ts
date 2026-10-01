@@ -185,6 +185,16 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/me/about.vue'),
     meta: { title: '关于', requiresAuth: true },
   },
+  // 性价比人生指南 · iframe 内嵌页（spec-20261001-v3）：v2 的外链跳转改为站内二级页。
+  // 顶层路由（与 /record/health/settings 同级，理由见本节顶部注释：挂 HomeLayout
+  // 下会继承布局滚动容器 → 与 iframe 叠加出双滚动条）；hideTab 为显式标记 ——
+  // 顶层路由本就不在 HomeLayout 内，TabBar 天然不渲染。
+  {
+    path: '/me/htlb',
+    name: 'MeHtlb',
+    component: () => import('@/pages/me/htlb.vue'),
+    meta: { title: '性价比人生指南', requiresAuth: true, hideTab: true },
+  },
 
   // ============ 账目详情 · 二级页（260921 v2 批次二） ============
   //
