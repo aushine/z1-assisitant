@@ -1,0 +1,20 @@
+{
+  "id": "T-003",
+  "spec": "md/spec-20261001-v2/schedule.md",
+  "title": "Schedule · spec-20261001-v2",
+  "status": "todo",
+  "branch": null,
+  "pr": null,
+  "schedule": "spec-20261001-v2",
+  "claimed_by": null,
+  "updated_at": "2026-10-01T11:32:25.928Z",
+  "log": [
+    {
+      "at": "2026-10-01T11:32:25.930Z",
+      "from": null,
+      "to": "todo",
+      "by": "intake",
+      "note": "检测到 spec 批次文件夹新需求"
+    }
+  ]
+}
