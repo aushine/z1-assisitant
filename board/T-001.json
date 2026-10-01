@@ -1,0 +1,20 @@
+{
+  "id": "T-001",
+  "spec": "md/spec-20260924-v3/README.md",
+  "title": "Spec · 2026-09-24 · v3",
+  "status": "todo",
+  "branch": null,
+  "pr": null,
+  "schedule": "spec-20260924-v3",
+  "claimed_by": null,
+  "updated_at": "2026-10-01T10:49:00.838Z",
+  "log": [
+    {
+      "at": "2026-10-01T10:49:00.840Z",
+      "from": null,
+      "to": "todo",
+      "by": "intake",
+      "note": "检测到 spec 批次文件夹新需求"
+    }
+  ]
+}
