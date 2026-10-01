@@ -13,7 +13,6 @@ import { useNavigate } from 'react-router-dom'
 import { useUserStore, useDisplayName, useHasPermission } from '@/stores/user'
 import UserAvatar from '@/components/UserAvatar'
 import { compressAvatar } from '@/utils/avatar'
-import { htlbUrl } from '@/utils/external'
 import { userApi } from '@/api/user'
 import { storage } from '@/utils/storage'
 import { Icon, TINT_VARS } from '@/components/icon'
@@ -95,7 +94,6 @@ const GROUP_ORDER: ReadonlyArray<{ key: string; title: string }> = [
 ]
 
   // Build settings list — grouped; each item navigates to its sub-page
-  // （例外：「性价比人生指南」是外链，当前页跳转，见 utils/external.ts）
   const groups: SettingGroup[] = [
     {
       key: 'space',
@@ -120,14 +118,14 @@ const GROUP_ORDER: ReadonlyArray<{ key: string; title: string }> = [
               },
             ]
           : []),
-        // 性价比人生指南（spec-20261001-v2）—— 原「健康设置」浮层入口替换为 htlb 外链。
+        // 性价比人生指南（spec-20261001-v2 引入，v3 由外链跳转改为**站内 iframe 内嵌页**）。
         // 本页浮层状态已移除；HealthSettingsDrawer 组件在记录页 HealthTab 仍有独立入口，不受影响。
         {
           key: 'htlb',
           icon: <Icon name="HeartPulse" size={20} />,
           label: '性价比人生指南',
           sublabel: '用最少的钱换回寿命',
-          onClick: () => { window.location.href = htlbUrl() },
+          onClick: () => navigate('/me/htlb'),
         },
       ],
     },

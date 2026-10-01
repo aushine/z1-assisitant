@@ -28,7 +28,6 @@ import { useThemeStore } from '@/stores/theme'
 import { userApi } from '@/api/user'
 import { compressAvatar } from '@/utils/avatar'
 import { displayNameOf } from '@/utils/avatar'
-import { htlbUrl } from '@/utils/external'
 import { getTint } from '@/utils/tint'
 import { ANNIVERSARY_VIEW } from '@/utils/permissions'
 import UserAvatar from '@/components/UserAvatar.vue'
@@ -108,8 +107,6 @@ interface SettingItem {
   label: string
   sublabel?: string
   path: string
-  /** 外链项（spec-20261001-v2）：path 是完整 URL，点击当前页跳转而非 router.push */
-  external?: boolean
 }
 
 /**
@@ -148,8 +145,8 @@ const settings = computed<SettingGroup[]>(() => {
       path: '/me/anniversaries',
     })
   }
-  // 性价比人生指南（spec-20261001-v2）—— 原「健康设置」入口替换为 htlb 外链。
-  // 公开内容，不做 HEALTH_VIEW 权限限制；地址运行时按当前 host 计算（utils/external.ts）。
+  // 性价比人生指南（spec-20261001-v2 引入，v3 由外链跳转改为**站内 iframe 内嵌页**）。
+  // 公开内容，不做 HEALTH_VIEW 权限限制；指南地址由内嵌页运行时计算（utils/external.ts）。
   // 站内健康设置页（/record/health/settings）保留，入口在记录页。
   space.push({
     key: 'htlb',
@@ -157,8 +154,7 @@ const settings = computed<SettingGroup[]>(() => {
     tint: getTint('danger'),
     label: '性价比人生指南',
     sublabel: '用最少的钱换回寿命',
-    path: htlbUrl(),
-    external: true,
+    path: '/me/htlb',
   })
   groups.push({ key: 'space', title: '我的空间', items: space })
 
@@ -259,11 +255,7 @@ const settings = computed<SettingGroup[]>(() => {
 })
 
 function go(item: SettingItem): void {
-  // 外链项当前页跳转（spec-20261001-v2 D3：location.href，非新标签）；站内项走路由
-  if (item.external) {
-    window.location.href = item.path
-    return
-  }
+  // 全部是站内项（v3 起 htlb 也走内嵌页路由，不再有外链跳转分支）
   router.push(item.path)
 }
 
