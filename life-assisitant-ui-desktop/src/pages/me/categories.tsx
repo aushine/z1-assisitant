@@ -1,27 +1,28 @@
 /**
- * 分类管理页 —— 习惯 / 待办（桌面端 · spec-20260922-v2/04 §4.4）
+ * 分类管理页 —— 习惯 / 待办（桌面端 · spec-20260922-v2/04 §4.4；R3/R4 两级重构）
  *
- * 形态**完全照抄** `me/finance-categories.tsx`（页面骨架 / 行操作 /
- * SideSheet 编辑 / Modal 删除确认同一份规范），只减掉两级树：
- * 一级平铺 ⇒ 行上直接「编辑 / 删除」。一页两分段（习惯 / 待办），
- * 分段初值取 `?domain=`（CategoryTiles「管理 ›」带入）。
+ * 形态**照抄** `me/finance-categories.tsx`（页面骨架 / 行操作 / SideSheet 编辑 /
+ * Modal 删除确认同一份规范），并升级为**两级树**（一级 + 行内展开的二级）。
  *
+ * ⚠️ 2026-09-24（spec-20260924-v1 §03 R3 + §04 R4）重构：
+ *   1. **去掉页内「习惯/待办」分段切换** —— 由各自的入口带 `?domain=` 进来，\n *      页面只显示该域的分类；标题随 domain 变「习惯分类管理 / 待办分类管理」。\n *   2. **两级**：一级行可展开看二级，二级支持增删改；一级行另有「添加二级」。\n *   3. 删一级 → 后端级联软删其二级（前端仅提示语义）。\n *
  * 视觉：`.management-page`（max-width 900，管理场景），**不是** .settings-page。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Card, Button, RadioGroup, Radio, SideSheet, Modal, Skeleton, Empty } from '@douyinfe/semi-ui'
+import { Card, Button, SideSheet, Modal, Skeleton, Empty } from '@douyinfe/semi-ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Icon, ICONS, TINT_VARS } from '@/components/icon'
 import type { IconName, TintName } from '@/components/icon'
 import { TINT_NAMES } from '@/components/icon/tints'
 import { useUserCategoryStore, normalizeIconRef, DOMAIN_FALLBACK_ICON } from '@/stores/user-category'
-import { CATEGORY_MENU_ACTIONS } from '@/constants/category-menu'
 import type { UserCategory, UserCategoryDomain } from '@/api/types'
 import IconPicker from '@/components/finance/IconPicker'
 
 interface EditState {
   /** 正在编辑的分类（新建时为空） */
   cat?: UserCategory
+  /** 新建时的所属一级（新增二级用）；一级新建为 undefined */
+  parent?: UserCategory
 }
 
 function initialDomain(q: string | null): UserCategoryDomain {
@@ -37,18 +38,28 @@ export default function MeCategoriesPage() {
   const loading = useUserCategoryStore((s) => s.loading)
   const loadedOnce = useUserCategoryStore((s) => s.loadedOnce)
 
-  const [domain, setDomain] = useState<UserCategoryDomain>(() => initialDomain(searchParams.get('domain')))
+  const [domain] = useState<UserCategoryDomain>(() => initialDomain(searchParams.get('domain')))
   const [edit, setEdit] = useState<EditState | null>(null)
   const [deleting, setDeleting] = useState<UserCategory | null>(null)
+  /** 展开的一级分类 id 集合 */
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
 
   useEffect(() => {
-    // 两域一起预热（ensureFresh 内部按域去重），切分段不用再等
-    void store.getState().ensureFresh()
+    // 只预热当前域（R4：不再一次拉两域）
+    void store.getState().ensureFresh(domain)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [domain])
 
-  const categories = useMemo(() => items[domain] ?? [], [items, domain])
-  const isEmptyLoading = loading[domain] && !loadedOnce[domain] && categories.length === 0
+  /** 一级分类（按 sort） */
+  const topLevel = useMemo(
+    () => (items[domain] ?? []).filter((c) => !c.parent_id),
+    [items, domain],
+  )
+  const childrenOf = useCallback(
+    (parentId: string) => (items[domain] ?? []).filter((c) => c.parent_id === parentId),
+    [items, domain],
+  )
+  const isEmptyLoading = loading[domain] && !loadedOnce[domain] && topLevel.length === 0
 
   const onDelete = useCallback((cat: UserCategory) => setDeleting(cat), [])
 
@@ -59,12 +70,28 @@ export default function MeCategoriesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deleting])
 
-  function openCreate() {
+  function toggleExpand(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function openCreateTop() {
     setEdit({})
+  }
+  function openCreateChild(parent: UserCategory) {
+    setEdit({ parent })
+    // 新建二级时确保其父展开
+    setExpanded((prev) => new Set(prev).add(parent.id))
   }
   function openEdit(cat: UserCategory) {
     setEdit({ cat })
   }
+
+  const domainLabel = domain === 'habit' ? '习惯' : '待办'
 
   return (
     <div className="management-page">
@@ -72,69 +99,102 @@ export default function MeCategoriesPage() {
         <div>
           <h2 className="page-title">
             <Icon name="FolderOpen" size={22} style={{ marginRight: 8 }} />
-            分类管理
+            {domainLabel}分类管理
           </h2>
-          <span className="page-tip">自定义习惯 / 待办分类、图标与颜色；历史记录按 id 关联，分类删除不影响已有数据</span>
+          <span className="page-tip">
+            自定义{domainLabel}分类（支持二级）、图标与颜色；历史记录按 id 关联，分类删除不影响已有数据
+          </span>
         </div>
         <div className="header-right">
-          <Button theme="solid" type="primary" icon={<Icon name="PlusCircle" size={16} />} onClick={openCreate}>
-            新建分类
+          <Button theme="solid" type="primary" icon={<Icon name="PlusCircle" size={16} />} onClick={openCreateTop}>
+            新建一级分类
           </Button>
         </div>
       </div>
 
       <Card bordered={false} className="card">
-        <div className="ann-scope">
-          <RadioGroup
-            type="button"
-            value={domain}
-            onChange={(e: any) => setDomain((e?.target?.value ?? e) as UserCategoryDomain)}
-          >
-            <Radio value="habit">习惯分类</Radio>
-            <Radio value="task">待办分类</Radio>
-          </RadioGroup>
-        </div>
-
         {isEmptyLoading ? (
           <div className="skeleton-wrap">
             <Skeleton>
               <Skeleton.Paragraph rows={4} />
             </Skeleton>
           </div>
-        ) : categories.length === 0 ? (
+        ) : topLevel.length === 0 ? (
           <Empty
             image={<Icon name="FolderOpen" size={48} />}
             title="还没有分类"
-            description="点右上角「新建分类」添加第一个吧"
+            description="点右上角「新建一级分类」添加第一个吧"
           />
         ) : (
           <div className="cat-mg-list">
-            {categories.map((cat) => {
+            {topLevel.map((cat) => {
               const v = store.getState().resolveCategory(domain, cat.id)
               const tint = v?.tint ?? 'neutral'
               const icon = v?.icon ?? normalizeIconRef(cat.icon)?.icon ?? DOMAIN_FALLBACK_ICON[domain]
+              const children = childrenOf(cat.id)
+              const isOpen = expanded.has(cat.id)
               return (
                 <div key={cat.id} className="cat-mg-row">
                   <div className="cat-mg-head">
+                    <button
+                      type="button"
+                      className="cat-mg-toggle"
+                      onClick={() => children.length && toggleExpand(cat.id)}
+                      aria-label={isOpen ? '收起二级' : '展开二级'}
+                      style={{ visibility: children.length ? 'visible' : 'hidden' }}
+                    >
+                      <Icon name={isOpen ? 'ChevronDown' : 'ChevronRight'} size={16} />
+                    </button>
                     <span className="cat-emoji" style={{ background: TINT_VARS[tint].bg, color: TINT_VARS[tint].fg }}>
                       <Icon name={icon} size={18} />
                     </span>
                     <div className="cat-mg-title">{cat.name}</div>
-                    <div className="cat-mg-sub">{cat.is_builtin ? '内置' : '自定义'}</div>
+                    <div className="cat-mg-sub">
+                      {cat.is_builtin ? '内置' : '自定义'}
+                      {children.length > 0 && ` · ${children.length} 个二级`}
+                    </div>
                     <div className="cat-mg-actions">
-                      {CATEGORY_MENU_ACTIONS.map((act) => (
-                        <Button
-                          key={act.key}
-                          size="small"
-                          theme="light"
-                          type={act.danger ? 'danger' : 'tertiary'}
-                          onClick={() => (act.key === 'edit' ? openEdit(cat) : onDelete(cat))}
-                        >
-                          {act.label}
-                        </Button>
-                      ))}
+                      <Button size="small" theme="light" type="tertiary" onClick={() => openCreateChild(cat)}>
+                        添加二级
+                      </Button>
+                      <Button size="small" theme="light" type="tertiary" onClick={() => openEdit(cat)}>
+                        编辑
+                      </Button>
+                      <Button size="small" theme="light" type="danger" onClick={() => onDelete(cat)}>
+                        删除
+                      </Button>
                     </div>
                   </div>
+
+                  {isOpen && children.length > 0 && (
+                    <div className="cat-mg-children">
+                      {children.map((child) => {
+                        const cv = store.getState().resolveCategory(domain, child.id)
+                        const ctint = cv?.tint ?? 'neutral'
+                        const cicon = cv?.icon ?? normalizeIconRef(child.icon)?.icon ?? DOMAIN_FALLBACK_ICON[domain]
+                        return (
+                          <div key={child.id} className="cat-mg-row cat-mg-row--child">
+                            <div className="cat-mg-head">
+                              <span className="cat-mg-child-dash" aria-hidden="true" />
+                              <span className="cat-emoji" style={{ background: TINT_VARS[ctint].bg, color: TINT_VARS[ctint].fg }}>
+                                <Icon name={cicon} size={16} />
+                              </span>
+                              <div className="cat-mg-title">{child.name}</div>
+                              <div className="cat-mg-sub">{child.is_builtin ? '内置' : '自定义'}</div>
+                              <div className="cat-mg-actions">
+                                <Button size="small" theme="light" type="tertiary" onClick={() => openEdit(child)}>
+                                  编辑
+                                </Button>
+                                <Button size="small" theme="light" type="danger" onClick={() => onDelete(child)}>
+                                  删除
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -152,7 +212,7 @@ export default function MeCategoriesPage() {
         visible={!!edit}
         domain={domain}
         state={edit}
-        siblings={categories}
+        siblings={items[domain] ?? []}
         onClose={() => setEdit(null)}
       />
 
@@ -166,27 +226,32 @@ export default function MeCategoriesPage() {
         onOk={confirmDelete}
       >
         确认删除「{deleting?.name}」？
-        <div className="cat-del-md-line">历史记录会保留，只是以后不再出现在选择器里。</div>
+        <div className="cat-del-md-line">
+          历史记录会保留，只是以后不再出现在选择器里。
+          {deleting && !deleting.parent_id && '该分类下的二级分类会一并删除。'}
+        </div>
       </Modal>
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// 编辑浮层（新建 / 编辑共用 —— 一级平铺，没有二级）
+// 编辑浮层（新建 / 编辑共用 —— 支持一级与二级）
 // ---------------------------------------------------------------------------
 
 interface SheetProps {
   visible: boolean
   domain: UserCategoryDomain
   state: EditState | null
-  /** 同域现有分类（重名行内校验用） */
+  /** 同域现有分类（重名行内校验用；二级重名只与同父下比） */
   siblings: UserCategory[]
   onClose: () => void
 }
 
 function CategoryEditSheet({ visible, domain, state, siblings, onClose }: SheetProps) {
   const editing = state?.cat
+  /** 新建二级时的父（编辑时取 editing.parent_id） */
+  const parentId = editing ? editing.parent_id : state?.parent?.id ?? ''
 
   const [name, setName] = useState('')
   /** 落库口径的图标引用（`lucide:<Name>`）；null = 未选（渲染域默认图标） */
@@ -213,9 +278,16 @@ function CategoryEditSheet({ visible, domain, state, siblings, onClose }: SheetP
     return (ICONS as Record<string, unknown>)[bare] ? (bare as IconName) : null
   }, [iconRef])
 
-  const previewIcon: IconName =
-    normalizeIconRef(iconRef)?.icon ?? DOMAIN_FALLBACK_ICON[domain]
+  const previewIcon: IconName = normalizeIconRef(iconRef)?.icon ?? DOMAIN_FALLBACK_ICON[domain]
   const previewTint: TintName = tint ?? normalizeIconRef(iconRef)?.tint ?? 'neutral'
+
+  const title = editing
+    ? editing.parent_id
+      ? '编辑二级分类'
+      : '编辑一级分类'
+    : parentId
+      ? '新建二级分类'
+      : '新建一级分类'
 
   async function save() {
     const trimmed = name.trim()
@@ -227,8 +299,9 @@ function CategoryEditSheet({ visible, domain, state, siblings, onClose }: SheetP
       setNameError('名称不能超过 10 个字')
       return
     }
-    // 同域重名（后端行内错误也会拦，这里行内提示，口径照抄财务）
-    if (siblings.some((s) => s.name === trimmed && s.id !== editing?.id)) {
+    // 重名校验：二级只与同父下的兄弟比（后端 uk 也是 user+domain+parent+name）
+    const sameParentSiblings = siblings.filter((s) => s.parent_id === parentId)
+    if (sameParentSiblings.some((s) => s.name === trimmed && s.id !== editing?.id)) {
       setNameError('该名称已存在')
       return
     }
@@ -244,6 +317,7 @@ function CategoryEditSheet({ visible, domain, state, siblings, onClose }: SheetP
       } else {
         const created = await useUserCategoryStore.getState().create({
           domain,
+          parent_id: parentId || undefined,
           name: trimmed,
           icon: iconRef,
           tint: tint,
@@ -262,7 +336,7 @@ function CategoryEditSheet({ visible, domain, state, siblings, onClose }: SheetP
       onCancel={saving ? () => undefined : onClose}
       placement="right"
       width={420}
-      title={editing ? '编辑分类' : '新建分类'}
+      title={title}
     >
       <div className="drawer-body">
         <div className="field">

@@ -241,28 +241,58 @@ func (s *StatsService) GetTaskStats(ctx context.Context, rng string) (*dto.TaskS
 		})
 	}
 
-	// 按分类分组
+	// 按分类分组（R3-3：**二级归集到一级** —— 任务若挂在二级分类上，统计要归到其一级，
+	// 否则「给一级看板却记在二级上」永远显示 0；未被引用的二级 id 归 未分类）。
 	catRows, err := dao.Task.GroupByCategory(ctx, uid, start, end)
 	if err != nil {
 		return nil, gerror.WrapCode(ecode.StatsNotAvailable, err, "统计按分类任务失败")
 	}
-	out.ByCategory = make([]dto.TaskCategoryStat, 0, len(catRows))
+
+	// 该用户两级分类映射：二级 → 一级（含名称）；一级 → 自身
+	catMap, err := buildCategoryRollup(ctx, uid, model.UserCategoryDomainTask)
+	if err != nil {
+		return nil, err
+	}
+
+	// 先按一级 id 聚合（保持出现顺序）
+	type agg struct{ total, completed int }
+	aggByTop := map[string]*agg{}
+	order := make([]string, 0, len(catRows))
 	for _, row := range catRows {
-		var rate float64
-		if row.Total > 0 {
-			rate = float64(row.Completed) / float64(row.Total)
+		topID := catMap.rollupTopID(row.CategoryID) // "" = 未分类
+		a := aggByTop[topID]
+		if a == nil {
+			a = &agg{}
+			aggByTop[topID] = a
+			order = append(order, topID)
 		}
-		// 未分类的显示
-		categoryName := row.CategoryID
-		if categoryName == "" {
-			categoryName = "未分类"
+		a.total += int(row.Total)
+		a.completed += int(row.Completed)
+	}
+	out.ByCategory = make([]dto.TaskCategoryStat, 0, len(order))
+	for _, topID := range order {
+		a := aggByTop[topID]
+		var rate float64
+		if a.total > 0 {
+			rate = float64(a.completed) / float64(a.total)
+		}
+		categoryName := "未分类"
+		emoji := "📋"
+		color := "#6B7280"
+		if topID != "" {
+			// 优先用分类展示名；查不到则退化为 id
+			if name, ok := catMap.nameByTop[topID]; ok && name != "" {
+				categoryName = name
+			} else {
+				categoryName = topID
+			}
 		}
 		out.ByCategory = append(out.ByCategory, dto.TaskCategoryStat{
 			Category:  categoryName,
-			Emoji:     "📋",
-			Color:     "#6B7280",
-			Total:     int(row.Total),
-			Completed: int(row.Completed),
+			Emoji:     emoji,
+			Color:     color,
+			Total:     a.total,
+			Completed: a.completed,
 			Rate:      round2(rate),
 		})
 	}
@@ -739,4 +769,51 @@ func (s *StatsService) countTasksDoneByRange(ctx context.Context, userID string,
 // round2 保留 2 位小数
 func round2(f float64) float64 {
 	return math.Round(f*100) / 100
+}
+
+// categoryRollup 分类归集映射（R3-3）：把任意分类 id 归一为「一级分类 id」。
+type categoryRollup struct {
+	// topIDByID 分类 id → 一级分类 id。一级：自身；二级：其 parent_id。
+	topIDByID map[string]string
+	// nameByTop 一级分类 id → 展示名（用 FullName/Name）。
+	nameByTop map[string]string
+}
+
+// rollupTopID 把分类 id 归一为一级 id；空串或未知 id → ""（归 未分类）。
+func (r *categoryRollup) rollupTopID(id string) string {
+	if id == "" {
+		return ""
+	}
+	if top, ok := r.topIDByID[id]; ok {
+		return top
+	}
+	// 未知 id（分类已删等）→ 归 未分类，避免统计出现裸 id
+	return ""
+}
+
+// buildCategoryRollup 拉取该用户某 domain 的全部分类，构建归集映射。
+// 一级 → 自身；二级 → parent_id。供统计把二级归到一级。
+func buildCategoryRollup(ctx context.Context, uid, domain string) (*categoryRollup, error) {
+	items, err := dao.UserCategory.ListByDomain(ctx, uid, domain)
+	if err != nil {
+		return nil, gerror.WrapCode(ecode.StatsNotAvailable, err, "查询分类映射失败")
+	}
+	r := &categoryRollup{
+		topIDByID: make(map[string]string, len(items)),
+		nameByTop: make(map[string]string, len(items)),
+	}
+	for i := range items {
+		c := &items[i]
+		if c.IsTopLevel() {
+			r.topIDByID[c.ID] = c.ID
+			name := c.FullName
+			if name == "" {
+				name = c.Name
+			}
+			r.nameByTop[c.ID] = name
+		} else {
+			r.topIDByID[c.ID] = c.ParentID
+		}
+	}
+	return r, nil
 }

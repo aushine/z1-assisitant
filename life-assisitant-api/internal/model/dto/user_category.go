@@ -1,16 +1,18 @@
 // Package dto 习惯/待办分类 DTO（user_categories，见 06 §3.3）
 package dto
 
-// UserCategoryResp 分类响应（扁平列表，两域共用一张表，用 domain 区分）
+// UserCategoryResp 分类响应（扁平列表，两域共用一张表，用 domain 区分；支持两级：parent_id）
 type UserCategoryResp struct {
-	ID        string `json:"id"`
-	Domain    string `json:"domain"`
-	Name      string `json:"name"`
-	Emoji     string `json:"emoji"`
-	Icon      string `json:"icon"`
-	Tint      string `json:"tint"`
-	Sort      int    `json:"sort"`
-	IsBuiltin bool   `json:"is_builtin"`
+	ID       string `json:"id"`
+	Domain   string `json:"domain"`
+	ParentID string `json:"parent_id"` // 空串 = 一级
+	Name     string `json:"name"`
+	FullName string `json:"full_name"` // 「运动-跑步」；一级即等于 name
+	Emoji    string `json:"emoji"`
+	Icon     string `json:"icon"`
+	Tint     string `json:"tint"`
+	Sort     int    `json:"sort"`
+	IsBuiltin bool  `json:"is_builtin"`
 }
 
 // ListUserCategoriesResp 分类列表响应
@@ -28,13 +30,15 @@ type UserCategoryItemResp struct {
 // CreateUserCategoryReq 新建分类
 //
 // domain 必填 habit|task（白名单校验）；name 去空白后 1-10 字；
+// parent_id 可选（空 = 一级；非空 = 二级，必须是同域下存在的一级分类 id）；
 // 图标白名单**不在后端校验**（与记账分类同口径），只校验长度。
 type CreateUserCategoryReq struct {
-	Domain string `json:"domain" dc:"habit 习惯 / task 待办"`
-	Name   string `json:"name"   dc:"分类名，去空白后 1-10 字"`
-	Icon   string `json:"icon"   dc:"可选，图标引用 lucide:<Name>（≤40 字符）"`
-	Emoji  string `json:"emoji"  dc:"可选，emoji（≤20 字符）"`
-	Tint   string `json:"tint"   dc:"可选，语义色名（≤20 字符，默认 neutral）"`
+	Domain   string `json:"domain"    dc:"habit 习惯 / task 待办"`
+	ParentID string `json:"parent_id" dc:"可选；空 = 一级，非空 = 二级（同域一级分类 id）"`
+	Name     string `json:"name"      dc:"分类名，去空白后 1-10 字"`
+	Icon     string `json:"icon"      dc:"可选，图标引用 lucide:<Name>（≤40 字符）"`
+	Emoji    string `json:"emoji"     dc:"可选，emoji（≤20 字符）"`
+	Tint     string `json:"tint"      dc:"可选，语义色名（≤20 字符，默认 neutral）"`
 }
 
 // UpdateUserCategoryReq 更新分类（仅 name / icon / emoji / tint）

@@ -31,8 +31,16 @@ type UserCategory struct {
 	UserID string `gorm:"column:user_id;type:varchar(32);not null;primaryKey;index:idx_user_cat_domain,priority:1;uniqueIndex:uk_user_cat,priority:1" json:"user_id"`
 	// Domain habit / task，见下方 UserCategoryDomain* 常量
 	Domain string `gorm:"column:domain;type:varchar(16);not null;index:idx_user_cat_domain,priority:2;uniqueIndex:uk_user_cat,priority:2" json:"domain"`
+	// ParentID 父分类 id（spec-20260924-v1/03 R3 新增的两级分类）：
+	// **空串 = 一级分类**（⚠️ 不能用 NULL —— 唯一索引里 NULL 不参与比较，约束会静默失效）。
+	// 二级分类的 parent_id 指向同域下某个一级分类的 id。
+	// 作为 uk_user_cat 的第 3 列（紧跟 domain），使「同域不同父下可同名」。
+	ParentID string `gorm:"column:parent_id;type:varchar(32);not null;default:'';uniqueIndex:uk_user_cat,priority:3" json:"parent_id"`
 	// Name 显示名（去空白后 1-10 字）
-	Name string `gorm:"column:name;type:varchar(30);not null;uniqueIndex:uk_user_cat,priority:3" json:"name"`
+	Name string `gorm:"column:name;type:varchar(30);not null;uniqueIndex:uk_user_cat,priority:4" json:"name"`
+	// FullName 完整名（「运动-跑步」）；二级为空时读时用「父名-子名」拼接兜底；一级即等于 Name。
+	// 供选择器展示 / 搜索用。
+	FullName string `gorm:"column:full_name;type:varchar(80);not null;default:''" json:"full_name"`
 	// Emoji 可选 emoji（兼容旧渲染）；空 = 无
 	Emoji string `gorm:"column:emoji;type:varchar(20);not null;default:''" json:"emoji"`
 	// Icon 图标引用，落库为 `lucide:<Name>` 形式（如 lucide:BookOpen，最长 29 字符 ⇒ 列 40）；空 = 无
@@ -47,7 +55,7 @@ type UserCategory struct {
 	IsDeleted bool `gorm:"column:is_deleted;type:tinyint(1);not null;default:0" json:"is_deleted"`
 	// DeletedSeq 软删序号：活跃行恒为 ''；删除时写入随机值，
 	// 作为唯一索引 uk_user_cat 的末列，避免「同名分类反复删除」撞 1062。
-	DeletedSeq string `gorm:"column:deleted_seq;type:varchar(32);not null;default:'';uniqueIndex:uk_user_cat,priority:4" json:"deleted_seq"`
+	DeletedSeq string `gorm:"column:deleted_seq;type:varchar(32);not null;default:'';uniqueIndex:uk_user_cat,priority:5" json:"deleted_seq"`
 
 	CreatedAt time.Time  `gorm:"column:created_at;autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time  `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
@@ -64,3 +72,7 @@ const (
 	// UserCategoryDomainTask 待办分类域（内置 c_work/c_study/c_life/c_health/c_social/c_other）
 	UserCategoryDomainTask = "task"
 )
+
+// IsTopLevel 是否一级分类（parent_id 为空串）。
+// ⚠️ 不要用 `== nil` 判空：ParentID 是 NOT NULL DEFAULT '' 的字符串列。
+func (c *UserCategory) IsTopLevel() bool { return c.ParentID == "" }

@@ -28,7 +28,7 @@
  *    完整推理与实测数据见 components/period/PeriodDaySheet.vue 顶部注释。
  *    新增弹层时不要省这个属性，也不要以为「z-index 调大点就行」。
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/icon/Icon.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -122,19 +122,80 @@ const hideTab = computed(() => route.meta.hideTab === true)
 /**
  * 内容区 router-view 的 key。
  *
- * 默认 `fullPath`：切模块、换任务详情都要重建页面（各页 onMounted 负责首次加载）。
+ * 2026-09-24（spec-20260924-v2 S1）：切页不再销毁重建 —— 5 个主 Tab 页由
+ * `<KeepAlive>` 缓存（见 template），切回来瞬显、不重拉。key 的取值随之调整：
+ *
+ * ⚠️ 主 Tab 页的 key 用 **route.name**，**不能**再用 route.fullPath。
+ *    KeepAlive 靠 key 判断「是不是同一个实例」：若用 fullPath，同一个 Tab
+ *    带不同 query（如 /task?filter=all → /task?filter=done）会被当成两个实例、
+ *    缓存两份、且都命中不了，反而更慢。用 route.name 后同 Tab 恒定复用同一实例；
+ *    Tab 内的 query 变化交给页面自己的 watch 处理。
  *
  * ⚠️ 例外：**覆盖层子路由**（`meta.overlay`，见 router/index.ts 的
  *    /record/finance-categories）必须与它的宿主页面共用同一个 key ——
- *    否则 push 覆盖层时 fullPath 一变，宿主页（记录页）就被销毁重建，
+ *    否则 push 覆盖层时 key 一变，宿主页（记录页）就被销毁重建，
  *    「返回后回到记一笔、且不重播动画」直接落空。
- *    这里取 matched 里**上一层**的 path（即宿主页面 /record）。
+ *    这里取 matched 里**上一层**的 name（即宿主页面 Record）。
+ *
+ * ⚠️ 二级页（/task/:id 等）本就不在 KeepAlive 白名单里，key 取 name 也无妨：
+ *    它们的 name 各不相同，切换时照常重建。
  */
 const viewKey = computed(() => {
-  if (!route.meta.overlay) return route.fullPath
-  const host = route.matched[route.matched.length - 2]
-  return host?.path ?? route.fullPath
+  if (route.meta.overlay) {
+    // 返回宿主页面的 name（如 /record/finance-categories 的宿主是 Record），
+    // 与直接访问 /record 时产出的 key 完全一致（都是 'Record'），
+    // 从而保证 push/pop 覆盖层时宿主页**不被重建**。
+    const host = route.matched[route.matched.length - 2]
+    return host?.name ?? route.name ?? route.fullPath
+  }
+  return route.name ?? route.fullPath
 })
+
+/**
+ * 主 Tab 切换的**方向**（spec-20260924-v3 方案 D）。
+ *
+ * - 'forward'：切到右边的 Tab（activeIndex 增大）⇒ 新页从右侧滑入、旧页向左让位。
+ * - 'backward'：切到左边的 Tab（activeIndex 减小）⇒ 反向。
+ * - ''：无方向（非主 Tab 跳转 / 同页）⇒ 退回纯淡入。
+ *
+ * ⚠️ 只在**主 Tab 之间**切换时给方向：二级页（/task/:id 等）、覆盖层、
+ *    hideTab 场景一律空 → 不播横滑，避免方向错乱（D-4）。
+ */
+const slideDir = ref<'' | 'forward' | 'backward'>('')
+
+/**`<transition>` 的 name —— 按方向选方向类，空方向退回淡入类 */
+const transitionName = computed(() => {
+  if (slideDir.value === 'forward') return 'slide-forward'
+  if (slideDir.value === 'backward') return 'slide-backward'
+  return 'fade-page'
+})
+
+/**
+ * 比较两次路由的 Tab 下标，得出方向。只认**两个都是主 Tab** 的情况（D-4）。
+ */
+function tabIndexOf(name: unknown): number {
+  return TABS.findIndex((t) => t.name === name)
+}
+watch(
+  () => route.name,
+  (to, from) => {
+    const ti = tabIndexOf(to)
+    const fi = tabIndexOf(from)
+    if (ti >= 0 && fi >= 0 && ti !== fi) {
+      slideDir.value = ti > fi ? 'forward' : 'backward'
+    } else {
+      slideDir.value = ''
+    }
+  },
+)
+
+/**
+ * `<KeepAlive>` 缓存白名单（spec-20260924-v2 S1）。
+ *
+ * 只缓存 5 个主 Tab 页，**不**含二级页 / 详情页（它们的 name 不在名单里，
+ * 照常销毁重建）。按 name 精确匹配，避免误缓存。
+ */
+const KEEP_ALIVE_TABS = ['Home', 'Task', 'Record', 'Stat', 'Me']
 
 /**
  * 状态栏占位的底色：必须与「当前页 header 的首端色」严格同色。
@@ -204,8 +265,15 @@ onMounted(() => {
       @mousedown="swipeHandlers.mousedown"
     >
       <router-view v-slot="{ Component }">
-        <transition name="fade-page" mode="out-in">
-          <component :is="Component" :key="viewKey" />
+        <!-- 2026-09-24（spec-20260924-v2 S1+S2 + spec-20260924-v3 方案 D）：
+             ① `<KeepAlive>` 缓存 5 个主 Tab 页，切回不重建、不重拉（瞬切）；
+             ② 过渡改为**方向感知横滑**（D）：点右侧 Tab 新页从右滑入、点左侧反之；
+                非主 Tab 跳转（二级页/覆盖层）退回纯淡入 fade-page（见 transitionName）。
+             详见 `md/spec-20260924-v2/` 与 `md/spec-20260924-v3/`。 -->
+        <transition :name="transitionName" mode="out-in">
+          <keep-alive :include="KEEP_ALIVE_TABS">
+            <component :is="Component" :key="viewKey" />
+          </keep-alive>
         </transition>
       </router-view>
     </main>
@@ -449,14 +517,87 @@ onMounted(() => {
 }
 
 /* 页面过渡（Tab 之间切换）。
-   mode="out-in" 下总耗时 = 离开 + 进入，用 --duration-page(130ms) 而不是
-   --duration-fast(200ms)，把 400ms 压到 260ms，点 Tab 的响应感明显变快。 */
+
+   2026-09-24（spec-20260924-v3 方案 D）：主 Tab 切换改为**方向感知横滑**：
+   - 点右侧 Tab ⇒ slide-forward：新页从右（+18%）滑入，旧页向左（-18%）让位；
+   - 点左侧 Tab ⇒ slide-backward：方向相反；
+   - 两页**同时**进出（不加 mode="out-in"）—— 这就是「快照/位移」的推挤观感；
+     旧页是 KeepAlive 里的**静止 DOM**（非真销毁），「快照」是免费的。
+   - 幅度 18%（不是 100%）：满幅会像翻页且露背面；18% 的推挤感最像原生分段切换。
+   - 时长 200ms（--duration-fast）+ --ease-default，与底部胶囊指示块动效同族
+     （避免内容先动、胶囊后动）。
+
+   `.fade-page` 保留：① 非主 Tab 跳转（二级页 / 覆盖层）的兑底；
+   ② 万一方向未判定的极端场景，仍有淡入不白屏。 */
+
+/* ——— 方向横滑（D） ——— */
+/* ⚠️ 2026-09-24 修复（用户报「上一屏画面/上一页数据残留」）：
+   `<KeepAlive>` + **无 mode** 的 `<Transition>` 是冲突组合：KeepAlive 要把旧页
+   **缓存保留（deactivate）**，而 Transition 要让它离场并移除 —— 同一个节点上两套
+   意图打架，旧页 DOM 会赖在 `.content` 里不走 → 画面/数据残留（上一屏还盖着）。
+   修复：改回 **`mode="out-in"`**（模板里已改）—— 旧页**完全离场后**新页才进场，
+   同一时刻 `.content` 只有一个子元素，不会与 KeepAlive 打架，也天然没有
+   「flex 列两子均分高度抽一下」的问题（所以下面的 `position:absolute` 已不再需要）。
+
+   成本：方向感仍在（旧页往一边滑出 → 新页从另一边滑入），只是由「同时」变「先后」；
+   总时长 2步×150ms ≈ 300ms（旧页是缓存 DOM，无重拉，不会白屏）。 */
+.slide-forward-enter-active,
+.slide-forward-leave-active,
+.slide-backward-enter-active,
+.slide-backward-leave-active {
+  transition: transform var(--duration-page) var(--ease-default),
+    opacity var(--duration-page) var(--ease-default);
+  will-change: transform, opacity;
+}
+
+/* forward：点右键 Tab（新页从右来，旧页向左走） */
+.slide-forward-enter-from {
+  transform: translateX(18%);
+  opacity: 0;
+}
+.slide-forward-leave-to {
+  transform: translateX(-18%);
+  opacity: 0;
+}
+
+/* backward：点左键 Tab（新页从左来，旧页向右走） */
+.slide-backward-enter-from {
+  transform: translateX(-18%);
+  opacity: 0;
+}
+.slide-backward-leave-to {
+  transform: translateX(18%);
+  opacity: 0;
+}
+
+/* ——— 纯淡入（兑底 / 非主 Tab 跳转） ——— */
 .fade-page-enter-active,
 .fade-page-leave-active {
-  transition: opacity var(--duration-page) var(--ease-default);
+  transition: opacity var(--duration-instant) var(--ease-default);
 }
 .fade-page-enter-from,
 .fade-page-leave-to {
   opacity: 0;
+}
+
+/* 尊重「减少动态效果」的系统设置：关闭位移，退化为极短淡入 */
+@media (prefers-reduced-motion: reduce) {
+  .fade-page-enter-active,
+  .fade-page-leave-active {
+    transition: none;
+  }
+  .slide-forward-enter-active,
+  .slide-forward-leave-active,
+  .slide-backward-enter-active,
+  .slide-backward-leave-active {
+    transition: opacity var(--duration-instant) var(--ease-default);
+    will-change: auto;
+  }
+  .slide-forward-enter-from,
+  .slide-forward-leave-to,
+  .slide-backward-enter-from,
+  .slide-backward-leave-to {
+    transform: none;
+  }
 }
 </style>

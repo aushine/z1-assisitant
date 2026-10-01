@@ -2139,6 +2139,42 @@
   padding: var(--space-1) 0;
 }
 
+/* ===== R3/R4（2026-09-24）：习惯/待办分类管理的两级树 ===== */
+/* 一级行左侧的展开/收起按钮（无二级时隐藏但仍占位，保持对齐） */
+.cat-mg-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.cat-mg-toggle:hover { background: var(--color-bg-hover); color: var(--color-text-primary); }
+
+/* 二级行：缩进 + 更轻的容器（在 .cat-mg-children 容器内） */
+.cat-mg-row--child {
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
+  margin-bottom: 0;
+}
+.cat-mg-row--child .cat-mg-head { padding: var(--space-2) var(--space-3); }
+
+/* 二级行缩进符号（占位对齐一级的展开按钮宽度） */
+.cat-mg-child-dash {
+  width: 22px;
+  flex-shrink: 0;
+  text-align: center;
+  color: var(--color-text-tertiary);
+}
+.cat-mg-child-dash::before { content: '└'; font-size: 12px; opacity: 0.6; }
+
 .cat-mg-child {
   display: flex;
   align-items: center;

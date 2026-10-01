@@ -36,11 +36,18 @@ type UserCategoryDao interface {
 	// 否则用户把内置项全删光后再进会被重新塞满，删除功能形同虚设）
 	ExistsBuiltin(ctx context.Context, userID, domain string) (bool, error)
 
-	// ExistsActiveName 同 (user, domain) 下是否已有**未删除**的同名分类。
+	// ExistsActiveName 同 (user, domain, parent_id) 下是否已有**未删除**的同名分类。
 	// excludeID 用于 PATCH 时排除自身（可为空串）。
-	// ⚠️ 与唯一索引 uk_user_cat(user_id, domain, name, deleted_seq) 口径一致：
+	// ⚠️ 与唯一索引 uk_user_cat(user_id, domain, parent_id, name, deleted_seq) 口径一致：
 	// 软删行的 deleted_seq 是随机值 ≠ ''，不算活跃冲突，允许用户重建同名。
-	ExistsActiveName(ctx context.Context, userID, domain, name, excludeID string) (bool, error)
+	// ⚠️ 2026-09-24 R3：多一个 parentID 维度（同域不同父下可同名）。
+	ExistsActiveName(ctx context.Context, userID, domain, parentID, name, excludeID string) (bool, error)
+
+	// CountActiveChildren 统计某一级分类下**未删除**的二级数量（R3 删一级级联用）。
+	CountActiveChildren(ctx context.Context, userID, parentID string) (int64, error)
+
+	// ListChildren 取某一级分类下**未删除**的二级（R3 一级改名时重算 full_name 用）。
+	ListChildren(ctx context.Context, userID, parentID string) ([]model.UserCategory, error)
 
 	// Update 按 (user_id, id) 更新字段
 	Update(ctx context.Context, userID, id string, fields map[string]any) error
@@ -112,11 +119,11 @@ func (d *userCategoryDao) ExistsBuiltin(ctx context.Context, userID, domain stri
 	return n > 0, nil
 }
 
-func (d *userCategoryDao) ExistsActiveName(ctx context.Context, userID, domain, name, excludeID string) (bool, error) {
+func (d *userCategoryDao) ExistsActiveName(ctx context.Context, userID, domain, parentID, name, excludeID string) (bool, error) {
 	var n int64
 	q := d.db.WithContext(ctx).
 		Model(&model.UserCategory{}).
-		Where("user_id = ? AND domain = ? AND name = ? AND is_deleted = 0", userID, domain, name)
+		Where("user_id = ? AND domain = ? AND parent_id = ? AND name = ? AND is_deleted = 0", userID, domain, parentID, name)
 	if excludeID != "" {
 		q = q.Where("id <> ?", excludeID)
 	}
@@ -124,6 +131,25 @@ func (d *userCategoryDao) ExistsActiveName(ctx context.Context, userID, domain, 
 		return false, err
 	}
 	return n > 0, nil
+}
+
+func (d *userCategoryDao) CountActiveChildren(ctx context.Context, userID, parentID string) (int64, error) {
+	var n int64
+	err := d.db.WithContext(ctx).
+		Model(&model.UserCategory{}).
+		Where("user_id = ? AND parent_id = ? AND is_deleted = 0", userID, parentID).
+		Count(&n).Error
+	return n, err
+}
+
+func (d *userCategoryDao) ListChildren(ctx context.Context, userID, parentID string) ([]model.UserCategory, error) {
+	var items []model.UserCategory
+	err := d.db.WithContext(ctx).
+		Model(&model.UserCategory{}).
+		Where("user_id = ? AND parent_id = ? AND is_deleted = 0", userID, parentID).
+		Order("sort ASC, created_at ASC, id ASC").
+		Find(&items).Error
+	return items, err
 }
 
 func (d *userCategoryDao) Update(ctx context.Context, userID, id string, fields map[string]any) error {

@@ -119,10 +119,29 @@ export const useTaskStore = defineStore('task', () => {
   /**
    * 拉取任务列表首页（按当前 query，page 重置为 1）
    * @param nextFilter 传入则先切换 filter（兼容 `fetchTasks('today')` 旧调用）
+   * @param opts.silent 静默刷新（2026-09-24 S1）：不置 loading、失败不清空已有列表，
+   *        用于 KeepAlive 切回 Tab 时的后台刷新；首拉 / 下拉刷新不传。
+   * @param opts.reset 切换查询条件前**立即清空旧列表**（2026-09-24）：
+   *        修「切 tab 一瞬间还显示上一个 tab 的数据」——setFilter/setPriority/
+   *        setSort/setKeyword 这类「换数据集」的操作必须传，否则请求飞行期间
+   *        旧列表会一直显示，等响应回来才替换（用户看到串页）。
+   *        ⚠️ KeepAlive 静默刷新 **不能** 传 reset（那是有意保留旧数据不闪）。
    */
-  async function fetchTasks(nextFilter?: TaskFilter): Promise<void> {
+  async function fetchTasks(
+    nextFilter?: TaskFilter,
+    opts: { silent?: boolean; reset?: boolean } = {},
+  ): Promise<void> {
     if (nextFilter) filter.value = nextFilter
-    loading.value = true
+    const silent = opts.silent === true
+    // 换数据集：立即清空 + 回到第 1 页，让骨架屏接管（避免旧数据残留）
+    if (opts.reset) {
+      tasks.value = []
+      total.value = 0
+      hasMore.value = false
+      page.value = 1
+      loadedOnce.value = false
+    }
+    if (!silent) loading.value = true
     try {
       const res = await taskApi.list(buildParams(1))
       tasks.value = res.items
@@ -131,15 +150,17 @@ export const useTaskStore = defineStore('task', () => {
       page.value = 1
       loadedOnce.value = true
     } catch (e) {
-      // 错误 toast 已在 request.ts 拦截器里弹过，这里只清空
-      tasks.value = []
-      total.value = 0
-      hasMore.value = false
-      loadedOnce.value = true
+      if (!silent) {
+        // 错误 toast 已在 request.ts 拦截器里弹过，这里只清空
+        tasks.value = []
+        total.value = 0
+        hasMore.value = false
+        loadedOnce.value = true
+      }
       // eslint-disable-next-line no-console
       console.error('[TaskStore] fetchTasks failed', e)
     } finally {
-      loading.value = false
+      if (!silent) loading.value = false
     }
   }
 
@@ -180,7 +201,7 @@ export const useTaskStore = defineStore('task', () => {
     if (filter.value === next) return
     filter.value = next
     clearSelection()
-    await fetchTasks()
+    await fetchTasks(undefined, { reset: true })
   }
 
   /** 设置优先级筛选 */
@@ -188,7 +209,7 @@ export const useTaskStore = defineStore('task', () => {
     if (priority.value === next) return
     priority.value = next
     clearSelection()
-    await fetchTasks()
+    await fetchTasks(undefined, { reset: true })
   }
 
   /** 设置排序 */
@@ -196,7 +217,7 @@ export const useTaskStore = defineStore('task', () => {
     if (sort.value === next) return
     sort.value = next
     clearSelection()
-    await fetchTasks()
+    await fetchTasks(undefined, { reset: true })
   }
 
   /**
@@ -208,7 +229,7 @@ export const useTaskStore = defineStore('task', () => {
     if (keyword.value === trimmed) return
     keyword.value = trimmed
     clearSelection()
-    await fetchTasks()
+    await fetchTasks(undefined, { reset: true })
   }
 
   /** 一键重置全部查询条件 */
@@ -218,7 +239,7 @@ export const useTaskStore = defineStore('task', () => {
     keyword.value = ''
     sort.value = ''
     clearSelection()
-    await fetchTasks()
+    await fetchTasks(undefined, { reset: true })
   }
 
   /**

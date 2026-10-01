@@ -98,6 +98,25 @@ func (s *UserCategoryService) Create(ctx context.Context, req *dto.CreateUserCat
 	if name == "" || utf8.RuneCountInString(name) > userCategoryNameMaxLen {
 		return nil, gerror.NewCode(ecode.ValidationFailed)
 	}
+	parentID := strings.TrimSpace(req.ParentID)
+	// parent_id 非空时为二级：父必须存在、必须是同域一级分类（R3）
+	parentName := ""
+	if parentID != "" {
+		if parentID == name {
+			return nil, gerror.NewCode(ecode.ValidationFailed)
+		}
+		parent, err := dao.UserCategory.GetByID(ctx, uid, parentID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, gerror.NewCode(ecode.ValidationFailed)
+			}
+			return nil, gerror.WrapCode(ecode.DatabaseError, err, "查询父分类失败")
+		}
+		if parent.Domain != domain || !parent.IsTopLevel() {
+			return nil, gerror.NewCode(ecode.ValidationFailed)
+		}
+		parentName = parent.Name
+	}
 	icon, err := validateOptionalLen(req.Icon, userCategoryIconMaxLen)
 	if err != nil {
 		return nil, err
@@ -111,8 +130,8 @@ func (s *UserCategoryService) Create(ctx context.Context, req *dto.CreateUserCat
 		return nil, err
 	}
 
-	// 同 (user, domain) 下未删除行不可重名（与 uk_user_cat 活跃行口径一致）
-	dup, err := dao.UserCategory.ExistsActiveName(ctx, uid, domain, name, "")
+	// 同 (user, domain, parent) 下未删除行不可重名（与 uk_user_cat 活跃行口径一致）
+	dup, err := dao.UserCategory.ExistsActiveName(ctx, uid, domain, parentID, name, "")
 	if err != nil {
 		return nil, gerror.WrapCode(ecode.DatabaseError, err, "校验分类名失败")
 	}
@@ -120,13 +139,21 @@ func (s *UserCategoryService) Create(ctx context.Context, req *dto.CreateUserCat
 		return nil, gerror.NewCode(ecode.ValidationFailed)
 	}
 
+	// full_name：一级 = name；二级 = 「父名-子名」
+	fullName := name
+	if parentID != "" {
+		fullName = parentName + "-" + name
+	}
+
 	c := &model.UserCategory{
-		ID:     newUserCategoryID(domain),
-		UserID: uid,
-		Domain: domain,
-		Name:   name,
-		Tint:   "neutral", // DDL 默认值；显式写入避免 GORM 零值省略后依赖列默认
-		Sort:   userCategorySortBase,
+		ID:       newUserCategoryID(domain),
+		UserID:   uid,
+		Domain:   domain,
+		ParentID: parentID,
+		Name:     name,
+		FullName: fullName,
+		Tint:     "neutral", // DDL 默认值；显式写入避免 GORM 零值省略后依赖列默认
+		Sort:     userCategorySortBase,
 	}
 	if icon != nil {
 		c.Icon = *icon
@@ -168,7 +195,7 @@ func (s *UserCategoryService) Update(ctx context.Context, id string, req *dto.Up
 			return nil, gerror.NewCode(ecode.ValidationFailed)
 		}
 		if n != exist.Name {
-			dup, err := dao.UserCategory.ExistsActiveName(ctx, uid, exist.Domain, n, id)
+			dup, err := dao.UserCategory.ExistsActiveName(ctx, uid, exist.Domain, exist.ParentID, n, id)
 			if err != nil {
 				return nil, gerror.WrapCode(ecode.DatabaseError, err, "校验分类名失败")
 			}
@@ -176,6 +203,17 @@ func (s *UserCategoryService) Update(ctx context.Context, id string, req *dto.Up
 				return nil, gerror.NewCode(ecode.ValidationFailed)
 			}
 			updates["name"] = n
+			// full_name 随改名重算：一级 = n；二级 = 「父名-n」
+			if exist.ParentID == "" {
+				updates["full_name"] = n
+			} else {
+				parent, perr := dao.UserCategory.GetByID(ctx, uid, exist.ParentID)
+				if perr == nil && parent != nil {
+					updates["full_name"] = parent.Name + "-" + n
+				} else {
+					updates["full_name"] = n
+				}
+			}
 		}
 	}
 	for _, f := range []struct {
@@ -212,6 +250,19 @@ func (s *UserCategoryService) Update(ctx context.Context, id string, req *dto.Up
 	if err := dao.UserCategory.Update(ctx, uid, id, updates); err != nil {
 		return nil, gerror.WrapCode(ecode.DatabaseError, err, "更新分类失败")
 	}
+	// 一级改名后，其下二级的 full_name（「父名-子名」）同步重算（保持展示一致）。
+	// 失败不阻断（full_name 仅为展示便利字段），仅记日志。
+	if exist.IsTopLevel() {
+		if newName, ok := updates["name"]; ok {
+			if children, cerr := dao.UserCategory.ListChildren(ctx, uid, exist.ID); cerr == nil {
+				for _, ch := range children {
+					_ = dao.UserCategory.Update(ctx, uid, ch.ID, map[string]any{
+						"full_name": newName.(string) + "-" + ch.Name,
+					})
+				}
+			}
+		}
+	}
 	fresh, err := dao.UserCategory.GetByID(ctx, uid, id)
 	if err != nil {
 		return nil, gerror.WrapCode(ecode.DatabaseError, err, "重新查询分类失败")
@@ -219,7 +270,11 @@ func (s *UserCategoryService) Update(ctx context.Context, id string, req *dto.Up
 	return userCategoryToResp(fresh), nil
 }
 
-// Delete 软删除分类（三件套一起写）
+// Delete 软删除分类（三件套一起写）。
+//
+// R3-1 级联规则：删除**一级**分类时，其下所有**未删**二级一并级联软删（同事务逐条写）。
+// 挂在这些二级上的 habits.category / tasks.category_id **保留**（存量引用不回滚，
+// 仅分类列表不再显示；统计对已删分类的归集自然失效）。
 func (s *UserCategoryService) Delete(ctx context.Context, id string) error {
 	uid := ctxUserID(ctx)
 	if uid == "" {
@@ -232,14 +287,30 @@ func (s *UserCategoryService) Delete(ctx context.Context, id string) error {
 		}
 		return gerror.WrapCode(ecode.DatabaseError, err, "查询分类失败")
 	}
-	// ⚠️ 软删三件套一起写：is_deleted=1 + deleted_at=now + deleted_seq=随机值。
-	// deleted_seq 写随机值（而非自身 id —— id 跨用户重复，复合主键下不构成唯一）后，
-	// 该行在 uk_user_cat 末列占用一个不重复值，「同名反复删除」不会撞 1062（06 §3.3）。
+	// R3-1：一级级联软删其下二级
+	if exist.IsTopLevel() {
+		children, cerr := dao.UserCategory.ListChildren(ctx, uid, exist.ID)
+		if cerr != nil {
+			return gerror.WrapCode(ecode.DatabaseError, cerr, "查询子分类失败")
+		}
+		for i := range children {
+			if err := softDeleteOne(ctx, uid, children[i].ID); err != nil {
+				return err
+			}
+		}
+	}
+	return softDeleteOne(ctx, uid, exist.ID)
+}
+
+// softDeleteOne 软删单个分类（三件套：is_deleted=1 + deleted_at=now + deleted_seq=随机值）。
+// ⚠️ deleted_seq 写随机值（而非自身 id —— id 跨用户重复，复合主键下不构成唯一）后，
+// 该行在 uk_user_cat 末列占用一个不重复值，「同名反复删除」不会撞 1062（06 §3.3）。
+func softDeleteOne(ctx context.Context, uid, id string) error {
 	seq := strings.ReplaceAll(utility.NewUUID(), "-", "")
 	if seqLen := len(seq); seqLen > userCategoryRandomSeqLen {
 		seq = seq[:userCategoryRandomSeqLen]
 	}
-	if err := dao.UserCategory.SoftDelete(ctx, uid, exist.ID, seq, time.Now()); err != nil {
+	if err := dao.UserCategory.SoftDelete(ctx, uid, id, seq, time.Now()); err != nil {
 		return gerror.WrapCode(ecode.DatabaseError, err, "删除分类失败")
 	}
 	return nil
@@ -305,10 +376,17 @@ func newUserCategoryID(domain string) string {
 
 // userCategoryToResp 实体 → DTO
 func userCategoryToResp(c *model.UserCategory) *dto.UserCategoryResp {
+	// full_name 兜底：存量一级行可能为空（迁移前），一级用 name
+	fullName := c.FullName
+	if fullName == "" {
+		fullName = c.Name
+	}
 	return &dto.UserCategoryResp{
 		ID:        c.ID,
 		Domain:    c.Domain,
+		ParentID:  c.ParentID,
 		Name:      c.Name,
+		FullName:  fullName,
 		Emoji:     c.Emoji,
 		Icon:      c.Icon,
 		Tint:      c.Tint,

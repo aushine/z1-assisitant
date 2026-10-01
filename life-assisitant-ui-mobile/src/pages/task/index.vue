@@ -22,7 +22,9 @@
  *   B4 删除交互由 `@contextmenu` 长按改为 `van-swipe-cell` 左滑
  *   B5 接上 `van-list` 的 @load，实现真正的上拉加载
  */
-import { computed, onMounted, ref, watchEffect } from 'vue'
+// ⚠️ 显式组件名（spec-20260924-v2 S1）：供 HomeLayout 的 `<KeepAlive :include>` 匹配。
+defineOptions({ name: 'Task' })
+import { computed, onActivated, onDeactivated, ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import { storeToRefs } from 'pinia'
@@ -43,6 +45,7 @@ const {
   tasks,
   isEmpty,
   finished,
+  loading,
   priority,
   keyword,
   sort,
@@ -260,8 +263,17 @@ async function onDelete(task: Task) {
 }
 
 // ==================== 生命周期 ====================
-onMounted(async () => {
-  await taskStore.fetchTasks()
+// 2026-09-24（spec-20260924-v2 S1）：本页被 `<KeepAlive>` 缓存。
+// 首拉带 loading（骨架屏），回归时静默刷新（不清空、不闪）。
+// onDeactivated：退出时收多选态，避免切回时还处于「已选 N 项」（幽灵状态）。
+let firstLoad = true
+onActivated(async () => {
+  const silent = !firstLoad
+  firstLoad = false
+  await taskStore.fetchTasks(undefined, { silent })
+})
+onDeactivated(() => {
+  taskStore.clearSelection()
 })
 </script>
 
@@ -333,8 +345,9 @@ onMounted(async () => {
         class="task-list"
         @load="onLoad"
       >
-        <!-- 加载态 -->
-        <div v-if="listLoading && tasks.length === 0" class="loading-skeleton">
+        <!-- 加载态：van-list 自身加载 **或** store 正在拉取（切 tab/筛选后 reset 清空）
+             且当前无数据时显示骨架屏——避免请求飞行期间看到「空状态」闪一下 -->
+        <div v-if="(listLoading || loading) && tasks.length === 0" class="loading-skeleton">
           <div v-for="i in 3" :key="i" class="skel-card" />
         </div>
 
