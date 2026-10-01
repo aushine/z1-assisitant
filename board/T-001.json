@@ -2,12 +2,12 @@
   "id": "T-001",
   "spec": "md/spec-20260924-v3/README.md",
   "title": "主 Tab 切换方向感知转场（方案 D · 快照/位移转场）",
-  "status": "todo",
+  "status": "claimed",
   "branch": null,
   "pr": null,
   "schedule": "spec-20260924-v3",
-  "claimed_by": null,
-  "updated_at": "2026-10-01T10:49:00.838Z",
+  "claimed_by": "logos@104n5e53hbg3q9i",
+  "updated_at": "2026-10-01T10:53:25.078Z",
   "log": [
     {
       "at": "2026-10-01T10:49:00.840Z",
@@ -15,6 +15,13 @@
       "to": "todo",
       "by": "intake",
       "note": "检测到 spec 批次文件夹新需求"
+    },
+    {
+      "at": "2026-10-01T10:53:25.078Z",
+      "from": "todo",
+      "to": "claimed",
+      "by": "runner",
+      "note": ""
     }
   ]
 }
