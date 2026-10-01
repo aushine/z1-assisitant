@@ -26,7 +26,11 @@ on:
   workflow_dispatch:
     inputs:
       skip_tests:
-        description: "跳过测试与类型检查，直接构建部署（应急用）"
+        description: "跳过测试与类型检查，直接构建（应急用）"
+        type: boolean
+        default: false
+      deploy_now:
+        description: "手动部署到 Pi（默认关；push 已不再自动部署）"
         type: boolean
         default: false
 
@@ -225,6 +229,12 @@ jobs:
   deploy:
     name: Deploy to Pi
     needs: build
+    # ⚠️ 2026-10-01 起：push 不再自动部署（避免绕过主理人核验）。
+    # 部署改由「主理人（Apeiron）核验通过后」触发：
+    #   · 自动：VPS 上的 z1-fsm.py 检测到 spec 目录带 √ 后，验收通过再部署
+    #   · 手动应急：Actions 页面 workflow_dispatch 且勾选 deploy_now=true
+    # 需要恢复 push 即部署时，删掉下面这行 if 即可。
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_now }}
     # ⚠️ 这个标签必须与 Pi 上 runner 注册时的标签一致（见 deploy/CI-CD.md）
     runs-on: [self-hosted, linux, arm64, z1-pi]
     timeout-minutes: 20
