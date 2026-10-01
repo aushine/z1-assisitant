@@ -55,6 +55,9 @@ type IPermissionService interface {
 	GetUserPermissions(ctx context.Context, userID string) (*dto.UserPermissionsResp, error)
 	// RoleHas 角色是否拥有任一给定权限点（"module:action"）；admin 恒 true
 	RoleHas(ctx context.Context, roleCode string, points ...string) (bool, error)
+	// EnsureCatalog 启动自检：以 consts.PermissionCatalog 为权威目录做**只补不删**的自愈
+	//（补 permissions 缺失点 + admin 全量）；非 admin 角色缺的非管理域点只告警不改写。
+	EnsureCatalog(ctx context.Context) error
 	// 工具：把 model 转换到 DTO（不导出，但其他 service 可用）
 	RoleToDTO(r *model.Role) dto.RoleResp
 	PermissionToDTO(p *model.Permission) dto.PermissionResp

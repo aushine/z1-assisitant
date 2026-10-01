@@ -102,25 +102,21 @@ watch(
 async function pickMood(m: MoodValue): Promise<void> {
   // 再点同一个值 = 该小时不再单独记录（只发 mood:0），显示时回落到上一条的延续值
   const mood = selMood.value === m ? 0 : m
-  const resp = await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, mood })
-  if (resp) {
-  }
+  await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, mood })
 }
 
 async function pickEnergy(e: EnergyValue): Promise<void> {
   const energy = selEnergy.value === e ? 0 : e
-  const resp = await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, energy })
-  if (resp) {
-  }
+  await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, energy })
 }
 
 async function clearEnergy(): Promise<void> {
-  const resp = await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, energy: 0 })
+  await moodStore.upsertHour({ date: today, hour: moodStore.nowHour, energy: 0 })
 }
 
 async function saveNote(): Promise<void> {
   noteEditing.value = false
-  const resp = await moodStore.upsertHour({
+  await moodStore.upsertHour({
     date: today,
     hour: moodStore.nowHour,
     note: noteDraft.value.slice(0, 50),

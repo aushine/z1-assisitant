@@ -266,7 +266,6 @@ export const useHabitStore = defineStore('habit', () => {
     const snapshot = { ...habits.value[idx] } as Habit
     const target = snapshot.target_count || 1
     const addCount = data.count ?? 1
-    const wasDone = !!(snapshot.today_done ?? snapshot.today_completed)
     const nextCount = (snapshot.today_count ?? 0) + addCount
     const nowDone = nextCount >= target
 

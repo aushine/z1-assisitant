@@ -41,21 +41,25 @@ import { prefetchTabChunks } from '@/router/prefetch'
 interface TabItem {
   name: string         // 路由 name
   path: string         // 路由 path
-  label: string        // 中文标签
-  enLabel: string      // 英文标签
+  label: string        // 中文标签（胶囊底部唯一显示的文案）
   icon: IconName       // Lucide 图标名（与桌面端侧栏同一套）
 }
 
 /**
  * Tab 图标与桌面端侧栏导航逐条对应（02 §6.1）。
  * 注意：记录页桌面端是 BookOpen，移动端历史上用的 emoji 是 📔，图标名仍取 BookOpen。
+ *
+ * ⚠️ 261001 起胶囊只显示**中文**。历史上这里还有一份 `enLabel`（HOME/TASKS/
+ * RECS/STATS/ME），模板渲染的是它 —— 10px 的大写英文缩写既难认（RECS 尤甚）
+ * 又与全站中文语境不符，已整字段移除。要改文案只改 `label` 一处。
+ * 文案与路由 `meta.title` 对齐（Task 用「待办」，与 /task 页标题一致）。
  */
 const TABS: TabItem[] = [
-  { name: 'Home',   path: '/home',   label: '首页', enLabel: 'HOME',   icon: 'Home' },
-  { name: 'Task',   path: '/task',   label: '任务', enLabel: 'TASKS',  icon: 'ListChecks' },
-  { name: 'Record', path: '/record', label: '记录', enLabel: 'RECS',   icon: 'BookOpen' },
-  { name: 'Stat',   path: '/stat',   label: '统计', enLabel: 'STATS',  icon: 'BarChart3' },
-  { name: 'Me',     path: '/me',     label: '我的', enLabel: 'ME',     icon: 'User' },
+  { name: 'Home',   path: '/home',   label: '首页', icon: 'Home' },
+  { name: 'Task',   path: '/task',   label: '待办', icon: 'ListChecks' },
+  { name: 'Record', path: '/record', label: '记录', icon: 'BookOpen' },
+  { name: 'Stat',   path: '/stat',   label: '统计', icon: 'BarChart3' },
+  { name: 'Me',     path: '/me',     label: '我的', icon: 'User' },
 ]
 
 const route = useRoute()
@@ -302,7 +306,7 @@ onMounted(() => {
           @click="onTabClick(tab)"
         >
           <Icon :name="tab.icon" :size="20" class="tab-icon" aria-hidden="true" />
-          <span class="tab-label">{{ tab.enLabel }}</span>
+          <span class="tab-label">{{ tab.label }}</span>
         </button>
       </div>
     </nav>
@@ -509,11 +513,14 @@ onMounted(() => {
 }
 
 .tab-label {
-  font-size: var(--fs-tab);  /* 10pt */
+  font-size: var(--fs-tab);  /* 10px */
   font-weight: 500;
   line-height: 1;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
+  /* ⚠️ 这里是中文文案（首页/待办/记录/统计/我的）。
+     不要加 text-transform: uppercase —— 历史上英文缩写（HOME/TASKS/RECS…）
+     靠它统一，中文下是无意义声明；letter-spacing 也从 0.5px 收到 0.2px，
+     中文本身是方块字，字距拉开只会显得松散、两个字挤不进 1/5 胶囊宽。 */
+  letter-spacing: 0.2px;
 }
 
 /* 页面过渡（Tab 之间切换）。

@@ -42,6 +42,16 @@ func main() {
 	}
 	fmt.Println("✅ MySQL 连接成功")
 
+	// 1.1 权限目录自检/自愈（只补不删）
+	//     事故背景：新增模块的权限点只靠手写 SQL 增量脚本落库，漏跑 ⇒
+	//     RequirePermission 对非 admin 角色恒 403（260922 的 category:* 就是这个坑）。
+	//     目录已升格为代码常量 consts.PermissionCatalog，启动补齐 + 角色基线缺失告警。
+	if err := service.Permission().EnsureCatalog(ctx); err != nil {
+		// 不阻断启动：目录脏只影响非 admin 的鉴权，admin 旁路仍可用，
+		// 且这里多半是库不可写/表缺失，硬退出会让整个服务起不来。
+		fmt.Printf("⚠️  权限目录自检失败（不影响 admin 使用，请检查 permissions 表）: %v\n", err)
+	}
+
 	// 2. Redis：v1 暂不用，老大要求用变量缓存代替
 	redisEnabled := g.Cfg().MustGet(ctx, "redis.default.enabled", false).Bool()
 	if !redisEnabled {

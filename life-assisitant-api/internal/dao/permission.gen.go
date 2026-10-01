@@ -20,6 +20,12 @@ type PermissionDao interface {
 	ListByRole(ctx context.Context, roleCode string) ([]model.RolePermission, error)
 	GetMatrixByRole(ctx context.Context, roleCode string) (map[string][]string, int, error)
 	UpdateMatrix(ctx context.Context, roleCode string, version int, enabled map[string]bool) (int64, error)
+
+	// 启动自愈（见 internal/consts/permission_catalog.go 的事故说明）
+	// UpsertCatalog 按主键幂等写入权限点（已存在则同步 description），返回影响行数
+	UpsertCatalog(ctx context.Context, items []model.Permission) (int64, error)
+	// GrantMissingToRole 给角色补齐尚未拥有的权限点（INSERT IGNORE，不动已有行）
+	GrantMissingToRole(ctx context.Context, roleCode string, permIDs []string) (int64, error)
 }
 
 type permissionDao struct {

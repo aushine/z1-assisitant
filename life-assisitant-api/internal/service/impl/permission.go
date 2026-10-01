@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/frame/g"
 	"gorm.io/gorm"
 
+	"github.com/life-assistant/api/internal/consts"
 	"github.com/life-assistant/api/internal/consts/ecode"
 	"github.com/life-assistant/api/internal/dao"
 	"github.com/life-assistant/api/internal/model"
@@ -172,6 +174,87 @@ func (s *PermissionService) RoleHas(ctx context.Context, roleCode string, points
 		}
 	}
 	return false, nil
+}
+
+// EnsureCatalog 启动自检：以 consts.PermissionCatalog 为权威目录做**只补不删**的自愈。
+//
+// 事故背景：新增权限点历史上只靠手写 SQL 增量脚本落库，漏跑 ⇒ 路由上的
+// RequirePermission 对任何非 admin 角色恒返 403001（260922 的 category:* 就是这么炸的）。
+// 目录升格为代码常量后，启动时按它补齐，杜绝"路由引用了目录里没有的点"。
+//
+// 三段行为：
+//  1. permissions 缺失点 → INSERT（已存在则同步 description）；
+//  2. admin → 补齐全目录（admin 语义即全权限，无争议）；
+//  3. 其余角色 → **只告警不改写**：权限矩阵是管理员在权限页显式配置的成果，
+//     自动补回会复活管理员刻意取消的勾选，故交给脚本 db/data_261001_perm_fix.sql。
+func (s *PermissionService) EnsureCatalog(ctx context.Context) error {
+	items := make([]model.Permission, 0, len(consts.PermissionCatalog))
+	ids := make([]string, 0, len(consts.PermissionCatalog))
+	for _, p := range consts.PermissionCatalog {
+		desc := p.Description
+		items = append(items, model.Permission{
+			ID:          p.ID,
+			Module:      p.Module,
+			Action:      p.Action,
+			Description: &desc,
+		})
+		ids = append(ids, p.ID)
+	}
+
+	// 1. 目录自愈
+	if n, err := dao.Permission.UpsertCatalog(ctx, items); err != nil {
+		return gerror.WrapCode(ecode.DatabaseError, err, "同步权限目录失败")
+	} else if n > 0 {
+		g.Log().Warningf(ctx, "🔧 权限目录自愈：写入/更新 %d 个权限点（目录共 %d 条）", n, len(items))
+	}
+
+	// 2. admin 全量
+	if n, err := dao.Permission.GrantMissingToRole(ctx, model.RoleAdmin, ids); err != nil {
+		return gerror.WrapCode(ecode.DatabaseError, err, "补齐 admin 权限矩阵失败")
+	} else if n > 0 {
+		g.Log().Warningf(ctx, "🔧 admin 权限矩阵自愈：补齐 %d 个权限点", n)
+	}
+
+	// 3. 其余角色基线校验（只告警）
+	roles, err := dao.Role.ListAll(ctx)
+	if err != nil {
+		return gerror.WrapCode(ecode.DatabaseError, err, "查询角色列表失败")
+	}
+	for i := range roles {
+		code := roles[i].Code
+		if code == model.RoleAdmin {
+			continue
+		}
+		matrix, _, err := dao.Permission.GetMatrixByRole(ctx, code)
+		if err != nil {
+			g.Log().Warningf(ctx, "⚠️  角色 %s 矩阵读取失败，跳过基线校验: %v", code, err)
+			continue
+		}
+		missing := make([]string, 0, 8)
+		for _, p := range consts.PermissionCatalog {
+			if consts.IsAdminOnlyModule(p.Module) {
+				continue
+			}
+			hit := false
+			for _, a := range matrix[p.Module] {
+				if a == p.Action {
+					hit = true
+					break
+				}
+			}
+			if !hit {
+				missing = append(missing, p.Module+":"+p.Action)
+			}
+		}
+		if len(missing) > 0 {
+			sort.Strings(missing)
+			g.Log().Warningf(ctx,
+				"⚠️  角色 %s 缺少 %d 个基线权限点，这些用户访问对应接口会 403：%s "+
+					"（用 db/data_261001_perm_fix.sql 补齐，或到权限页勾选后保存）",
+				code, len(missing), strings.Join(missing, ", "))
+		}
+	}
+	return nil
 }
 
 // GetUserPermissions 获取某用户的有效权限
