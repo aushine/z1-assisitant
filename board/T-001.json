@@ -1,7 +1,7 @@
 {
   "id": "T-001",
   "spec": "md/spec-20260924-v3/README.md",
-  "title": "Spec · 2026-09-24 · v3",
+  "title": "主 Tab 切换方向感知转场（方案 D · 快照/位移转场）",
   "status": "todo",
   "branch": null,
   "pr": null,
