@@ -2,12 +2,12 @@
   "id": "T-001",
   "spec": "md/spec-20260924-v3/README.md",
   "title": "主 Tab 切换方向感知转场（方案 D · 快照/位移转场）",
-  "status": "in-progress",
+  "status": "blocked",
   "branch": "T-001-README",
   "pr": null,
   "schedule": "spec-20260924-v3",
   "claimed_by": "logos@104n5e53hbg3q9i",
-  "updated_at": "2026-10-01T10:53:38.122Z",
+  "updated_at": "2026-10-01T11:02:33.582Z",
   "log": [
     {
       "at": "2026-10-01T10:49:00.840Z",
@@ -29,6 +29,14 @@
       "to": "in-progress",
       "by": "runner",
       "note": ""
+    },
+    {
+      "at": "2026-10-01T11:02:33.582Z",
+      "from": "in-progress",
+      "to": "blocked",
+      "by": "worker",
+      "note": "T-001 的需求已在 main 实现并上线（82b1cfd 方案D + b7b0dcc 真机残留修复，2026-09-24），且 runner 已于 dd17cb4（今天 18:54，本 worker 被派发 1 分钟后）勾选 schedule 并将批次目录打 √ 关闭；本会话复核 vue-tsc+vite build 通过，代码层面无事可做，不应推空分支虚报 done。请裁定：①直接按「已完成」关闭 T-001（推荐）；②或让我在分支上补做 spec 头部要求的收尾——把方案 D 结论回写 md/spec/（当前 01-信息架构与导航/02-设计系统无任何转场内容）。另备查：main 实现"
     }
-  ]
+  ],
+  "note": "T-001 的需求已在 main 实现并上线（82b1cfd 方案D + b7b0dcc 真机残留修复，2026-09-24），且 runner 已于 dd17cb4（今天 18:54，本 worker 被派发 1 分钟后）勾选 schedule 并将批次目录打 √ 关闭；本会话复核 vue-tsc+vite build 通过，代码层面无事可做，不应推空分支虚报 done。请裁定：①直接按「已完成」关闭 T-001（推荐）；②或让我在分支上补做 spec 头部要求的收尾——把方案 D 结论回写 md/spec/（当前 01-信息架构与导航/02-设计系统无任何转场内容）。另备查：main 实现"
 }
