@@ -143,6 +143,19 @@ z1-assisitant/
 
 ## 6. 改动日志
 
+### 2026-10-01（夜 · v3 iframe 内嵌页）
+- **spec-20261001-v3（H1：「性价比人生指南」由外链改为 iframe 内嵌页）上线**：
+  - 罗格在分支 `T-004-schedule` 开发（8b643f7），收口提交 main（209121c，含 `(√)` + 完成声明）。
+  - 主理人核验：双端 `vue-tsc`/`tsc` **0 错误**；合并 main（`cb0e33d`）；board T-004 `pr-open→merged`。
+  - 部署 Pi 成功，自检全绿（桌面/移动/后端均 200）；线上双端 JS 实测含 `MeHtlb`/`htlb-frame`。
+  - 实现：双端新增站内二级页 `/me/htlb`（移动 `pages/me/htlb.vue`、桌面 `pages/me/htlb.tsx`），iframe 内嵌 `${location.protocol}//${location.host}/htlb/HowToLiveBetter.html`，带返回按钮；解决 Safari 跳出 app 的割裂感。
+- **⚠️ Pi 部署环境严重不稳定（待处理）**：
+  - 现象：`npm ci` 反复失败 —— `ENOTEMPTY: directory not empty`（rmdir 删不掉的目录）、`node_modules/.bin` 目录**整个消失**、包解包不完整（缺 vite/tsc/vue-tsc）、一次 `npm ci` 被 **Killed**（疑似 OOM）。
+  - 环境：Raspberry Pi 4B，3.7G 内存（可用 ~3.1G，非紧张），ext4 on mmcblk0p2。无 kernel OOM 记录。磁盘充足（18%）。**高度怀疑 ext4 文件系统元数据不一致**（目录项与 inode 对不上），或 SD 卡写入不稳定。
+  - 本次绕过：手工 `npm ci --maxsockets 1`（逐端装稳）+ 直接 `node node_modules/typescript/bin/tsc` / `node node_modules/vite/bin/vite.js`（绕过消失的 .bin 链接）+ 手工 `remote-deploy.sh all`。
+  - **待办**：磁盘 fsck（需卸载/重启，影响 Pi 服务，待用户择机）；或给 npm 加更保守参数 / 给 Pi 加 swap。
+- **状态机时序小注**：罗格 20:47 push（改名+代码同一次 push）时，hook 首次触发读到的是旧 ref（未带 `(√)`）→ 静默退出；手动 `git fetch` 后立即正确识别。**建议**：状态机 hook 触发前先 `sleep 2` 或 fetch 后重试一次，避免同 push 竞态。
+
 ### 2026-10-01（晚）
 - **流程二次拍板：完成信号改为「分支开发 + main 写完成声明」**（用户 19:51，因为分支提交状态机监测不到）：
   - **spec 目录不建分支**（只在 main，主理人下发物）；**代码才走 feature 分支**（如 `T-003-schedule`）。
