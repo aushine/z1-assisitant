@@ -2,7 +2,7 @@
   "id": "T-002",
   "spec": "md/spec-20261001-v1/schedule.md",
   "title": "Schedule · spec-20261001-v1",
-  "status": "in-progress",
+  "status": "merged",
   "branch": "T-002-schedule",
   "pr": null,
   "schedule": "spec-20261001-v1",
@@ -29,6 +29,14 @@
       "to": "in-progress",
       "by": "runner",
       "note": ""
+    },
+    {
+      "at": "2026-10-01T11:13:20.000Z",
+      "from": "in-progress",
+      "to": "merged",
+      "by": "apeiron",
+      "note": "清除 intake 误登记"
     }
-  ]
+  ],
+  "note": "伪任务：runner intake 误把 spec-20261001-v1/schedule.md 当成 spec 收进来（应为 board 只登记 README 级 spec）。本批已由 T1+T2 实际交付并核验通过，此卡关闭。"
 }
