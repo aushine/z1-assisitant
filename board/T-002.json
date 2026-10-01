@@ -2,12 +2,12 @@
   "id": "T-002",
   "spec": "md/spec-20261001-v1/schedule.md",
   "title": "Schedule · spec-20261001-v1",
-  "status": "todo",
+  "status": "claimed",
   "branch": null,
   "pr": null,
   "schedule": "spec-20261001-v1",
-  "claimed_by": null,
-  "updated_at": "2026-10-01T11:08:27.222Z",
+  "claimed_by": "logos@104n5e53hbg3q9i",
+  "updated_at": "2026-10-01T11:08:36.820Z",
   "log": [
     {
       "at": "2026-10-01T11:08:27.224Z",
@@ -15,6 +15,13 @@
       "to": "todo",
       "by": "intake",
       "note": "检测到 spec 批次文件夹新需求"
+    },
+    {
+      "at": "2026-10-01T11:08:36.820Z",
+      "from": "todo",
+      "to": "claimed",
+      "by": "runner",
+      "note": ""
     }
   ]
 }
