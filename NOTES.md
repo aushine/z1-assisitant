@@ -269,3 +269,15 @@ z1-assisitant/
 - 2026-09-24：**阶段 B+C 落地**（commit `a96b234`）：R5 周期切换改下拉/弹层（双端）、R7 计算器去夹层抓手条。
 - ⏳ **待部署**（用户指令：先 push 不部署，等通知）。
 - ⏳ **待做**：阶段 D（R3 二级分类 + R4 分类管理）—— 需先迁库（脚本 agent 在 Pi 上执行）。
+
+### 2026-10-20（凌晨 · 状态机复跑）
+- 状态机每 10 分钟轮询 `596cb817` 仍在跑：每次读到 `md/spec-20261001-v3(√)` → 阶段 deployed。
+  本次手动执行完整周期（不靠脚本 history 判定，自行核验）：
+  - 分支核验：`origin/T-004-schedule`（8b643f7）交付物齐全（双端 htlb 页 + 路由 + 入口 `router.push`）；
+    main 已包含该提交，`git diff 8b643f7 HEAD`（htlb 相关文件）为空 → 8b643f7 是 main 祖先；
+    `git merge --no-ff origin/T-004-schedule` 返回 Already up to date（无需补合并）。
+  - 重新部署 main@86f7fec（`vps-deploy.sh all`，248s），自检三端全 200；
+    线上 JS 实测：桌面 `index-C7hfkumF.js` 含 `me/htlb` + `htlb-frame`，移动 `index-Dr0CQF5j.js` 含 `MeHtlb`。
+  - ⚠️ 教训：`z1-fsm.py` 的批次级幂等（history 里该批次 deployed 就跳过）与「每 10 分钟 cron 也做一次全量部署」
+    叠加 = 每个未清理的 `(√)` 批次会一直被重复部署。**需把 active_batch 切到新批次，或让 cron 仅在
+    发现新完成信号时动作（目前 cron 的 check 无法区分"新完成"与"早已部署"）。**
