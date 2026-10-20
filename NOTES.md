@@ -306,3 +306,11 @@ z1-assisitant/
 - 活跃批次 spec-20261001-v3(√)；完成声明分支 T-004-schedule
 - 核验：origin/T-004-schedule(8b643f7) **已是 main 祖先**（merged，diff 为空）；htlb.vue / htlb.tsx 均在 main
 - 无新增 commit 待处理；phase=deployed，无重复部署、无群通知
+
+### 2026-10-20 19:30 · 状态机轮次（no-op）
+- fetch 后 main HEAD = 4c1e65a（= origin/main，工作区 clean）
+- 活跃批次 spec-20261001-v3(√)；完成声明分支 T-004-schedule
+- 核验：origin/T-004-schedule(8b643f7) **已是 main 祖先**（merge-base --is-ancestor 通过）；
+  交付物在 main 上齐全：双端 htlb 页（`me/htlb.vue` / `me/htlb.tsx`）+ 路由 `/me/htlb` + 入口跳转
+- 幂等：历史记录该批次已 deployed（最近 75dfc5c），main 自 75dfc5c 仅多一条 NOTES 文档提交，无代码变更
+  → 跳过部署、不发通知
