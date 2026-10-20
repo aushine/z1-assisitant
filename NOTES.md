@@ -292,3 +292,11 @@ z1-assisitant/
   线上验证：移动入口包 `index-BgEOCNry.js`，store 在 `money-DVkhuq89.js`，
   已含 `isBusinessReject` 等价逻辑（>=-4e5 && <5e5 不兜底 toast）；桌面 `me/htlb` 在产物中。
 - 三段耗时：需求 3 分 / 开发 23 分 54 秒 / 验收（含挂机等待）446 小时 34 分 / 总计 447 小时 1 分。
+
+### 2026-10-20 14:20（状态机 · v3 复核 no-op，未重复部署）
+- 批次 `md/spec-20261001-v3(√)` 仍活跃，完成声明分支 `origin/T-004-schedule`(8b643f7)。
+- 复核：分支交付物齐全（双端 htlb 页 + 路由 `/me/htlb` + 入口 `router.push`/`navigate`），
+  且 8b643f7 已是 main 祖先 → 合并 no-op；origin/main 仅比上次部署(75dfc5c)多一条 NOTES 文档提交，
+  无代码变更 → 按幂等跳过部署。
+- 线上自检：`/z1/` 200、`/z1-app/` 200、`/z1/api/health` 200、`/htlb/HowToLiveBetter.html` 200。
+- ⚠️ 同一待办：`(√)` 批次未清理 + cron 每 10 分钟 → 反复复核同一批。需切到新批次或清理旧目录。
