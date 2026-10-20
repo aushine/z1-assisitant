@@ -281,3 +281,14 @@ z1-assisitant/
   - ⚠️ 教训：`z1-fsm.py` 的批次级幂等（history 里该批次 deployed 就跳过）与「每 10 分钟 cron 也做一次全量部署」
     叠加 = 每个未清理的 `(√)` 批次会一直被重复部署。**需把 active_batch 切到新批次，或让 cron 仅在
     发现新完成信号时动作（目前 cron 的 check 无法区分"新完成"与"早已部署"）。**
+
+### 2026-10-20 11:15（状态机 · v3 复核 + 两个热修上线）
+- 批次 `md/spec-20261001-v3(√)` 再次活跃：分支 `origin/T-004-schedule`(8b643f7) 交付物核验通过
+  （双端 htlb 页 + 路由 `/me/htlb` + 入口 router.push），且该提交已是 main 祖先 → 合并 no-op。
+- 发现 main 上**两个未上线热修**，随本次部署一同放上生产（commit `75dfc5c`）：
+  - `01d917f` fix(api): 余额不足等业务拒绝不再被包成 500002 DATABASE_ERROR
+  - `75dfc5c` fix(ui-mobile): 记账业务拒绝不兜「记账失败，请重试」，直接显示后端真因
+- 部署：vps-deploy.sh all → commit=75dfc5c，257s，三端自检 200。
+  线上验证：移动入口包 `index-BgEOCNry.js`，store 在 `money-DVkhuq89.js`，
+  已含 `isBusinessReject` 等价逻辑（>=-4e5 && <5e5 不兜底 toast）；桌面 `me/htlb` 在产物中。
+- 三段耗时：需求 3 分 / 开发 23 分 54 秒 / 验收（含挂机等待）446 小时 34 分 / 总计 447 小时 1 分。
