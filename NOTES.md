@@ -332,3 +332,9 @@ z1-assisitant/
 - 线上 commit 75dfc5c 与 origin/main 之间仅 notes 提交（无代码差异），部署内容一致。
 - 自检：桌面 /z1/ 200、移动 /z1-app/ 200、api/health 200。
 - 结论：幂等跳过重复部署，未打扰群。
+
+## 2026-10-21 07:50 状态机轮次 — no-op（幂等跳过）
+- 活跃批次 spec-20261001-v3(√)；完成声明分支 origin/T-004-schedule(8b643f7)。
+- 核验：8b643f7 已是 main 祖先（merge-base --is-ancestor 通过，diff 为空）；交付物（htlb 双端页 + 路由 + 入口）在 main 齐全。
+- 自上次部署 75dfc5c 起，origin/main 仅新增 NOTES.md / md/notes.md 文档提交，无代码变更。
+- 按幂等规则：同一交付 commit 已 deployed → 跳过合并与部署，不发群通知。
