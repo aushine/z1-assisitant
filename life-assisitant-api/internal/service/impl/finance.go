@@ -39,6 +39,27 @@ func init() { service.SetFinance(NewFinanceService()) }
 
 // ====== 公共辅助 ======
 
+// isBusinessReject 事务内的错误是否是**业务拒绝**（应原样上抛、保留业务码）。
+//
+// gerror.WrapCode(db, bizErr) 会把外层码改成 500002，并保留 a、b 两条链指向原错误；
+// 老代码用 `gerror.HasCode(err, &ecode.Success)`（永远 false）来"放行业务错误"，
+// 结果 ACCOUNT_INSUFFICIENT 等被统一吞成 DATABASE_ERROR（spec 08 F1 / 99 D-4）。
+//
+// 判定与 controller.gerrorCodeOf 同口径：只有「带非 0 业务码的 *gerror.Error」才算业务拒绝；
+// 纯 DB 错误（无 code 或 code 为 0）返回 false，由调用方包成 500002。
+// 注意：仅用于**事务提交之后**的判定 —— 事务里也不要提前包 500002，否则真业务码会被盖掉。
+func isBusinessReject(err error) bool {
+	if err == nil {
+		return false
+	}
+	gerr, ok := err.(*gerror.Error)
+	if !ok || gerr.Code() == nil {
+		return false
+	}
+	bc, ok := gerr.Code().(ecode.BusinessCode)
+	return ok && bc.CodeValue != 0
+}
+
 func accountToResp(a *model.Account) *dto.AccountResp {
 	return &dto.AccountResp{
 		ID:          a.ID,
@@ -592,10 +613,10 @@ func (s *FinanceService) CreateTransaction(ctx context.Context, req *dto.CreateT
 		return nil
 	})
 	if err != nil {
-		if gerror.HasCode(err, &ecode.FinanceCategoryInvalid) {
-			return nil, err
-		}
-		if gerror.HasCode(err, &ecode.Success) {
+		// 业务拒绝码（余额不足 400301 / 分类非法 400001 等）必须原样上抛：
+		// 旧实现只放行 400001，其余一律包成 500002 DATABASE_ERROR，
+		// 前端因此分不清"余额不够"和"服务器炸了"（spec 08 F1 / 99 D-4）。
+		if isBusinessReject(err) {
 			return nil, err
 		}
 		return nil, gerror.WrapCode(ecode.DatabaseError, err, "创建交易失败")
@@ -768,10 +789,7 @@ func (s *FinanceService) UpdateTransaction(ctx context.Context, id string, req *
 			return nil
 		})
 		if err != nil {
-			if gerror.HasCode(err, &ecode.FinanceCategoryInvalid) {
-				return nil, err
-			}
-			if gerror.HasCode(err, &ecode.Success) {
+			if isBusinessReject(err) {
 				return nil, err
 			}
 			return nil, gerror.WrapCode(ecode.DatabaseError, err, "更新交易失败")
@@ -781,7 +799,7 @@ func (s *FinanceService) UpdateTransaction(ctx context.Context, id string, req *
 			return transactionToResp(ctx, exist), nil
 		}
 		if err := applyCategory(dao.DB.WithContext(ctx)); err != nil {
-			if gerror.HasCode(err, &ecode.FinanceCategoryInvalid) {
+			if isBusinessReject(err) {
 				return nil, err
 			}
 			return nil, gerror.WrapCode(ecode.DatabaseError, err, "更新交易失败")
@@ -835,7 +853,7 @@ func (s *FinanceService) DeleteTransaction(ctx context.Context, id string) error
 		return nil
 	})
 	if err != nil {
-		if gerror.HasCode(err, &ecode.Success) {
+		if isBusinessReject(err) {
 			return err
 		}
 		return gerror.WrapCode(ecode.DatabaseError, err, "删除交易失败")
@@ -1272,7 +1290,7 @@ func (s *FinanceService) ReverseTransaction(ctx context.Context, id string) (*dt
 		return nil
 	})
 	if err != nil {
-		if gerror.HasCode(err, &ecode.Success) {
+		if isBusinessReject(err) {
 			return nil, err
 		}
 		return nil, gerror.WrapCode(ecode.DatabaseError, err, "冲正交易失败")
@@ -1377,7 +1395,8 @@ func (s *FinanceService) Transfer(ctx context.Context, req *dto.TransferReq) (*d
 		return nil
 	})
 	if err != nil {
-		if gerror.HasCode(err, &ecode.Success) {
+		// 余额不足 400301 等业务拒绝原样上抛，不再包成 500002（F1 / D-4）
+		if isBusinessReject(err) {
 			return nil, err
 		}
 		return nil, gerror.WrapCode(ecode.DatabaseError, err, "转账失败")
