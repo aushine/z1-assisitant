@@ -51,6 +51,7 @@ import type {
   UpdateTransactionReq,
 } from '@/api/types'
 import { nowISO, toLocalISOString } from '@/utils/date'
+import { ErrorCode } from '@/constants/auth-codes'
 import {
   FINANCE_MASK_KEY,
   SUMMARY_CARD_LEFT_KEY,
@@ -60,6 +61,17 @@ import {
 
 /** 交易每页条数（无限滚动） */
 const TX_PAGE_SIZE = 20
+
+/**
+ * 判断是否**业务拒绝**（后端已给明确文案、请求层已 toast）。
+ * 这类错误重试也没用（例如余额不足），不能再兜一句笼统的"请重试"。
+ */
+function isBusinessReject(e: unknown): boolean {
+  const code = (e as { code?: unknown } | null)?.code
+  if (typeof code !== 'number') return false
+  // 4xxxxx = 业务规则拒绝；排除鉴权（4010xx，由拦截器统一跳登录）与 404 资源缺失时仍提示
+  return code >= 400000 && code < 500000 && code !== ErrorCode.INTERNAL_ERROR
+}
 
 export const useFinanceStore = defineStore('finance', () => {
   // ==================== state：账户 ====================
@@ -407,7 +419,9 @@ export const useFinanceStore = defineStore('finance', () => {
       }
       const cur = transactions.value.findIndex((t) => t.id === optimisticTx.id)
       if (cur >= 0) transactions.value.splice(cur, 1)
-      showFailToast('记账失败，请重试')
+      // ⚠️ 业务拒绝（余额不足 400301 / 分类非法 400001）在拦截器里已弹出后端文案，
+      //    这里再兜一句「记账失败，请重试」会把真因盖掉（用户只看到"请重试"）。
+      if (!isBusinessReject(e)) showFailToast('记账失败，请重试')
       // eslint-disable-next-line no-console
       console.error('[FinanceStore] createTransaction rolled back', e)
       return null
