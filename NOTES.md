@@ -324,3 +324,11 @@ z1-assisitant/
 - main HEAD = 03426f5（= origin/main），工作区 clean；活跃批次 spec-20261001-v3(√)，phase=deployed
 - T-004-schedule(8b643f7) 已是 main 祖先，交付物（htlb 双端页 + 路由 + 入口）在 main 齐全
 - 自 75dfc5c 后无代码变更（仅 NOTES 文档提交）→ 幂等跳过部署，未发通知
+
+## 2026-10-21 05:30 · 状态机轮次 no-op
+
+- 活跃批次 spec-20261001-v3(√)：完成声明分支 T-004-schedule 已在 main 内（main..branch 为空，无需 merge）。
+- 逐条核验：双端 htlb 页（htlb.vue / htlb.tsx）存在；移动端路由 /me/htlb(MeHtlb)、入口 path 改站内；桌面端路由 me/htlb + navigate。
+- 线上 commit 75dfc5c 与 origin/main 之间仅 notes 提交（无代码差异），部署内容一致。
+- 自检：桌面 /z1/ 200、移动 /z1-app/ 200、api/health 200。
+- 结论：幂等跳过重复部署，未打扰群。
