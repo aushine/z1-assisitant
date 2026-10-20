@@ -319,3 +319,8 @@ z1-assisitant/
 - main HEAD = d57bd76（= origin/main）；活跃批次 spec-20261001-v3(√)，phase=deployed
 - T-004-schedule(8b643f7) 已是 main 祖先，htlb.vue / htlb.tsx 均在 main，无新增 commit
 - 无重复部署、无群通知（幂等跳过）
+
+## 2026-10-21 04:10 · 状态机轮次（no-op）
+- main HEAD = 03426f5（= origin/main），工作区 clean；活跃批次 spec-20261001-v3(√)，phase=deployed
+- T-004-schedule(8b643f7) 已是 main 祖先，交付物（htlb 双端页 + 路由 + 入口）在 main 齐全
+- 自 75dfc5c 后无代码变更（仅 NOTES 文档提交）→ 幂等跳过部署，未发通知
