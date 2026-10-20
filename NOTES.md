@@ -300,3 +300,9 @@ z1-assisitant/
   无代码变更 → 按幂等跳过部署。
 - 线上自检：`/z1/` 200、`/z1-app/` 200、`/z1/api/health` 200、`/htlb/HowToLiveBetter.html` 200。
 - ⚠️ 同一待办：`(√)` 批次未清理 + cron 每 10 分钟 → 反复复核同一批。需切到新批次或清理旧目录。
+
+## 2026-10-20 19:00 · 状态机轮次（no-op）
+- fetch 后 main HEAD = 82e2362（= origin/main，工作区 clean）
+- 活跃批次 spec-20261001-v3(√)；完成声明分支 T-004-schedule
+- 核验：origin/T-004-schedule(8b643f7) **已是 main 祖先**（merged，diff 为空）；htlb.vue / htlb.tsx 均在 main
+- 无新增 commit 待处理；phase=deployed，无重复部署、无群通知
