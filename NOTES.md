@@ -354,3 +354,9 @@ z1-assisitant/
 - 该分支已是 main 祖先（8b643f7 已合并，diff 为空）
 - 代码与已部署 commit 75dfc5c 一致（仅 NOTES.md 变化）
 - 判定：幂等跳过，未部署、未通知
+
+## 2026-10-22 02:10 · 状态机轮次（no-op）
+- FSM check：活跃批次 `spec-20261001-v3(√)`，阶段 `deployed`，完成声明分支 `T-004-schedule`。
+- 核验：分支提交 `8b643f7`（「性价比人生指南」iframe 内嵌页，双端）已是 `origin/main` 祖先 → 早已合并。
+- 幂等：`status` 显示 last_handled_commit `75dfc5c`，history 记录已 deployed；main HEAD `bf4c8ad` 无新代码 → 跳过部署。
+- 本轮 no-op，无新批次、无部署动作。
