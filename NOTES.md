@@ -343,3 +343,8 @@ z1-assisitant/
 - 活跃批次 spec-20261001-v3(√)，phase=deployed（线上 commit 75dfc5c）
 - T-004-schedule(8b643f7) 已是 main 祖先；main HEAD 7cf07f4 相对 75dfc5c 仅文档变更
 - 幂等跳过部署与群通知
+
+## 2026-10-21 21:00 状态机轮次
+
+- v3 已合并（8b643f7 为 main 祖先）、已部署（last_handled=75dfc5c9，phase=deployed）。
+- 本轮 no-op，无新批次、无部署动作。
