@@ -348,3 +348,9 @@ z1-assisitant/
 
 - v3 已合并（8b643f7 为 main 祖先）、已部署（last_handled=75dfc5c9，phase=deployed）。
 - 本轮 no-op，无新批次、无部署动作。
+
+## 2026-10-22 01:20 状态机轮次
+- 活跃批次 spec-20261001-v3(√)，完成声明分支 T-004-schedule
+- 该分支已是 main 祖先（8b643f7 已合并，diff 为空）
+- 代码与已部署 commit 75dfc5c 一致（仅 NOTES.md 变化）
+- 判定：幂等跳过，未部署、未通知
