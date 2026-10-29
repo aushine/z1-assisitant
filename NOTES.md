@@ -360,3 +360,19 @@ z1-assisitant/
 - 核验：分支提交 `8b643f7`（「性价比人生指南」iframe 内嵌页，双端）已是 `origin/main` 祖先 → 早已合并。
 - 幂等：`status` 显示 last_handled_commit `75dfc5c`，history 记录已 deployed；main HEAD `bf4c8ad` 无新代码 → 跳过部署。
 - 本轮 no-op，无新批次、无部署动作。
+
+## 2026-10-29 21:00-23:00 · Pi USB 换线引发容器事故与恢复（重要）
+- **起因**：用户给 Pi 和硬盘盒换了根线（USB 2.0→3.0，识别 5000M/uas 驱动，速度 SSD 198MB/s、HDD 126MB/s）。
+- **事故链**：换线后拔插 USB 期间（约 20:15），/opt（SSD sdb1）出现 EXT4 I/O error → docker/containerd 数据层（overlay2/image）丢失 → 5 个容器全部挂掉；重新挂载后容器元数据在但镜像层丢失。
+- **恢复过程**：
+  1. 重新挂载 /opt、/data/hot、/data/cold（UUID 不变，数据完好）
+  2. 重建 docker bind 挂载（/opt/docker→/var/lib/docker、/opt/containerd→/var/lib/containerd）
+  3. containerd 元数据损坏 → 删 meta.db 重建，重新拉镜像
+  4. redis/mysql/qdrant/z1-api 镜像直接拉取成功（daocloud/1ms.run），容器由 compose 重建，数据在 /opt/runtime/* 全部完好（MySQL 有 halo、life_assistant 库）
+  5. **halo:2.27 arm64 镜像下载难题**：Pi 上 4 个镜像源全卡（家庭宽带对境外 CDN 慢/连接重置）；VPS 拉 amd64 成功但架构不对（exec format error）；最终 VPS 用 `docker pull --platform linux/arm64` + 重试循环成功，docker save 后 scp 到 Pi（563M），docker load 成功
+- **当前状态**：5 容器全 Up（halo/z1api/qdrant/mysql healthy/redis），voz21.cn 对外 200，copyparty 已重启，dsh-web/dsh-token-api 正常。
+- **教训**：
+  - 换 USB 线/拔插硬盘前应先停 docker/containerd，避免 I/O 错误损坏 overlay2
+  - docker 镜像层数据（overlay2/image）没有备份策略（pi-backup 只备业务数据），镜像需重新拉取
+  - Pi 拉大镜像（>300M）极易卡死，VPS 中转（save→scp→load）是可靠路径；arm64 镜像需 VPS `--platform linux/arm64` 拉取
+  - daemon.json 镜像源：daocloud + 1ms.run 可用，xuanyuan 超时已移除
